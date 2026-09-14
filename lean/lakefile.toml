@@ -1,0 +1,10 @@
+name = "Distill"
+version = "0.1.0"
+defaultTargets = ["distill"]
+
+[[lean_lib]]
+name = "Distill"
+
+[[lean_exe]]
+name = "distill"
+root = "Main"

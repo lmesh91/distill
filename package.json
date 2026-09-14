@@ -1,0 +1,14 @@
+{
+  "name": "distill",
+  "version": "0.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=@distill/web",
+    "dev:api": "npm run dev --workspace=@distill/api",
+    "check:web": "npm run check --workspace=@distill/web",
+    "check:api": "npm run typecheck --workspace=@distill/api"
+  }
+}
