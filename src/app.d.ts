@@ -9,6 +9,16 @@ declare global {
 		// interface PageState {}
 		// interface Platform {}
 	}
+
+	/**
+	 * Extra claims we add to Clerk's session token (Clerk Dashboard → Sessions →
+	 * Customize session token). See docs/decisions/0001-admin-status-storage.md.
+	 */
+	interface CustomJwtSessionClaims {
+		metadata?: {
+			role?: 'admin';
+		};
+	}
 }
 
 export {};
