@@ -1,5 +1,6 @@
 import { env } from '$env/dynamic/private';
 import { MongoClient, ServerApiVersion } from 'mongodb';
+import { ensureIndexes } from './indexes';
 
 let mongoClient: MongoClient | undefined;
 let connection: Promise<MongoClient> | undefined;
@@ -31,6 +32,7 @@ export async function connectDatabase() {
 		.connect()
 		.then(async () => {
 			await getDatabase().command({ ping: 1 });
+			await ensureIndexes();
 			return client;
 		})
 		.catch((error: unknown) => {
