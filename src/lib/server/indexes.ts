@@ -10,6 +10,8 @@ export function ensureIndexes() {
 async function doEnsureIndexes() {
 	const levels = getLevels();
 
+    // for users: if we make global xp leaderboard,
+    // we can add an index on totalXP
 	await Promise.all([
 		levels.createIndex({ slug: 1 }, { unique: true, name: 'levels_slug_unique' }),
 		levels.createIndex(
