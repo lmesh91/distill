@@ -17,4 +17,16 @@ npm install
 npm run dev
 ```
 
+### Clerk webhooks
+
+Clerk notifies the app when users are created, updated, or deleted by sending webhooks to `/api/webhooks/clerk`, which keeps the `users` collection in MongoDB in sync. Clerk can't reach `localhost`, so during development you must keep an [ngrok](https://ngrok.com) tunnel running alongside `npm run dev`:
+
+```sh
+ngrok http 5173 --url=https://<your-dev-domain>.ngrok-free.app
+```
+
+In the Clerk dashboard (development instance), add a webhook endpoint at `https://<your-dev-domain>.ngrok-free.app/api/webhooks/clerk` subscribed to `user.created`, `user.updated`, and `user.deleted`, and put its signing secret in `.env` as `CLERK_WEBHOOK_SIGNING_SECRET`. If the tunnel isn't running, sign-ups still succeed in Clerk but no MongoDB user is created; failed deliveries are retried and can be replayed from the Clerk dashboard.
+
+> **Note:** Once the app is deployed to a real domain, add a separate webhook endpoint at `https://<domain>/api/webhooks/clerk` in the **production** Clerk instance and set its signing secret as `CLERK_WEBHOOK_SIGNING_SECRET` in the production environment.
+
 Use `npm run check` for Svelte and TypeScript checks, and `npm run build` for a production build.

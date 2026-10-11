@@ -3,6 +3,10 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+	server: {
+		// Lets the ngrok tunnel forward Clerk webhooks to the dev server.
+		allowedHosts: ['.ngrok-free.dev']
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {
