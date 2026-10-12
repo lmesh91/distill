@@ -30,3 +30,5 @@ npm run relay
 ```
 
 Then open `/app/lean` to try it. `npm run test:relay` checks the relay against a real Lean server.
+
+`npm run test:editor` checks document synchronization, stale-result filtering, and connection cleanup.
