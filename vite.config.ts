@@ -3,6 +3,11 @@ import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
+	server: {
+		proxy: {
+			'/lean': { target: 'ws://127.0.0.1:8081', ws: true }
+		}
+	},
 	plugins: [
 		sveltekit({
 			compilerOptions: {

@@ -18,3 +18,15 @@ npm run dev
 ```
 
 Use `npm run check` for Svelte and TypeScript checks, and `npm run build` for a production build.
+
+## Lean
+
+Proofs are checked with the Lake project in `lean/`, which pins the Lean version in `lean/lean-toolchain`. Install [elan](https://github.com/leanprover/elan) so that `lake` is on your PATH, and use Node 24.
+
+The browser talks to Lean's language server through a WebSocket relay, which starts `lake serve` in `lean/` for each connection and forwards messages in both directions. The dev server proxies `/lean` to the relay, so run it alongside `npm run dev`:
+
+```sh
+npm run relay
+```
+
+Then open `/app/lean` to try it. `npm run test:relay` checks the relay against a real Lean server.
