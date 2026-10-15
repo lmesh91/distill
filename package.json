@@ -35,6 +35,7 @@
 		"vite": "^8.0.16"
 	},
 	"dependencies": {
+		"@clerk/backend": "^3.23.2",
 		"mongodb": "^7.6.0",
 		"svelte-clerk": "^1.1.15",
 		"vscode-jsonrpc": "^9.0.3",

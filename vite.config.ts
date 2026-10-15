@@ -4,6 +4,8 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	server: {
+		// Lets the ngrok tunnel forward Clerk webhooks to the dev server.
+		allowedHosts: ['.ngrok-free.dev'],
 		proxy: {
 			'/lean': { target: 'ws://127.0.0.1:8081', ws: true }
 		}
