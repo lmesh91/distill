@@ -11,6 +11,7 @@ function getMongoClient() {
 	}
 
 	mongoClient ??= new MongoClient(env.MONGODB_URI, {
+		ignoreUndefined: true,
 		serverApi: {
 			version: ServerApiVersion.v1,
 			strict: true,
