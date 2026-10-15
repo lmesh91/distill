@@ -6,9 +6,10 @@
 	"scripts": {
 		"dev": "vite dev",
 		"relay": "node relay/server.ts",
-		"test": "node --test relay/server.test.ts src/lib/lean/client.test.ts",
+		"test": "node --test relay/server.test.ts src/lib/lean/client.test.ts src/lib/server/lean.test.ts",
 		"test:relay": "node --test relay/server.test.ts",
 		"test:editor": "node --test src/lib/lean/client.test.ts",
+		"test:submissions": "node --test src/lib/server/lean.test.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
