@@ -11,7 +11,7 @@
 		"test:editor": "node --test src/lib/lean/client.test.ts",
 		"test:submissions": "node --test src/lib/server/lean.test.ts",
         "test:initial-code": "node --test src/lib/levels/initialCode.test.ts",
-        "test:redirects": "node --test src/lib/server/redirects.test.ts"
+        "test:redirects": "node --test src/lib/server/redirects.test.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
