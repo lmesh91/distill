@@ -31,6 +31,6 @@ npm run relay
 
 Then open `/app/lean` to try it.
 
-Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PATH. The individual test are as follows:
+Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PATH. The individual tests are as follows:
 - `npm run test:relay`: checks connectivity against a Lean server.
 - `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
