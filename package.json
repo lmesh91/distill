@@ -7,6 +7,7 @@
 		"dev": "vite dev",
 		"relay": "node relay/server.ts",
 		"test:relay": "node --test relay/server.test.ts",
+		"test:submissions": "node --test src/lib/server/lean.test.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",

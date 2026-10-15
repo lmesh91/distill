@@ -42,3 +42,6 @@ npm run relay
 ```
 
 Then open `/app/lean` to try it. `npm run test:relay` checks the relay against a real Lean server.
+
+Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
+for setup, request and response formats, limits, and testing.

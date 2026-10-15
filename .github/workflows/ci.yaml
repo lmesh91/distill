@@ -39,3 +39,13 @@ jobs:
       - uses: leanprover/lean-action@v1
         with:
           lake-package-directory: lean
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test Lean submissions
+        run: npm run test:submissions
