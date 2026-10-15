@@ -41,7 +41,12 @@ The browser talks to Lean's language server through a WebSocket relay, which sta
 npm run relay
 ```
 
-Then open `/app/lean` to try it. `npm run test:relay` checks the relay against a real Lean server.
+Then open `/app/lean` to try it.
+
+Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PATH. The individual tests are as follows:
+- `npm run test:relay`: checks connectivity against a Lean server.
+- `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
+- `npm run test:submissions`: check code submission functionality
 
 Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
 for setup, request and response formats, limits, and testing.
