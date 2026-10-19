@@ -47,6 +47,7 @@ Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PA
 - `npm run test:relay`: checks connectivity against a Lean server.
 - `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
 - `npm run test:submissions`: check code submission functionality
+- `npm run test:admin`: checks administrator access rules for pages, form actions, and APIs, including rejection of unauthenticated and non-administrator users. Runs without Clerk or MongoDB.
 
 Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
 for setup, request and response formats, limits, and testing.

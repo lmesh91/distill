@@ -12,7 +12,7 @@ declare global {
 
 	/**
 	 * Extra claims we add to Clerk's session token (Clerk Dashboard → Sessions →
-	 * Customize session token). See docs/decisions/0001-admin-status-storage.md.
+	 * Customize session token). See docs/api/README.md.
 	 */
 	interface CustomJwtSessionClaims {
 		metadata?: {
