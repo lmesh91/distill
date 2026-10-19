@@ -1,5 +1,19 @@
 # API
 
+## Route protection
+
+The server hook checks Clerk sessions before database access or route execution.
+All `/app` pages and their descendants require an account. Signed-out requests
+redirect to `/sign-in` with a `redirect_url` that preserves the requested page and
+query string. The guard runs for page loads, client navigation data requests, and
+form actions.
+
+All `/api` routes require a session and return JSON with status 401 when signed out,
+except `/api/webhooks/clerk`, which verifies Clerk's webhook signature instead.
+The home page, sign-in and sign-up flows, and `/health` remain public.
+New routes under `/app` and `/api` inherit these rules. Run `npm run test:auth` to
+check the route policy without Clerk or MongoDB credentials.
+
 ## Code submissions
 
 `POST /api/submissions` accepts an authenticated Clerk session and a JSON body:
