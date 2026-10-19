@@ -101,7 +101,11 @@
 
 <style>
 	.lean-editor {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
 		min-width: 0;
+		min-height: 0;
 		overflow: hidden;
 		border: 2px solid #4a4a4a;
 		border-radius: 6px;
@@ -115,6 +119,7 @@
 	}
 
 	h2 {
+		flex: none;
 		margin: 0;
 		padding: 8px 12px;
 		border-bottom: 2px solid #777;
@@ -125,7 +130,8 @@
 	}
 
 	.editor-container {
-		height: var(--lean-editor-height, 400px);
+		flex: 1 1 var(--lean-editor-height, 400px);
+		min-height: 0;
 	}
 
 	.keyboard-help {
