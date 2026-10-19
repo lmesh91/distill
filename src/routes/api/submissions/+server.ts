@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { readJsonBody } from '../../../lib/server/body.ts';
 import { compileLean } from '../../../lib/server/lean.ts';
 import type { RequestHandler } from './$types';
 
@@ -8,34 +9,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 	if (!locals.auth().userId) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
-	if (request.headers.get('content-type')?.split(';')[0].trim() !== 'application/json') {
-		return json({ error: 'Expected application/json' }, { status: 415 });
-	}
-
-	// Limit the streamed body too: Content-Length can be missing or inaccurate.
-	const reader = request.body?.getReader();
-	const chunks: Uint8Array[] = [];
-	let size = 0;
-	let body: unknown;
-	try {
-		if (reader) {
-			while (true) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				size += value.byteLength;
-				if (size > maxBodyBytes) {
-					await reader.cancel();
-					return json({ error: 'Submission is too large' }, { status: 413 });
-				}
-				chunks.push(value);
-			}
-		}
-		body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-	} catch {
-		return json({ error: 'Invalid JSON body' }, { status: 400 });
-	} finally {
-		reader?.releaseLock();
-	}
+	const parsed = await readJsonBody(request, maxBodyBytes, 'Submission is too large');
+	if (!parsed.ok) return parsed.response;
+	const { body } = parsed;
 	if (
 		!body ||
 		typeof body !== 'object' ||
