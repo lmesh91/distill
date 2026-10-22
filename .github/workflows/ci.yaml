@@ -27,6 +27,9 @@ jobs:
         with:
           lake-package-directory: lean
 
+      - name: Install Lean sandbox
+        run: sudo apt-get update && sudo apt-get install -y bubblewrap
+
       - name: Run tests
         run: npm run test
 
