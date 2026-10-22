@@ -35,6 +35,13 @@ Use `npm run check` for Svelte and TypeScript checks, and `npm run build` for a 
 
 Proofs are checked with the Lake project in `lean/`, which pins the Lean version in `lean/lean-toolchain`. Install [elan](https://github.com/leanprover/elan) so that `lake` is on your PATH, and use Node 24.
 
+Submission compilation also requires Linux and [Bubblewrap](https://github.com/containers/bubblewrap)
+(`bwrap` on PATH, version 0.8 or newer), with unprivileged user namespaces enabled.
+On Ubuntu/Debian, install it with `sudo apt-get install bubblewrap`. Run
+`lake build Distill` in `lean/` to build the trusted imports. Each submission runs
+in an isolated sandbox; there is no unsandboxed fallback. On macOS or Windows,
+run the backend in a Linux VM or WSL2 with these prerequisites.
+
 The browser talks to Lean's language server through a WebSocket relay, which starts `lake serve` in `lean/` for each connection and forwards messages in both directions. The dev server proxies `/lean` to the relay, so run it alongside `npm run dev`:
 
 ```sh
@@ -43,7 +50,9 @@ npm run relay
 
 Then open `/app/lean` to try it.
 
-Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PATH. The individual tests are as follows:
+Run `npm run test` to run all tests. This requires Node 24, `lake`, and the Linux
+Bubblewrap setup above. The individual tests are as follows:
+
 - `npm run test:relay`: checks connectivity against a Lean server.
 - `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
 - `npm run test:submissions`: check code submission functionality
