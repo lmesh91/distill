@@ -22,20 +22,32 @@
 
 <svelte:head><title>{data.level.title} · Distill</title></svelte:head>
 
-<LevelLayout title={data.level.title} mode={data.level.type}>
+{#snippet proofHelp()}
+	<h2>Build your proof</h2>
+	<p>
+		Write a Lean proof of the target statement in the editor. Replace any
+		<code>sorry</code> placeholders with your own proof steps. Lean checks your code as you type; use
+		the Lean output to work through errors and unfinished goals.
+	</p>
+{/snippet}
+
+<LevelLayout
+	title={data.level.title}
+	help={data.level.type === 'from-scratch' ? proofHelp : undefined}
+>
 	{#snippet toolbar()}
-		{#if data.level.hints.length > 0}
+		{#if data.level.type !== 'from-scratch' && data.level.hints.length > 0}
 			<button class="hints" type="button">Hints</button>
 		{/if}
 	{/snippet}
 
 	{#snippet goal()}
-		<p>{data.level.statement}</p>
+		<p class="statement">{data.level.statement}</p>
 	{/snippet}
 
 	{#snippet brief()}
 		<h2>Description</h2>
-		<p>{data.level.description}</p>
+		<p class="description">{data.level.description}</p>
 	{/snippet}
 
 	{#snippet editor()}
@@ -64,6 +76,12 @@
 </LevelLayout>
 
 <style>
+	.statement,
+	.description {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+	}
+
 	.hints {
 		padding: 0.375rem 1rem;
 		border: 1px solid #4a4a4a;

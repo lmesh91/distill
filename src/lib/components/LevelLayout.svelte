@@ -2,12 +2,12 @@
 	import { onMount, type Snippet } from 'svelte';
 	import { resolve } from '$app/paths';
 	import ResizeHandle from '$lib/components/ResizeHandle.svelte';
-	import type { LevelType } from '$lib/types/level';
+	import LevelHelp from '$lib/components/LevelHelp.svelte';
 
 	let {
 		title,
-		mode,
 		toolbar,
+		help,
 		goal,
 		brief,
 		editor,
@@ -16,8 +16,8 @@
 		translation
 	}: {
 		title: string;
-		mode: LevelType;
 		toolbar?: Snippet;
+		help?: Snippet;
 		goal: Snippet;
 		brief?: Snippet;
 		editor: Snippet;
@@ -135,9 +135,13 @@
 			<a class="back" href={resolve('/app')}><span aria-hidden="true">←</span> Map</a>
 			<h1>{title}</h1>
 		</div>
-		<span class="mode">{mode}</span>
-		{#if toolbar}
-			<div class="toolbar">{@render toolbar()}</div>
+		{#if toolbar || help}
+			<div class="toolbar">
+				{@render toolbar?.()}
+				{#if help}
+					<LevelHelp>{@render help()}</LevelHelp>
+				{/if}
+			</div>
 		{/if}
 	</header>
 
@@ -222,7 +226,7 @@
 
 	.top-bar {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
 		gap: 1.5rem;
 		margin-bottom: 1rem;
@@ -253,17 +257,9 @@
 		font-size: 1.25rem;
 	}
 
-	.mode {
-		padding: 0.125rem 0.75rem;
-		border: 1px solid #4a4a4a;
-		border-radius: 999px;
-		font-size: 0.75rem;
-		font-weight: 600;
-	}
-
 	.toolbar {
 		display: flex;
-		grid-column: 3;
+		grid-column: 2;
 		justify-self: end;
 		align-items: center;
 		gap: 0.75rem;
