@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { ObjectId } from 'mongodb';
 import { getLevels, getUserLevelProgresses } from '$lib/server/collections';
-import { getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
+import { getNextLevelSlug, getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
 import { getSavedProgress } from '$lib/server/progress';
 import { getInitialCode } from '$lib/levels/initialCode';
 import type { PageServerLoad } from './$types';
@@ -32,9 +32,19 @@ export const load: PageServerLoad = async ({ locals, url, params }) => {
 		error(503, 'Could not load your progress');
 	}
 
+	// where "Next level" goes after completing this one. Not worth failing the page over
+	let nextLevelSlug: string | null = null;
+	try {
+		nextLevelSlug = await getNextLevelSlug(getLevels(), level);
+	} catch (err) {
+		console.error('Finding the next level failed:', err);
+	}
+
 	return {
 		level,
 		initialCode: getInitialCode(level, progress),
-		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null
+		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null,
+		completed: progress?.status === 'completed',
+		nextLevelSlug
 	};
 };
