@@ -1,6 +1,8 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getLevels } from '$lib/server/collections';
+import { ObjectId } from 'mongodb';
+import { getLevels, getUserLevelProgresses } from '$lib/server/collections';
 import { getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
+import { getSavedProgress } from '$lib/server/progress';
 import { getInitialCode } from '$lib/levels/initialCode';
 import type { PageServerLoad } from './$types';
 
@@ -21,5 +23,18 @@ export const load: PageServerLoad = async ({ locals, url, params }) => {
 		error(404, 'Level not found');
 	}
 
-	return { level, initialCode: getInitialCode(level) };
+	// the user's saved code for this level, so autosaved work comes back after a reload
+	let progress: Awaited<ReturnType<typeof getSavedProgress>>;
+	try {
+		progress = await getSavedProgress(getUserLevelProgresses(), userId, new ObjectId(level.id));
+	} catch (err) {
+		console.error('Loading level progress failed:', err);
+		error(503, 'Could not load your progress');
+	}
+
+	return {
+		level,
+		initialCode: getInitialCode(level, progress),
+		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null
+	};
 };
