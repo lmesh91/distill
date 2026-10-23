@@ -2,6 +2,24 @@ import { MongoServerError, type Collection, type ObjectId } from 'mongodb';
 import type { Level } from '$lib/types/level';
 import type { UserLevelProgress } from '$lib/types/progress';
 
+// the parts of a user's progress on one level that the level page needs, or null if none
+export async function getSavedProgress(
+	progress: Pick<Collection<UserLevelProgress>, 'findOne'>,
+	userId: string,
+	levelId: ObjectId
+): Promise<Pick<UserLevelProgress, 'status' | 'currentCode' | 'clientSavedAt'> | null> {
+	const record = await progress.findOne(
+		{ userId, levelId },
+		{ projection: { _id: 0, status: 1, currentCode: 1, clientSavedAt: 1 } }
+	);
+	if (!record) return null;
+	return {
+		status: record.status,
+		currentCode: record.currentCode,
+		clientSavedAt: record.clientSavedAt
+	};
+}
+
 export type SaveLevelProgressResult = 'saved' | 'stale' | 'level_not_found';
 
 export interface SaveLevelProgressInput {
@@ -14,11 +32,11 @@ export interface SaveLevelProgressInput {
 const duplicateKeyErrorCode = 11000;
 
 /**
- * Saves the user's in-progress code for one level.
+ * saves the user's in-progress code for one level
  *
- * The write only applies if `clientSavedAt` is newer than the stored one, so a delayed
- * older request can't overwrite newer code. A `completed` status is never downgraded,
- * and submission fields (attempts, errors, completion) are left untouched.
+ * the write only applies if `clientSavedAt` is newer than the stored one, so a delayed
+ * older request can't overwrite newer code. a `completed` status is never downgraded,
+ * and submission fields (attempts, errors, completion) are left untouched
  */
 export async function saveLevelProgress(
 	levels: Pick<Collection<Level>, 'findOne'>,
@@ -39,7 +57,7 @@ export async function saveLevelProgress(
 			[
 				{
 					$set: {
-						// $literal: user code may start with `$`, which a pipeline would read as a field path.
+						// $literal: user code may start with `$`, which a pipeline would read as a field path
 						currentCode: { $literal: code },
 						clientSavedAt: { $literal: clientSavedAt },
 						status: {
@@ -53,7 +71,7 @@ export async function saveLevelProgress(
 			{ upsert: true }
 		);
 	} catch (error) {
-		// The record exists but has a newer save, so the upsert tried to insert a duplicate.
+		// the record exists but has a newer save, so the upsert tried to insert a duplicate
 		if (error instanceof MongoServerError && error.code === duplicateKeyErrorCode) {
 			return 'stale';
 		}
