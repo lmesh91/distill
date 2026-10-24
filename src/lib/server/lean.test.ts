@@ -6,7 +6,11 @@ import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { test } from 'node:test';
 import { compileLean } from './lean.ts';
-import { POST } from '../../routes/api/submissions/+server.ts';
+import { createSubmissionHandler } from './submissions.ts';
+
+const POST = createSubmissionHandler(async () => ({
+	verification: { theoremName: 'target', challengeSource: 'theorem target : 2 + 2 = 4 := by sorry' }
+}));
 
 function submit(body: string, userId: string | null = 'test-user', type = 'application/json') {
 	return POST({
@@ -21,21 +25,29 @@ function submit(body: string, userId: string | null = 'test-user', type = 'appli
 
 test('batch compiler checks source using the pinned project and its imports', async () => {
 	const result = await compileLean('import Distill\nexample : hello = "world" := rfl\n');
-	assert.deepEqual(result, { compiled: true, exitCode: 0, stdout: '', stderr: '' });
+	assert.deepEqual(result, {
+		compiled: true,
+		exitCode: 0,
+		stdout: '',
+		stderr: '',
+		diagnostics: []
+	});
 });
 
 test('compilation errors are results, with Lean source locations and output preserved', async () => {
 	const result = await compileLean('example : 1 + 1 = 3 := rfl\n');
 	assert.equal(result.compiled, false);
 	assert.equal(result.exitCode, 1);
-	assert.match(result.stdout, /<stdin>:1:23: error:/);
+	assert.equal(result.diagnostics[0].severity, 'error');
+	assert.deepEqual(result.diagnostics[0].position, { line: 1, column: 23 });
 	assert.match(result.stdout, /Type mismatch/);
 });
 
-test('warnings are retained for the later proof-validation layer', async () => {
+test('warnings are returned as structured diagnostics', async () => {
 	const result = await compileLean('example : True := by sorry\n');
 	assert.equal(result.compiled, true);
-	assert.match(result.stdout, /warning: declaration uses `sorry`/);
+	assert.equal(result.diagnostics[0].severity, 'warning');
+	assert.match(result.diagnostics[0].message, /declaration uses `sorry`/);
 });
 
 test('excessive compiler output fails without returning an unbounded response', async () => {
@@ -205,9 +217,11 @@ test('sandbox setup errors fail closed and return a generic API error', async (t
 		);
 		process.env.PATH = `${directory}:${previous}`;
 		await assert.rejects(compileLean('example : True := by trivial'), /Lean sandbox failed/);
-		const response = await submit(JSON.stringify({ source: 'example : True := by trivial' }));
+		const response = await submit(
+			JSON.stringify({ levelSlug: 'test-level', source: 'example : True := by trivial' })
+		);
 		assert.equal(response.status, 503);
-		assert.deepEqual(await response.json(), { error: 'Lean compilation service unavailable' });
+		assert.deepEqual(await response.json(), { error: 'Lean verification service unavailable' });
 	} finally {
 		process.env.PATH = previous;
 		await rm(directory, { recursive: true, force: true });
@@ -227,9 +241,11 @@ test('missing Bubblewrap never falls back to running Lean on the host', async (t
 		await symlink(lake, join(directory, 'lake'));
 		process.env.PATH = directory;
 		await assert.rejects(compileLean('example : True := by trivial'), /spawn bwrap ENOENT/);
-		const response = await submit(JSON.stringify({ source: 'example : True := by trivial' }));
+		const response = await submit(
+			JSON.stringify({ levelSlug: 'test-level', source: 'example : True := by trivial' })
+		);
 		assert.equal(response.status, 503);
-		assert.deepEqual(await response.json(), { error: 'Lean compilation service unavailable' });
+		assert.deepEqual(await response.json(), { error: 'Lean verification service unavailable' });
 	} finally {
 		if (previous === undefined) delete process.env.PATH;
 		else process.env.PATH = previous;
@@ -263,21 +279,23 @@ test('submission API validates its content type, JSON, and source', async () => 
 });
 
 test('submission API limits request bodies without relying on Content-Length', async () => {
-	const response = await submit(JSON.stringify({ source: 'a'.repeat(256 * 1024) }));
+	const response = await submit(
+		JSON.stringify({ levelSlug: 'test-level', source: 'a'.repeat(256 * 1024) })
+	);
 	assert.equal(response.status, 413);
 });
 
 test('submission API returns compilation outcomes for valid and invalid proofs', async () => {
 	for (const [source, compiled] of [
-		['example : 2 + 2 = 4 := rfl\n', true],
-		['example : 2 + 2 = 5 := rfl\n', false]
+		['theorem target : 2 + 2 = 4 := rfl\n', true],
+		['theorem target : 2 + 2 = 4 := by rflx\n', false]
 	] as const) {
-		const response = await submit(JSON.stringify({ source }));
+		const response = await submit(JSON.stringify({ levelSlug: 'test-level', source }));
 		assert.equal(response.status, 200);
 		assert.equal(response.headers.get('cache-control'), 'no-store');
 		const result = await response.json();
 		assert.equal(result.compiled, compiled);
-		assert.equal(result.exitCode, compiled ? 0 : 1);
+		assert.equal(result.accepted, compiled);
 	}
 });
 
@@ -287,9 +305,11 @@ test('runtime failures reject in the service and become a generic API error', as
 	t.mock.method(console, 'error', () => {});
 	try {
 		await assert.rejects(compileLean('example : True := by trivial'), /ENOENT/);
-		const response = await submit(JSON.stringify({ source: 'example : True := by trivial' }));
+		const response = await submit(
+			JSON.stringify({ levelSlug: 'test-level', source: 'example : True := by trivial' })
+		);
 		assert.equal(response.status, 503);
-		assert.deepEqual(await response.json(), { error: 'Lean compilation service unavailable' });
+		assert.deepEqual(await response.json(), { error: 'Lean verification service unavailable' });
 	} finally {
 		if (previous === undefined) delete process.env.LEAN_PROJECT_DIR;
 		else process.env.LEAN_PROJECT_DIR = previous;

@@ -38,7 +38,7 @@ Proofs are checked with the Lake project in `lean/`, which pins the Lean version
 Submission compilation also requires Linux and [Bubblewrap](https://github.com/containers/bubblewrap)
 (`bwrap` on PATH, version 0.8 or newer), with unprivileged user namespaces enabled.
 On Ubuntu/Debian, install it with `sudo apt-get install bubblewrap`. Run
-`lake build Distill` in `lean/` to build the trusted imports. Each submission runs
+`lake build` in `lean/` to build the trusted imports and verification helper. Each submission runs
 in an isolated sandbox; there is no unsandboxed fallback. On macOS or Windows,
 run the backend in a Linux VM or WSL2 with these prerequisites.
 
@@ -55,7 +55,7 @@ Bubblewrap setup above. The individual tests are as follows:
 
 - `npm run test:relay`: checks connectivity against a Lean server.
 - `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
-- `npm run test:submissions`: check code submission functionality
+- `npm run test:submissions`: check sandbox isolation, structured diagnostics, and proof verification
 
-Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
+Submissions use Lean 4.35.0’s `lake comparator` to check the required theorem against a trusted level challenge. Level authors must configure the `verification` field described in the API documentation; existing levels without it return 503 when submitted. Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
 for setup, request and response formats, limits, and testing.

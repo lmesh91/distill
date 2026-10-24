@@ -2,59 +2,141 @@
 
 ## Code submissions
 
-`POST /api/submissions` accepts an authenticated Clerk session and a JSON body:
+`POST /api/submissions` requires an authenticated Clerk session and a JSON body:
 
 ```json
-{ "source": "import Distill\nexample : hello = \"world\" := rfl\n" }
+{
+	"levelSlug": "hello-world",
+	"source": "import Distill\ntheorem hello_world : hello = \"world\" := rfl\n"
+}
 ```
 
-Each submission starts a fresh `lean --stdin` compiler inside a Linux Bubblewrap
-sandbox. The server uses `lake env` on the trusted project to resolve the pinned
-toolchain and prebuilt imports; submitted code is only sent to the sandboxed
-compiler. This runs independently of the editor's WebSocket relay; the relay does
-not need to be running. Run `lake build Distill` from `lean/`
-before submitting code to build the project's imports. Start the app from the
-repository root, or export `LEAN_PROJECT_DIR` in the server's process environment
-with the absolute project directory.
+The server looks up the published level by slug and uses its trusted verification
+configuration. The client cannot choose the challenge, theorem name, or permitted
+axioms. Missing or unpublished levels return 404. Existing levels without a valid
+verification configuration return 503; there is no compilation-only acceptance path.
 
-The endpoint waits for compilation and returns HTTP 200 for both successful and
-failed compilations:
+### Level configuration
+
+Level authors must store a `verification` field on each submittable level:
 
 ```json
-{ "compiled": true, "exitCode": 0, "stdout": "", "stderr": "" }
+{
+	"verification": {
+		"theoremName": "hello_world",
+		"challengeSource": "import Distill\ntheorem hello_world : hello = \"world\" := by sorry\n"
+	}
+}
 ```
 
-Compiler output is preserved as text; source locations refer to `<stdin>`.
-`compiled` means Lean exited successfully, not that the proof meets a level's
-requirements. Lean warnings (including `sorry`) remain in the output. Structured
-diagnostics and proof acceptance rules are tracked in #78–#85.
+`challengeSource` is a complete, trusted Lean module specifying the target theorem,
+its binders, namespaces, and supporting definitions/imports. Use canonical fully
+qualified names such as `Exercise.hello_world` in `theoremName`. The challenge must
+define that name as a theorem. Its proof may contain `sorry`; challenge warnings do
+not reject a submission. Do not derive this configuration from submitted code or
+editable starter code. The level page loader does not send this field to the browser.
+`statement` and `expectedGoal` remain display fields, not verification specifications.
+
+### Results
+
+HTTP 200 returns a verification result for both accepted and rejected submissions:
+
+```json
+{
+	"accepted": true,
+	"compiled": true,
+	"reason": "accepted",
+	"diagnostics": [],
+	"verification": {
+		"theoremName": "hello_world",
+		"dependencies": ["hello", "Eq.refl", "Eq", "String"],
+		"axioms": [],
+		"introducedAxioms": []
+	}
+}
+```
+
+The dependency list is illustrative; its contents depend on the elaborated proof.
+`accepted` is the authoritative verdict. `compiled` only means the compiler exited
+successfully. Acceptance requires all of the following:
+
+- No Lean errors or warnings anywhere in the submitted module. Informational
+  messages and ordinary `#eval` text do not reject a submission. Malformed
+  JSON-like compiler output fails closed rather than silently hiding diagnostics.
+- The required name exists and is a theorem with exactly the challenge's type,
+  including its binders and universe parameters.
+- Lean 4.35.0's `lake comparator` confirms that the definitions behind the target
+  statement match the challenge, that the proof uses only `propext`, `Quot.sound`,
+  and `Classical.choice`, and that independent kernel replay accepts the export.
+- No new axiom declarations appear relative to the challenge's trusted environment,
+  even when unused. Existing imported axioms do not grant permission to use them in
+  the proof: comparator still enforces the three-axiom allowlist. Suppressing a
+  `sorry` warning therefore cannot make a proof using `sorryAx` acceptable.
+
+Rejection reasons are `diagnostics`, `missing_theorem`, `introduced_axioms`, or
+`verification_failed`. Verification details are `null` when compilation or export
+prevents inspection. Otherwise they include transitive proof dependencies, used
+axioms, and newly introduced axioms. A comparator rejection also has a `message`.
+These details are explanatory; they never override `accepted`.
+
+Diagnostics use Lean's JSON output, with severity `error`, `warning`, or
+`information`, a `message`, and optional `fileName`, `position`, and `endPosition`:
+
+```json
+{
+	"severity": "warning",
+	"message": "declaration uses `sorry`",
+	"fileName": "/submission/Solution.lean",
+	"position": { "line": 2, "column": 8 },
+	"endPosition": { "line": 2, "column": 19 }
+}
+```
+
+Lines are one-based and columns are zero-based, as emitted by Lean. Source locations
+refer to the submitted module without prepended server code. Raw stdout is not a
+verification protocol and is not returned by this endpoint. Results are not cached.
 
 Invalid input returns 400, missing authentication 401, bodies over 256 KiB 413,
-and unsupported content types 415. A runtime failure returns 503. The compiler
-has basic guards of 30 seconds and 1 MiB of combined output.
+and unsupported content types 415. Service failures (including sandbox startup,
+missing helper/toolchain, timeout, or output limit) return a generic 503. An invalid
+trusted challenge is a configuration/service error, not a rejected user proof.
 
-Lean can execute arbitrary code during compilation, including through `#eval`,
-macros, and elaborators. Each submission therefore gets fresh temporary `/work`
-and `/tmp` filesystems, isolated network/PID/IPC/user namespaces, no capabilities,
-and a clean environment. Only the trusted Lean toolchain, compiled import paths,
-and system library directories (`/usr/lib`, `/usr/lib64`, `/lib`, `/lib64`) are
-mounted from the host, all read-only. Keep these dependencies free of secrets.
-The app source, credentials, home directory, and host sockets are not mounted.
-The compiler's descendants and temporary files are discarded when it exits,
-fails, or is killed by the timeout/output guard.
+### Runtime and isolation
 
-The backend requires Linux, Node, Lean/Lake, and Bubblewrap 0.8+ (`bwrap` on PATH),
-with unprivileged user namespaces permitted by the host/container security policy.
-Install Bubblewrap with `sudo apt-get install bubblewrap` on Ubuntu/Debian. A
-missing sandbox executable or namespace/mount failure returns 503; the service
-never retries compilation outside the sandbox. It cannot run on an edge runtime.
+Use Node 24, Linux, [elan](https://github.com/leanprover/elan), and Bubblewrap 0.8+
+(`bwrap` on PATH), with unprivileged user namespaces enabled. Install Bubblewrap
+with `sudo apt-get install bubblewrap` on Ubuntu/Debian. In `lean/`, run `lake build`
+to build the trusted imports and `distill-verifier` helper with the pinned Lean
+4.35.0 toolchain. Start the app from the repository root, or set `LEAN_PROJECT_DIR`
+to the absolute project directory. On macOS/Windows, run the backend in a Linux VM
+or WSL2. The backend requires a Node host and cannot run on an edge runtime.
 
-This isolates submissions using the host kernel; comprehensive CPU, memory,
-process-count, and scratch-space quotas/admission control remain tracked in #77.
-The editor's local-only `lake serve` relay still runs outside this sandbox; do not
-expose that relay to untrusted clients.
+The service resolves only the trusted project with `lake env`. It compiles and
+exports the challenge before running submitted code. Challenge and solution have
+separate read-only input mounts and writable scratch directories. Compilation,
+export, and inspection each use fresh Bubblewrap processes with isolated network,
+PID, IPC, and user namespaces, no capabilities, and a clean environment. Only the
+trusted toolchain, prebuilt import paths, system libraries, and that stage's inputs
+are mounted. The app source, credentials, home directory, and host sockets are absent.
 
-Run `npm run test:submissions` to test the service and API handler against real Lean,
-including project imports, invalid proofs, warnings, concurrent scratch files,
-blocked host file/credential access, read-only dependencies, network isolation,
-child-process cleanup, and fail-closed sandbox startup.
+User-produced `.olean` files are loaded only inside the export sandbox. Only bounded,
+inert NDJSON exports cross into the trusted comparator. Export includes all axiom
+declarations as well as the theorem's dependencies and comparator's kernel primitives.
+The dependency inspector reads these exports in another fresh sandbox. Comparator
+uses `--challenge-from-export` and `--solution-from-export`, then runs its kernel
+checker in its own Bubblewrap sandbox. It never builds the submitted code or loads
+user-produced `.olean` files in the process deciding acceptance. There is no
+unsandboxed fallback.
+
+Each child process has a 30-second deadline and a 1 MiB combined output limit;
+exports have a separate 32 MiB limit. Process descendants are terminated on sandbox
+exit. Per-request artifacts are removed on acceptance, rejection, and failure.
+Comprehensive CPU, memory, process-count, scratch-space quotas, and admission control
+remain tracked in #77. Persistence of attempts/completion is outside this verifier.
+
+Verification is independent of the editor's WebSocket relay; the relay need not be
+running. The local-only `lake serve` relay still runs outside this sandbox.
+
+Run `npm run test:submissions` against real Lean and Bubblewrap to test sandbox
+isolation, diagnostics, exact theorem and environment checks, used/unused axioms,
+forged proofs, concurrent isolation, cleanup, and API validation.

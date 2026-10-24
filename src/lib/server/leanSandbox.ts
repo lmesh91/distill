@@ -1,12 +1,18 @@
 import { execFile } from 'node:child_process';
 import { realpath } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
+export interface LeanEnvironment {
+	toolchain: string;
+	imports: string[];
+	verifier: string;
+}
+
 /** Resolve trusted, prebuilt dependencies only. Never pass submission code to Lake. */
-export async function leanSandboxArgs(): Promise<string[]> {
+export async function resolveLeanEnvironment(): Promise<LeanEnvironment> {
 	if (process.platform !== 'linux') {
 		throw new Error('Lean submissions require Linux and Bubblewrap');
 	}
@@ -41,7 +47,23 @@ export async function leanSandboxArgs(): Promise<string[]> {
 			.filter(Boolean)
 			.map((path) => realpath(resolve(project, path)))
 	);
+	return { toolchain, imports, verifier: join(project, '.lake/build/bin/distill-verifier') };
+}
 
+export interface SandboxOptions {
+	command?: string[];
+	readOnly?: [host: string, sandbox: string][];
+	work?: string;
+}
+
+export function sandboxArgs(
+	{ toolchain, imports }: LeanEnvironment,
+	{
+		command = ['/toolchain/bin/lean', '--json', '--stdin'],
+		readOnly = [],
+		work
+	}: SandboxOptions = {}
+): string[] {
 	// An empty mount namespace with an explicit read-only allowlist. In particular, neither
 	// the app/project root nor the host's home, /tmp, /run, sockets or environment are exposed.
 	const args = [
@@ -85,15 +107,20 @@ export async function leanSandboxArgs(): Promise<string[]> {
 		'/toolchain/bin',
 		'--setenv',
 		'LEAN_PATH',
-		imports.map((_, index) => `/imports/${index}`).join(':'),
+		['/work', ...imports.map((_, index) => `/imports/${index}`)].join(':'),
 		'--setenv',
 		'LD_LIBRARY_PATH',
 		'/toolchain/lib:/toolchain/lib/lean',
-		'--remount-ro',
-		'/',
-		'--',
-		'/toolchain/bin/lean',
-		'--stdin'
+		'--setenv',
+		'LEAN_ABORT_ON_PANIC',
+		'1'
 	);
+	for (const [host, sandbox] of readOnly) args.push('--ro-bind', host, sandbox);
+	if (work) args.push('--bind', work, '/work');
+	args.push('--remount-ro', '/', '--', ...command);
 	return args;
+}
+
+export async function leanSandboxArgs(): Promise<string[]> {
+	return sandboxArgs(await resolveLeanEnvironment());
 }

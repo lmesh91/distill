@@ -17,6 +17,10 @@ const level = {
 	type: 'guided',
 	statement: 'a + b = b + a',
 	starterCode: 'theorem add_comm (a b : Nat) : a + b = b + a := by\n  sorry\n',
+	verification: {
+		theoremName: 'add_comm',
+		challengeSource: 'theorem add_comm (a b : Nat) : a + b = b + a := by\n  sorry\n'
+	},
 	published: true,
 	createdAt: new Date(),
 	updatedAt: new Date()
