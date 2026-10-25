@@ -48,6 +48,7 @@ test('a published level is returned with string ids and no timestamps', async ()
 		statement: level.statement,
 		starterCode: level.starterCode,
 		expectedGoal: undefined,
+		targetProof: undefined,
 		hints: []
 	});
 });

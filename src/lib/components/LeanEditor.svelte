@@ -4,16 +4,18 @@
 	import { EditorView, drawSelection, keymap, lineNumbers } from '@codemirror/view';
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 	import { indentUnit } from '@codemirror/language';
-	import { connectLean, type Diagnostic } from '$lib/lean/client';
+	import { connectLean, type Diagnostic, type LineTranslation } from '$lib/lean/client';
 
 	let {
 		value = $bindable(''),
 		onstatus,
-		ondiagnostics
+		ondiagnostics,
+		ontranslation
 	}: {
 		value?: string;
 		onstatus?: (status: string) => void;
 		ondiagnostics?: (diagnostics: Diagnostic[]) => void;
+		ontranslation?: (lines: LineTranslation[] | null) => void;
 	} = $props();
 
 	const id = $props.id();
@@ -26,7 +28,8 @@
 			value,
 			{
 				onstatus: (status) => onstatus?.(status),
-				ondiagnostics: (diagnostics) => ondiagnostics?.(diagnostics)
+				ondiagnostics: (diagnostics) => ondiagnostics?.(diagnostics),
+				ontranslation: ontranslation && ((lines) => ontranslation?.(lines))
 			}
 		);
 

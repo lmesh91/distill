@@ -14,6 +14,7 @@ export interface Level {
     statement: string;
     starterCode: string;
     expectedGoal?: string;
+    targetProof?: string; // guided levels: the English proof the translation should match
     hints?: string[];
     published: boolean;
     createdAt: Date;

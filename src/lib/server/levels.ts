@@ -13,6 +13,7 @@ export interface LevelPageData {
 	statement: string;
 	starterCode: string;
 	expectedGoal?: string;
+	targetProof?: string;
 	hints: string[];
 }
 
@@ -37,6 +38,7 @@ export async function getPublishedLevelBySlug(
 		statement: level.statement,
 		starterCode: level.starterCode,
 		expectedGoal: level.expectedGoal,
+		targetProof: level.targetProof,
 		hints: level.hints ?? []
 	};
 }
