@@ -51,6 +51,7 @@
 		{#key data.level.id}
 			<LeanEditor
 				bind:value={code}
+				lockedLines={data.lockedLines}
 				onstatus={(nextStatus) => (status = nextStatus)}
 				ondiagnostics={(nextDiagnostics) => (diagnostics = nextDiagnostics)}
 				ontranslation={(lines) => {

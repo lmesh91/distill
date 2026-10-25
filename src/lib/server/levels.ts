@@ -12,6 +12,7 @@ export interface LevelPageData {
 	type: LevelType;
 	statement: string;
 	starterCode: string;
+	lockedLines: number[];
 	expectedGoal?: string;
 	targetProof?: string;
 	hints: string[];
@@ -37,6 +38,7 @@ export async function getPublishedLevelBySlug(
 		type: level.type,
 		statement: level.statement,
 		starterCode: level.starterCode,
+		lockedLines: level.lockedLines ?? [],
 		expectedGoal: level.expectedGoal,
 		targetProof: level.targetProof,
 		hints: level.hints ?? []

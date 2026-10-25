@@ -13,6 +13,7 @@ export interface Level {
     type: LevelType;
     statement: string;
     starterCode: string;
+    lockedLines?: number[]; // 1-based lines of starterCode the user can't edit, e.g. `import Distill`
     expectedGoal?: string;
     targetProof?: string; // guided levels: the English proof the translation should match
     hints?: string[];

@@ -47,6 +47,7 @@ test('a published level is returned with string ids and no timestamps', async ()
 		type: 'guided',
 		statement: level.statement,
 		starterCode: level.starterCode,
+		lockedLines: [],
 		expectedGoal: undefined,
 		targetProof: undefined,
 		hints: []

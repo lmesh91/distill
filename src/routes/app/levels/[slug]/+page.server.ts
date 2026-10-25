@@ -2,6 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import { getLevels } from '$lib/server/collections';
 import { getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
 import { getInitialCode } from '$lib/levels/initialCode';
+import { findLockedLines } from '$lib/levels/lockedLines';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals, url, params }) => {
@@ -21,5 +22,10 @@ export const load: PageServerLoad = async ({ locals, url, params }) => {
 		error(404, 'Level not found');
 	}
 
-	return { level, initialCode: getInitialCode(level) };
+	const initialCode = getInitialCode(level);
+	return {
+		level,
+		initialCode,
+		lockedLines: findLockedLines(level.starterCode, level.lockedLines, initialCode)
+	};
 };

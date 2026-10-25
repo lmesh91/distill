@@ -6,7 +6,7 @@
 	"scripts": {
 		"dev": "vite dev",
 		"relay": "node relay/server.ts",
-		"test": "node --test relay/server.test.ts src/lib/lean/client.test.ts src/lib/server/lean.test.ts src/lib/levels/initialCode.test.ts src/lib/server/redirects.test.ts src/lib/server/progress.test.ts src/lib/server/levels.test.ts",
+		"test": "node --test relay/server.test.ts src/lib/lean/client.test.ts src/lib/server/lean.test.ts src/lib/levels/initialCode.test.ts src/lib/levels/lockedLines.test.ts src/lib/server/redirects.test.ts src/lib/server/progress.test.ts src/lib/server/levels.test.ts",
 		"test:relay": "node --test relay/server.test.ts",
 		"test:editor": "node --test src/lib/lean/client.test.ts",
 		"test:submissions": "node --test src/lib/server/lean.test.ts",
