@@ -13,6 +13,22 @@ export interface SaveLevelProgressInput {
 
 const duplicateKeyErrorCode = 11000;
 
+export type LevelProgressSnapshot = Pick<UserLevelProgress, 'status' | 'currentCode'>;
+
+/**
+ * Loads the parts of the user's saved progress the level page needs, or `null` if none exists.
+ */
+export async function getLevelProgress(
+	progress: Pick<Collection<UserLevelProgress>, 'findOne'>,
+	userId: string,
+	levelId: ObjectId
+): Promise<LevelProgressSnapshot | null> {
+	return progress.findOne<LevelProgressSnapshot>(
+		{ userId, levelId },
+		{ projection: { _id: 0, status: 1, currentCode: 1 } }
+	);
+}
+
 /**
  * Saves the user's in-progress code for one level.
  *
