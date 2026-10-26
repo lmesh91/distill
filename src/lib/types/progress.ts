@@ -14,4 +14,5 @@ export interface UserLevelProgress {
     lastAttemptedAt?: Date;
     startedAt?: Date;
     completedAt?: Date;
+    clientSavedAt?: Date;
 }

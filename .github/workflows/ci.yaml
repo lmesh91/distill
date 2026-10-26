@@ -2,14 +2,12 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
 
 jobs:
-  typescript:
+  checks:
     runs-on: ubuntu-latest
 
     steps:
@@ -23,6 +21,14 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Set up and build Lean
+        uses: leanprover/lean-action@v1
+        with:
+          lake-package-directory: lean
+
+      - name: Run tests
+        run: npm run test
 
       - name: Check app
         run: npm run check
