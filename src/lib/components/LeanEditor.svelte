@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { EditorState } from '@codemirror/state';
 	import { EditorView, drawSelection, keymap, lineNumbers } from '@codemirror/view';
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -9,9 +9,12 @@
 	let {
 		value = $bindable(''),
 		onstatus,
-		ondiagnostics
+		ondiagnostics,
+		titleBar
 	}: {
 		value?: string;
+		// shown on the right of the editor's title bar, e.g. the save status
+		titleBar?: Snippet;
 		onstatus?: (status: string) => void;
 		ondiagnostics?: (diagnostics: Diagnostic[]) => void;
 	} = $props();
@@ -92,7 +95,10 @@
 </script>
 
 <section class="lean-editor" aria-labelledby={`${id}-title`}>
-	<h2 id={`${id}-title`}>Lean editor</h2>
+	<div class="title-bar">
+		<h2 id={`${id}-title`}>Lean editor</h2>
+		{@render titleBar?.()}
+	</div>
 	<div class="editor-container" bind:this={container}></div>
 	<p class="keyboard-help" id={`${id}-help`}>
 		Tab indents; Shift+Tab outdents. Press Escape then Tab to move focus out of the editor.
@@ -118,12 +124,22 @@
 		outline-offset: 2px;
 	}
 
-	h2 {
+	.title-bar {
+		display: flex;
 		flex: none;
-		margin: 0;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-width: 0;
 		padding: 8px 12px;
 		border-bottom: 2px solid #777;
 		background: #f3f3f3;
+	}
+
+	h2 {
+		flex: none;
+		margin: 0;
+		white-space: nowrap;
 		font:
 			600 14px / 1.4 system-ui,
 			sans-serif;
