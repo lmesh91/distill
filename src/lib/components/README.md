@@ -10,12 +10,13 @@ fixed-height flex column, the editor instead grows or shrinks to fill the availa
 # LevelLayout
 
 `LevelLayout.svelte` is the page structure shared by every level mode (see the #11 wireframes in
-`docs/wireframes`). It renders the top bar from `title` and `mode` plus three columns, and each
+`docs/wireframes`). It renders the top bar with the level title plus three columns, and each
 mode fills the regions with snippets:
 
 | Snippet       | Region                                                        |
 | ------------- | ------------------------------------------------------------- |
 | `toolbar`     | Right side of the top bar (save status, hints button)         |
+| `help`        | Question-mark help in the top bar                             |
 | `goal`        | Left column, under "Your goal"                                |
 | `brief`       | Left column, below the goal (proof to translate, description) |
 | `editor`      | Middle column                                                 |
