@@ -1,5 +1,7 @@
 import { execFile } from 'node:child_process';
+import { mkdirSync, mkdtempSync } from 'node:fs';
 import { realpath } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 
@@ -64,6 +66,11 @@ export function sandboxArgs(
 		work
 	}: SandboxOptions = {}
 ): string[] {
+	// These directories share the worker's size/inode-limited tmpfs. Creating a
+	// new tmpfs here would bypass its scratch quota. The unit removes them on exit.
+	const scratch = mkdtempSync(join(tmpdir(), 'distill-sandbox-'));
+	mkdirSync(join(scratch, 'tmp'));
+	mkdirSync(join(scratch, 'work'));
 	// An empty mount namespace with an explicit read-only allowlist. In particular, neither
 	// the app/project root nor the host's home, /tmp, /run, sockets or environment are exposed.
 	const args = [
@@ -88,11 +95,25 @@ export function sandboxArgs(
 		'/proc',
 		'--remount-ro',
 		'/proc',
-		'--dev',
+		'--dir',
 		'/dev',
-		'--tmpfs',
+		'--dev-bind',
+		'/dev/null',
+		'/dev/null',
+		'--dev-bind',
+		'/dev/zero',
+		'/dev/zero',
+		'--dev-bind',
+		'/dev/random',
+		'/dev/random',
+		'--dev-bind',
+		'/dev/urandom',
+		'/dev/urandom',
+		'--bind',
+		join(scratch, 'tmp'),
 		'/tmp',
-		'--tmpfs',
+		'--bind',
+		join(scratch, 'work'),
 		'/work',
 		'--chdir',
 		'/work',

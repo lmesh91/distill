@@ -30,6 +30,14 @@ jobs:
       - name: Install Lean sandbox
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
 
+      - name: Enable submission resource controls
+        run: |
+          sudo loginctl enable-linger "$USER"
+          sudo systemctl start "user@$(id -u).service"
+          sudo systemctl set-property --runtime "user@$(id -u).service" 'Delegate=cpu memory pids'
+          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+
       - name: Run tests
         run: npm run test
 

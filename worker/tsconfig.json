@@ -1,0 +1,14 @@
+{
+	"compilerOptions": {
+		"target": "ES2024",
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"strict": true,
+		"types": ["node"],
+		"skipLibCheck": true,
+		"rewriteRelativeImportExtensions": true,
+		"rootDir": "../src/lib",
+		"outDir": "../dist/lean-worker"
+	},
+	"include": ["../src/lib/server/leanWorker.ts"]
+}

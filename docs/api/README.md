@@ -100,6 +100,7 @@ Invalid input returns 400, missing authentication 401, bodies over 256 KiB 413,
 and unsupported content types 415. Service failures (including sandbox startup,
 missing helper/toolchain, timeout, or output limit) return a generic 503. An invalid
 trusted challenge is a configuration/service error, not a rejected user proof.
+When all worker slots are occupied, the API returns 503 with `Retry-After: 1`.
 
 ### Runtime and isolation
 
@@ -128,15 +129,70 @@ checker in its own Bubblewrap sandbox. It never builds the submitted code or loa
 user-produced `.olean` files in the process deciding acceptance. There is no
 unsandboxed fallback.
 
-Each child process has a 30-second deadline and a 1 MiB combined output limit;
-exports have a separate 32 MiB limit. Process descendants are terminated on sandbox
-exit. Per-request artifacts are removed on acceptance, rejection, and failure.
-Comprehensive CPU, memory, process-count, scratch-space quotas, and admission control
-remain tracked in #77. Persistence of attempts/completion is outside this verifier.
+### Resource limits
+
+Every submission runs in a transient systemd **user service** containing a trusted
+Node worker and all of its Lean, export, inspection, and comparator descendants.
+The policy is defined in `src/lib/server/leanLimits.ts`; clients cannot change it.
+
+| Resource                     | Limit                                                                   |
+| ---------------------------- | ----------------------------------------------------------------------- |
+| Entire job                   | 30 seconds, including toolchain discovery and all verification stages   |
+| CPU                          | 100% of one CPU, shared across the worker and its descendants           |
+| Memory                       | 1 GiB total; swap disabled                                              |
+| Processes and threads        | 64 total                                                                |
+| Submission scratch/artifacts | One private 128 MiB tmpfs, at most 8,192 inodes                         |
+| Concurrent jobs              | 4 per application process; excess requests are rejected without queuing |
+| Compiler output              | 1 MiB combined stdout/stderr per stage; exports allow 32 MiB            |
+| Worker response              | 8 MiB maximum, including JSON encoding                                  |
+
+The CPU quota is a rate limit; the shared wall-clock deadline bounds total CPU
+consumption. Memory and task limits apply to the complete process tree, including
+children that create new sessions. A worker OOM kills its whole unit. Cancellation,
+deadline expiry, and excessive output stop the unit before releasing its admission
+slot. systemd also enforces the deadline if the web server exits. The private tmpfs
+is discarded with the unit, including after forced termination. Compiler `/tmp`
+and `/work` directories are bound from that filesystem rather than separately
+allocating unbounded scratch filesystems. All descendants also share the memory cap.
+
+These are **per-job** budgets. With four jobs, provision up to 4 GiB plus the web
+server and host overhead. Multiple app processes/replicas each have their own four
+slots; size deployment-wide capacity accordingly. The limit applies to the Lean
+job, not to time spent receiving HTTP input or looking up the level in MongoDB.
+
+The host must provide systemd 254+, a running user manager, cgroup v2 with `cpu`,
+`memory`, and `pids` delegated to it, and unprivileged user/mount namespaces.
+`/usr/bin/systemd-run`, `/usr/bin/systemctl`, and `/usr/bin/env` must be installed.
+For a persistent service account, an administrator can enable its user manager:
+
+```sh
+sudo loginctl enable-linger distill
+```
+
+If the controllers are not already delegated, configure the account's
+`user@<uid>.service` with a `[Service]` drop-in containing
+`Delegate=cpu memory pids`, reload systemd, and restart that user manager during
+deployment. The app must run as that same user and have access to its session bus
+(`XDG_RUNTIME_DIR=/run/user/<uid>` and
+`DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/<uid>/bus`). CI sets these up explicitly.
+Before processing source, each worker checks the actual cgroup limits and tmpfs
+capacity; missing controllers, failed namespaces, or missing systemd return 503.
+
+`npm run dev`, `npm run build`, and `npm run test:submissions` build the worker using
+`worker/tsconfig.json`. Deploy `dist/lean-worker/` alongside the app and the prebuilt
+Lean project, and start the app from the repository root. Rebuild with
+`npm run build:worker` after changing worker code during development. A missing
+worker build is a service failure. The worker receives only the toolchain environment,
+not application credentials.
+
+See systemd's [resource controls](https://www.freedesktop.org/software/systemd/man/latest/systemd.resource-control.html)
+and [filesystem isolation](https://www.freedesktop.org/software/systemd/man/latest/systemd.exec.html)
+for the host prerequisites. Persistence of attempts/completion is outside this verifier.
 
 Verification is independent of the editor's WebSocket relay; the relay need not be
 running. The local-only `lake serve` relay still runs outside this sandbox.
 
-Run `npm run test:submissions` against real Lean and Bubblewrap to test sandbox
+Run `npm run test:submissions` against real Lean, Bubblewrap, and systemd to test sandbox
 isolation, diagnostics, exact theorem and environment checks, used/unused axioms,
-forged proofs, concurrent isolation, cleanup, and API validation.
+forged proofs, memory/process/scratch exhaustion, shared deadlines, cancellation,
+admission control, concurrent isolation, cleanup, and API validation.

@@ -37,6 +37,9 @@ Proofs are checked with the Lake project in `lean/`, which pins the Lean version
 
 Submission compilation also requires Linux and [Bubblewrap](https://github.com/containers/bubblewrap)
 (`bwrap` on PATH, version 0.8 or newer), with unprivileged user namespaces enabled.
+It also requires systemd 254+ with a running user manager and cgroup v2 CPU, memory,
+and PID controllers delegated to that user. See the [resource setup](docs/api/README.md#resource-limits)
+for host configuration. Unsupported hosts reject submissions; there is no fallback.
 On Ubuntu/Debian, install it with `sudo apt-get install bubblewrap`. Run
 `lake build` in `lean/` to build the trusted imports and verification helper. Each submission runs
 in an isolated sandbox; there is no unsandboxed fallback. On macOS or Windows,
@@ -51,7 +54,8 @@ npm run relay
 Then open `/app/lean` to try it.
 
 Run `npm run test` to run all tests. This requires Node 24, `lake`, and the Linux
-Bubblewrap setup above. The individual tests are as follows:
+Bubblewrap/systemd setup above. Development, build, and submission-test commands
+compile the separate resource worker automatically. The individual tests are as follows:
 
 - `npm run test:relay`: checks connectivity against a Lean server.
 - `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
