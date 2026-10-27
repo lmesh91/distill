@@ -48,7 +48,8 @@
 <style>
 	.save-status {
 		display: inline-flex;
-		flex: none;
+		/* shrinks with "…" in a narrow editor; the tooltip has the full text */
+		flex: 0 1 auto;
 		align-items: center;
 		gap: 6px;
 		min-width: 0;

@@ -137,7 +137,9 @@
 	}
 
 	h2 {
+		flex: none;
 		margin: 0;
+		white-space: nowrap;
 		font:
 			600 14px / 1.4 system-ui,
 			sans-serif;

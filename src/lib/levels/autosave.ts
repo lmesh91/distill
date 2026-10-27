@@ -4,16 +4,19 @@ export type SaveState =
 	| { kind: 'idle' }
 	| { kind: 'saving' }
 	| { kind: 'saved'; at: number }
-	| { kind: 'error'; message: string; retrying: boolean };
+	| { kind: 'error'; message: string; retrying: boolean; short?: string };
 
 /** thrown by a save function
  * `retryable` errors are retried automatically */
 export class SaveError extends Error {
 	readonly retryable: boolean;
+	// a few words for the title bar when the message is too long to show there
+	readonly short?: string;
 
-	constructor(message: string, retryable: boolean) {
+	constructor(message: string, retryable: boolean, short?: string) {
 		super(message);
 		this.retryable = retryable;
+		this.short = short;
 	}
 }
 
@@ -95,7 +98,8 @@ export function createAutosaver({
 				pending ??= code;
 				// retries keep going after dispose(): the code from a level the user left still
 				// needs to reach the server
-				onstate({ kind: 'error', message, retrying: retryable });
+				const short = error instanceof SaveError ? error.short : undefined;
+				onstate({ kind: 'error', message, retrying: retryable, ...(short ? { short } : {}) });
 				if (retryable) startTimer(retryDelay);
 			}
 		});
@@ -185,7 +189,8 @@ export function describeSaveState(
 			return {
 				icon: 'error',
 				label: state.retrying ? `${state.message} Retrying…` : state.message,
-				time: last ? `Last saved ${last}` : 'Not saved'
+				// the full message is in the tooltip
+				time: state.short ?? (last ? `Last saved ${last}` : 'Not saved')
 			};
 	}
 }
@@ -220,8 +225,9 @@ export async function saveLevelCode(
 	// on screen, so keep it unsaved and let the user decide instead of dropping it
 	if (response.status === 409) {
 		throw new SaveError(
-			'Saved from another tab. Reload to get that version, or keep typing to save this one.',
-			false
+			'A newer version was saved from another tab. Reload to get it, or keep typing to save this one.',
+			false,
+			'A newer save was found'
 		);
 	}
 	if (response.status === 401) throw new SaveError('Sign in again to save your work.', false);

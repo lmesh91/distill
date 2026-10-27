@@ -169,9 +169,17 @@ test('a save from another tab (409) is not shown as saved, and the code waits fo
 	saver.schedule('this tab');
 	t.mock.timers.tick(500);
 	await settle();
-	assert.equal(states.at(-1)?.kind, 'error');
-	assert.equal((states.at(-1) as { retrying: boolean }).retrying, false);
+	const conflict409 = states.at(-1) as SaveState;
+	assert.equal(conflict409.kind, 'error');
+	assert.equal((conflict409 as { retrying: boolean }).retrying, false);
 	assert.equal(saver.hasUnsaved, true);
+	// short text in the title bar, the full explanation in the tooltip
+	assert.deepEqual(describeSaveState(conflict409, 1_000, 1_000), {
+		icon: 'error',
+		label:
+			'A newer version was saved from another tab. Reload to get it, or keep typing to save this one.',
+		time: 'A newer save was found'
+	});
 	t.mock.timers.tick(60_000);
 	await settle();
 	assert.equal(saves.length, 1, 'does not overwrite the other tab on its own');
