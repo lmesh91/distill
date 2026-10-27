@@ -6,6 +6,8 @@ import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { test } from 'node:test';
 import { compileLean } from './lean.ts';
+import { runLeanJob } from './leanJobs.ts';
+import { leanLimits } from './leanLimits.ts';
 import { createSubmissionHandler } from './submissions.ts';
 
 const POST = createSubmissionHandler(async () => ({
@@ -57,12 +59,16 @@ test('excessive compiler output fails without returning an unbounded response', 
 	);
 });
 
-test('a stuck compilation is terminated at the deadline', async (t) => {
-	const original = globalThis.setTimeout;
-	t.mock.method(globalThis, 'setTimeout', (callback: () => void, ms: number) =>
-		original(callback, ms === 30_000 ? 200 : ms)
+test('a stuck compilation is terminated at the request deadline', async () => {
+	await assert.rejects(
+		runLeanJob(
+			{ kind: 'compile', source: '#eval IO.sleep 60000\n' },
+			{
+				limits: { ...leanLimits, wallTimeMs: 1500 }
+			}
+		),
+		/timed out|resource worker failed/
 	);
-	await assert.rejects(compileLean('#eval IO.sleep 60000\n'), /timed out/);
 });
 
 test('host files, app files, and credentials are absent even through /proc', async () => {
@@ -173,7 +179,7 @@ async function childProcesses(marker: string) {
 	return processes.filter((pid) => pid !== undefined);
 }
 
-test('sandbox teardown kills children after success and timeout', async (t) => {
+test('sandbox teardown kills children after success and cancellation', async () => {
 	for (const timeout of [false, true]) {
 		const marker = `/work/child-${crypto.randomUUID()}.lean`;
 		const source = `
@@ -182,9 +188,9 @@ test('sandbox teardown kills children after success and timeout', async (t) => {
   let _ ← IO.Process.spawn { cmd := "/toolchain/bin/lean", args := #["--run", "${marker}"], stdin := .null, stdout := .null, stderr := .null }
   IO.sleep ${timeout ? 60000 : 500}
 `;
-		t.mock.timers.enable({ apis: ['setTimeout'] });
-		const compilation = compileLean(source);
-		const completion = timeout ? assert.rejects(compilation, /timed out/) : compilation;
+		const controller = new AbortController();
+		const compilation = compileLean(source, controller.signal);
+		const completion = timeout ? assert.rejects(compilation, /cancelled/) : compilation;
 		try {
 			let children: string[] = [];
 			for (let attempt = 0; attempt < 200 && children.length === 0; attempt++) {
@@ -192,21 +198,20 @@ test('sandbox teardown kills children after success and timeout', async (t) => {
 				children = await childProcesses(marker);
 			}
 			assert.ok(children.length > 0, 'child started inside the sandbox');
-			if (timeout) t.mock.timers.tick(30_000);
+			if (timeout) controller.abort();
 			await completion;
 			for (let attempt = 0; attempt < 100 && (await childProcesses(marker)).length > 0; attempt++)
 				await delay(10);
 			assert.deepEqual(await childProcesses(marker), []);
 		} finally {
-			t.mock.timers.tick(30_000);
+			controller.abort();
 			await completion.catch(() => {});
-			t.mock.timers.reset();
 		}
 	}
 });
 
 test('sandbox setup errors fail closed and return a generic API error', async (t) => {
-	const directory = await mkdtemp(join(tmpdir(), 'distill-bwrap-'));
+	const directory = await mkdtemp(join(process.cwd(), '.lean-test-bwrap-'));
 	const previous = process.env.PATH;
 	t.mock.method(console, 'error', () => {});
 	try {
@@ -229,7 +234,7 @@ test('sandbox setup errors fail closed and return a generic API error', async (t
 });
 
 test('missing Bubblewrap never falls back to running Lean on the host', async (t) => {
-	const directory = await mkdtemp(join(tmpdir(), 'distill-no-bwrap-'));
+	const directory = await mkdtemp(join(process.cwd(), '.lean-test-no-bwrap-'));
 	const previous = process.env.PATH;
 	t.mock.method(console, 'error', () => {});
 	try {

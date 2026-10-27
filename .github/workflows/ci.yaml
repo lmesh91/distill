@@ -30,8 +30,31 @@ jobs:
       - name: Install Lean sandbox
         run: sudo apt-get update && sudo apt-get install -y bubblewrap
 
+      - name: Enable submission resource controls
+        run: |
+          # This disposable runner must allow the unprivileged namespaces used by
+          # systemd and Bubblewrap. Ubuntu restricts them through AppArmor by default.
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          runner_uid="$(id -u)"
+          delegate_dir="/run/systemd/system/user@${runner_uid}.service.d"
+          sudo install -d "$delegate_dir"
+          printf '[Service]\nDelegate=cpu memory pids\n' | sudo tee "$delegate_dir/delegate.conf" > /dev/null
+          sudo systemctl daemon-reload
+          sudo loginctl enable-linger "$USER"
+          sudo systemctl restart "user@${runner_uid}.service"
+          echo "XDG_RUNTIME_DIR=/run/user/${runner_uid}" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${runner_uid}/bus" >> "$GITHUB_ENV"
+
       - name: Run tests
         run: npm run test
+
+      - name: Show sandbox diagnostics on failure
+        if: failure()
+        run: |
+          sudo journalctl --no-pager -b --user-unit='distill-lean-*' -n 100
+          sudo journalctl --no-pager -b -k --grep='apparmor|DENIED' -n 30
 
       - name: Check app
         run: npm run check

@@ -1,6 +1,7 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { readJsonBody } from './body.ts';
 import { isVerificationTarget, verifyLean } from './verification.ts';
+import { LeanBusyError } from './leanJobs.ts';
 import type { VerificationTarget } from '../types/submission.ts';
 
 type LoadLevel = (slug: string) => Promise<{ verification?: VerificationTarget } | null>;
@@ -31,10 +32,19 @@ export function createSubmissionHandler(loadLevel: LoadLevel): RequestHandler {
 			if (!isVerificationTarget(level.verification)) {
 				return json({ error: 'Level verification is not configured' }, { status: 503 });
 			}
-			return json(await verifyLean(body.source, level.verification), {
+			return json(await verifyLean(body.source, level.verification, request.signal), {
 				headers: { 'cache-control': 'no-store' }
 			});
 		} catch (error) {
+			if (error instanceof LeanBusyError) {
+				return json(
+					{ error: 'Lean verification is busy; try again shortly' },
+					{
+						status: 503,
+						headers: { 'retry-after': '1', 'cache-control': 'no-store' }
+					}
+				);
+			}
 			console.error('Lean submission failed:', error);
 			return json({ error: 'Lean verification service unavailable' }, { status: 503 });
 		}
