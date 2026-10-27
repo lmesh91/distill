@@ -3,6 +3,7 @@
 	import { navigating } from '$app/state';
 	import LeanEditor from '$lib/components/LeanEditor.svelte';
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
+	import LeanResults from '$lib/components/LeanResults.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import type { Diagnostic } from '$lib/lean/client';
 	import {
@@ -14,12 +15,11 @@
 	} from '$lib/levels/autosave';
 	import type { PageProps } from './$types';
 
-	const severities = ['', 'Error', 'Warning', 'Info', 'Hint'];
-
 	let { data }: PageProps = $props();
 	let code = $state(untrack(() => data.initialCode));
 	let status = $state('Connecting…');
 	let diagnostics = $state<Diagnostic[]>([]);
+	let leanEditor = $state<LeanEditor>();
 	let saveState = $state<SaveState>({ kind: 'idle' });
 	// true while SvelteKit loads another level and its saved code
 	const loadingLevel = $derived(navigating.to?.route.id === '/app/levels/[slug]');
@@ -123,6 +123,7 @@
 	{#snippet editor()}
 		{#key data.level.id}
 			<LeanEditor
+				bind:this={leanEditor}
 				bind:value={code}
 				onstatus={(nextStatus) => (status = nextStatus)}
 				ondiagnostics={(nextDiagnostics) => (diagnostics = nextDiagnostics)}
@@ -135,17 +136,11 @@
 	{/snippet}
 
 	{#snippet output()}
-		<p>Connection Status: <span role="status">{status}</span></p>
-
-		<ul>
-			{#each diagnostics as diagnostic, index (index)}
-				<li>
-					{severities[diagnostic.severity]} at line {diagnostic.range.start.line + 1}, column
-					{diagnostic.range.start.character + 1}:
-					<pre>{diagnostic.message}</pre>
-				</li>
-			{/each}
-		</ul>
+		<LeanResults
+			{status}
+			{diagnostics}
+			onselect={(line, character) => leanEditor?.goTo(line, character)}
+		/>
 	{/snippet}
 </LevelLayout>
 
