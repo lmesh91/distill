@@ -85,7 +85,20 @@
 		};
 	});
 
-	// Parent-driven updates (for example, loading starter code) use the same Lean session.
+	/**
+	 * moves the cursor to a 0-based Lean position, scrolls it into view and focuses the editor
+	 * used by the results panel to jump to an error
+	 */
+	export function goTo(line: number, character = 0) {
+		if (!editor) return;
+		const doc = editor.state.doc;
+		const target = doc.line(Math.min(Math.max(line + 1, 1), doc.lines));
+		const pos = target.from + Math.min(Math.max(character, 0), target.length);
+		editor.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+		editor.focus();
+	}
+
+	// parent-driven updates use the same Lean session
 	$effect(() => {
 		const nextValue = value;
 		if (editor && nextValue !== editor.state.doc.toString()) {
