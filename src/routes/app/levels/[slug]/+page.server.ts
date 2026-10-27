@@ -31,5 +31,10 @@ export const load: PageServerLoad = async ({ locals, url, params }) => {
 		error(503, 'Could not load your progress');
 	}
 
-	return { level, initialCode: getInitialCode(level, progress) };
+	return {
+		level,
+		initialCode: getInitialCode(level, progress),
+		// when the code was last saved, for the save indicator
+		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null
+	};
 };

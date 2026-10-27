@@ -80,8 +80,12 @@ test('other database errors are rethrown', async () => {
 	await assert.rejects(saveLevelProgress(levels, progress, input), updateError);
 });
 
-test('loads only the status and code of the user’s progress for one level', async () => {
-	const saved = { status: 'in_progress' as const, currentCode: 'example : True := by' };
+test('loads only the status, code and save time of the user’s progress for one level', async () => {
+	const saved = {
+		status: 'in_progress' as const,
+		currentCode: 'example : True := by',
+		clientSavedAt
+	};
 	let call: unknown[] = [];
 	const progress = {
 		findOne: async (...args: unknown[]) => {
@@ -93,6 +97,6 @@ test('loads only the status and code of the user’s progress for one level', as
 	assert.deepEqual(await getLevelProgress(progress, 'user-1', levelId), saved);
 	assert.deepEqual(call, [
 		{ userId: 'user-1', levelId },
-		{ projection: { _id: 0, status: 1, currentCode: 1 } }
+		{ projection: { _id: 0, status: 1, currentCode: 1, clientSavedAt: 1 } }
 	]);
 });
