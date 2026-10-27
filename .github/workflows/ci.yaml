@@ -32,6 +32,11 @@ jobs:
 
       - name: Enable submission resource controls
         run: |
+          # This disposable runner must allow the unprivileged namespaces used by
+          # systemd and Bubblewrap. Ubuntu restricts them through AppArmor by default.
+          if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
           runner_uid="$(id -u)"
           delegate_dir="/run/systemd/system/user@${runner_uid}.service.d"
           sudo install -d "$delegate_dir"
@@ -44,6 +49,12 @@ jobs:
 
       - name: Run tests
         run: npm run test
+
+      - name: Show sandbox diagnostics on failure
+        if: failure()
+        run: |
+          sudo journalctl --no-pager -b --user-unit='distill-lean-*' -n 100
+          sudo journalctl --no-pager -b -k --grep='apparmor|DENIED' -n 30
 
       - name: Check app
         run: npm run check
