@@ -1,5 +1,32 @@
 # API
 
+## Administrator access
+
+Administrator pages belong under `/admin` and administrator endpoints under
+`/api/admin`. The server hook checks every request to these routes after Clerk
+authenticates the session and before connecting to MongoDB or running page loads,
+form actions, or endpoint handlers. This includes nested routes and client-side
+page-data requests. Administrator features have not been built yet; these route
+namespaces are reserved for them. Do not prerender administrator routes.
+
+Requests without a signed-in session receive HTTP 401. Signed-in users without
+the exact `metadata.role: "admin"` session claim receive HTTP 403. Only verified
+Clerk session claims grant access; request bodies, query parameters, and user
+profile fields do not. Public and learner routes keep their existing access rules.
+
+Set an administrator's Clerk **public metadata** to `{ "role": "admin" }` through
+the Clerk dashboard or a trusted backend. In Clerk's session token customization,
+include `{ "metadata": "{{user.public_metadata}}" }`. Missing role claims deny
+access. Role changes take effect when the session token refreshes.
+
+For administrator operations outside these namespaces, call
+`requireAdmin(locals)` from `$lib/server/roles` before reading protected data or
+performing any operation. It returns the authenticated administrator's user ID
+or throws the same 401/403 errors. A layout check or hidden link alone does not
+protect page actions and endpoints.
+
+Run `npm run test:admin` to check the access rules without Clerk or MongoDB.
+
 ## Code submissions
 
 `POST /api/submissions` accepts an authenticated Clerk session and a JSON body:
