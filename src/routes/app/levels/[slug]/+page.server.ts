@@ -35,6 +35,8 @@ export const load: PageServerLoad = async ({ locals, url, params }) => {
 		level,
 		initialCode: getInitialCode(level, progress),
 		// when the code was last saved, for the save indicator
-		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null
+		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null,
+		// the server's clock, so autosave timestamps match it even if the device clock is off
+		serverNow: Date.now()
 	};
 };

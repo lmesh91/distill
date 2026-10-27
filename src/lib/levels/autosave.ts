@@ -17,6 +17,20 @@ export class SaveError extends Error {
 	}
 }
 
+// difference between the server's clock and this device's, so a fast or slow device clock
+// doesn't make every save look like it's from the future (the progress API rejects those)
+let clockOffset = 0;
+
+// call with the server's current time, e.g. from page data or a response's Date header
+export function syncClock(serverNow: number, localNow = Date.now()) {
+	if (Number.isFinite(serverNow)) clockOffset = serverNow - localNow;
+}
+
+// the current time on the server's clock, as best this device knows it
+export function serverNow() {
+	return Date.now() + clockOffset;
+}
+
 export interface AutosaverOptions {
 	/** saves `code` for one level. Resolves when saved
 	 * rejects (ideally with a SaveError) on failure */
@@ -41,9 +55,11 @@ export function createAutosaver({
 	onstate,
 	delay = 500,
 	retryDelay = 5000,
-	now = Date.now
+	now = serverNow
 }: AutosaverOptions) {
 	let pending: string | null = null;
+	// true while a save request is out, so its code isn't counted as saved yet
+	let inFlight = false;
 	let timer: ReturnType<typeof setTimeout> | undefined;
 	let running: Promise<void> = Promise.resolve();
 	let disposed = false;
@@ -63,19 +79,24 @@ export function createAutosaver({
 			const code = pending;
 			pending = null;
 			const savedAt = now();
+			inFlight = true;
 			onstate({ kind: 'saving' });
 			try {
 				await save(code, savedAt, { keepalive });
+				inFlight = false;
 				// newer edits may have arrived while saving
 				// their own timer will save them
 				if (pending === null) onstate({ kind: 'saved', at: savedAt });
 			} catch (error) {
+				inFlight = false;
 				const retryable = !(error instanceof SaveError) || error.retryable;
 				const message = error instanceof SaveError ? error.message : 'Could not save.';
 				// keep the failed code unless the user has typed something newer since
 				pending ??= code;
-				onstate({ kind: 'error', message, retrying: retryable && !disposed });
-				if (retryable && !disposed) startTimer(retryDelay);
+				// retries keep going after dispose(): the code from a level the user left still
+				// needs to reach the server
+				onstate({ kind: 'error', message, retrying: retryable });
+				if (retryable) startTimer(retryDelay);
 			}
 		});
 		return running;
@@ -94,7 +115,7 @@ export function createAutosaver({
 			timer = undefined;
 			return run(keepalive);
 		},
-		// saves any waiting edit, then stops: later edits and retries are ignored
+		// saves any waiting edit, then stops taking new edits. A failed save still retries
 		dispose(): Promise<void> {
 			const done = this.flush();
 			disposed = true;
@@ -103,6 +124,10 @@ export function createAutosaver({
 		// true while an edit is waiting to be saved
 		get hasPending() {
 			return pending !== null;
+		},
+		// true while some code isn't safely stored yet: waiting, being sent, or failed
+		get hasUnsaved() {
+			return pending !== null || inFlight;
 		}
 	};
 }
@@ -187,11 +212,35 @@ export async function saveLevelCode(
 		throw new SaveError('Could not reach the server.', true);
 	}
 
-	// 409: a newer save already exists, so this code is already superseded
-	if (response.ok || response.status === 409) return;
+	// every response says what time the server thinks it is
+	const serverDate = Date.parse(response.headers.get('date') ?? '');
+	if (response.ok) return;
+	// 409: a newer save is already stored. saves from this tab run in order with rising
+	// timestamps, so the newer one came from another tab or device. this tab's code is still
+	// on screen, so keep it unsaved and let the user decide instead of dropping it
+	if (response.status === 409) {
+		throw new SaveError(
+			'Saved from another tab. Reload to get that version, or keep typing to save this one.',
+			false
+		);
+	}
 	if (response.status === 401) throw new SaveError('Sign in again to save your work.', false);
 	if (response.status === 404) throw new SaveError('This level no longer exists.', false);
 	if (response.status === 413) throw new SaveError('Your code is too long to save.', false);
-	if (response.status === 400) throw new SaveError('Could not save this code.', false);
+	if (response.status === 400) {
+		// the API rejects timestamps more than 5 minutes ahead of its clock. That means this
+		// device's clock is fast, so match the server's clock and try again
+		const body: unknown = await response.json().catch(() => null);
+		const future =
+			!!body &&
+			typeof body === 'object' &&
+			'error' in body &&
+			body.error === 'savedAt is in the future';
+		if (future && Number.isFinite(serverDate)) {
+			syncClock(serverDate);
+			throw new SaveError('Your device clock is off. Using the server’s time.', true);
+		}
+		throw new SaveError('Could not save this code.', false);
+	}
 	throw new SaveError('Could not save.', true);
 }
