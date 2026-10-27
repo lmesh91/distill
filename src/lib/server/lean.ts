@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { resolve } from 'node:path';
+import { leanSandboxArgs } from './leanSandbox.ts';
 
 export interface CompilationResult {
 	compiled: boolean;
@@ -8,18 +8,20 @@ export interface CompilationResult {
 	stderr: string;
 }
 
-// These are basic process guards; untrusted Lean still needs an OS sandbox (#76/#77).
+// Basic process guards; comprehensive resource quotas are tracked in #77.
 const timeoutMs = 30_000;
 const maxOutputBytes = 1024 * 1024;
 
 /** Run a fresh batch compiler, independently of the editor's language server. */
-export function compileLean(source: string): Promise<CompilationResult> {
+export async function compileLean(source: string): Promise<CompilationResult> {
+	const args = await leanSandboxArgs();
 	return new Promise((resolveResult, reject) => {
-		const compiler = spawn('lake', ['env', 'lean', '--stdin'], {
-			cwd: resolve(process.env.LEAN_PROJECT_DIR ?? 'lean'),
+		const compiler = spawn('bwrap', args, {
+			cwd: '/',
+			// Also keep secrets out of Bubblewrap itself (including its /proc environment).
+			env: { PATH: process.env.PATH },
 			stdio: ['pipe', 'pipe', 'pipe'],
-			// Allow killing Lake and its compiler together on POSIX hosts.
-			detached: process.platform !== 'win32'
+			detached: true
 		});
 		const stdout: Buffer[] = [];
 		const stderr: Buffer[] = [];
@@ -30,8 +32,9 @@ export function compileLean(source: string): Promise<CompilationResult> {
 			failure ??= error;
 			if (compiler.pid) {
 				try {
-					if (process.platform === 'win32') compiler.kill('SIGKILL');
-					else process.kill(-compiler.pid, 'SIGKILL');
+					// Kill the supervisor too: its PID namespace tears down every descendant,
+					// including children that create their own process group/session.
+					process.kill(-compiler.pid, 'SIGKILL');
 				} catch (error) {
 					if ((error as NodeJS.ErrnoException).code !== 'ESRCH') compiler.kill('SIGKILL');
 				}
@@ -58,14 +61,18 @@ export function compileLean(source: string): Promise<CompilationResult> {
 		});
 		compiler.on('close', (exitCode, signal) => {
 			clearTimeout(timer);
+			const errorOutput = Buffer.concat(stderr).toString('utf8');
 			if (failure) reject(failure);
 			else if (exitCode === null) reject(new Error(`Lean compiler terminated (${signal})`));
+			else if (/^bwrap:/m.test(errorOutput))
+				reject(new Error(`Lean sandbox failed: ${errorOutput}`));
+			else if (exitCode >= 128) reject(new Error(`Lean sandbox terminated (${exitCode})`));
 			else
 				resolveResult({
 					compiled: exitCode === 0,
 					exitCode,
 					stdout: Buffer.concat(stdout).toString('utf8'),
-					stderr: Buffer.concat(stderr).toString('utf8')
+					stderr: errorOutput
 				});
 		});
 		compiler.stdin.end(source);
