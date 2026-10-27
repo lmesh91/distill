@@ -168,7 +168,7 @@ test('describeSaveState picks the icon and the short time for the editor title b
 	assert.deepEqual(describeSaveState({ kind: 'saved', at }, at, at + 59_000), {
 		icon: 'saved',
 		label: 'Saved just now',
-		time: 'just now'
+		time: 'Just now'
 	});
 	assert.deepEqual(
 		describeSaveState(
@@ -176,12 +176,12 @@ test('describeSaveState picks the icon and the short time for the editor title b
 			at,
 			at + minute
 		),
-		{ icon: 'error', label: 'Could not save. Retrying…', time: 'last saved 1 min ago' }
+		{ icon: 'error', label: 'Could not save. Retrying…', time: 'Last saved 1 min ago' }
 	);
 	assert.equal(
 		describeSaveState({ kind: 'error', message: 'Could not save.', retrying: false }, null, at)
 			.time,
-		'not saved'
+		'Not saved'
 	);
 	// loading another level's save shows the spinner whatever the old state was
 	assert.equal(describeSaveState({ kind: 'saved', at }, at, at, true).icon, 'saving');

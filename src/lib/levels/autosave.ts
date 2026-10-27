@@ -115,7 +115,7 @@ export interface SaveIndicator {
 	icon: SaveIcon;
 	// full sentence for the tooltip and screen readers
 	label: string;
-	// small text next to the icon, e.g. "just now" or "5 min ago"
+	// small text next to the icon, e.g. "Just now" or "5 min ago"
 	time: string;
 }
 
@@ -130,6 +130,9 @@ export function timeSince(at: number, now: number): string {
 	const days = Math.floor(hours / 24);
 	return `${days} day${days === 1 ? '' : 's'} ago`;
 }
+
+// the small text next to the icon starts with a capital, e.g. "Just now"
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
 /**
  * what the save indicator shows
@@ -148,16 +151,16 @@ export function describeSaveState(
 		case 'idle':
 			return { icon: 'not-saved', label: 'Not saved yet', time: '' };
 		case 'saving':
-			return { icon: 'saving', label: 'Saving…', time: last };
+			return { icon: 'saving', label: 'Saving…', time: capitalize(last) };
 		case 'saved': {
 			const time = timeSince(state.at, now);
-			return { icon: 'saved', label: `Saved ${time}`, time };
+			return { icon: 'saved', label: `Saved ${time}`, time: capitalize(time) };
 		}
 		case 'error':
 			return {
 				icon: 'error',
 				label: state.retrying ? `${state.message} Retrying…` : state.message,
-				time: last ? `last saved ${last}` : 'not saved'
+				time: last ? `Last saved ${last}` : 'Not saved'
 			};
 	}
 }
