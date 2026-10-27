@@ -32,11 +32,15 @@ jobs:
 
       - name: Enable submission resource controls
         run: |
+          runner_uid="$(id -u)"
+          delegate_dir="/run/systemd/system/user@${runner_uid}.service.d"
+          sudo install -d "$delegate_dir"
+          printf '[Service]\nDelegate=cpu memory pids\n' | sudo tee "$delegate_dir/delegate.conf" > /dev/null
+          sudo systemctl daemon-reload
           sudo loginctl enable-linger "$USER"
-          sudo systemctl start "user@$(id -u).service"
-          sudo systemctl set-property --runtime "user@$(id -u).service" 'Delegate=cpu memory pids'
-          echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
-          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
+          sudo systemctl restart "user@${runner_uid}.service"
+          echo "XDG_RUNTIME_DIR=/run/user/${runner_uid}" >> "$GITHUB_ENV"
+          echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/${runner_uid}/bus" >> "$GITHUB_ENV"
 
       - name: Run tests
         run: npm run test
