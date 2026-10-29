@@ -106,6 +106,49 @@ test('closes the document and removes socket handlers on disposal', () => {
 	assert.equal(session.socket.onerror, null);
 });
 
+test('requests a translation once Lean finishes checking the current version', () => {
+	const sent: { id?: number; method: string; params: Record<string, unknown> }[] = [];
+	const translations: unknown[] = [];
+	const socket = {
+		readyState: WebSocket.OPEN,
+		send: (data: string) => sent.push(JSON.parse(data)),
+		close: () => {}
+	} as unknown as WebSocket;
+	const client = connectLean(socket, 'example : True := trivial', {
+		onstatus: () => {},
+		ondiagnostics: () => {},
+		ontranslation: (lines) => translations.push(lines)
+	});
+	const receive = (message: unknown) =>
+		socket.onmessage?.call(socket, new MessageEvent('message', { data: JSON.stringify(message) }));
+	const done = (version: number) =>
+		receive({
+			method: '$/lean/fileProgress',
+			params: { textDocument: { uri: 'file:///Scratch.lean', version }, processing: [] }
+		});
+
+	receive({ id: 0, result: {} });
+	const connect = sent.at(-1)!;
+	assert.equal(connect.method, '$/lean/rpc/connect');
+	done(1);
+	assert.equal(sent.at(-1), connect, 'waits for the RPC session');
+
+	receive({ id: connect.id, result: { sessionId: '18446744073709551615' } });
+	const call = sent.at(-1)!;
+	assert.equal(call.method, '$/lean/rpc/call');
+	assert.equal(call.params.method, 'Distill.translate');
+	assert.equal(call.params.sessionId, '18446744073709551615');
+
+	client.update('example : True := by trivial');
+	receive({ id: call.id, result: [{ line: 0, english: 'stale' }] });
+	done(2);
+	const next = sent.at(-1)!;
+	receive({ id: next.id, result: [{ line: 0, english: 'fresh' }] });
+	receive({ id: 999, error: { code: -32601, message: 'unrelated' } });
+	assert.deepEqual(translations, [[{ line: 0, english: 'fresh' }]]);
+	client.dispose();
+});
+
 test('allows editing after a disconnect without sending to a closed socket', () => {
 	const session = setup();
 	session.open();
