@@ -2,3 +2,4 @@
 -- Import modules here that should be built as part of the library.
 import Distill.Basic
 import Distill.Translate
+import Distill.Informalizer.IR

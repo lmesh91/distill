@@ -1,11 +1,19 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { onMount, untrack } from 'svelte';
+	import { navigating } from '$app/state';
 	import LeanEditor from '$lib/components/LeanEditor.svelte';
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
+	import LeanResults from '$lib/components/LeanResults.svelte';
+	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import type { Diagnostic, LineTranslation } from '$lib/lean/client';
+	import {
+		createAutosaver,
+		saveLevelCode,
+		syncClock,
+		type Autosaver,
+		type SaveState
+	} from '$lib/levels/autosave';
 	import type { PageProps } from './$types';
-
-	const severities = ['', 'Error', 'Warning', 'Info', 'Hint'];
 
 	let { data }: PageProps = $props();
 	let code = $state(untrack(() => data.initialCode));
@@ -13,14 +21,88 @@
 	let diagnostics = $state<Diagnostic[]>([]);
 	let translatedLines = $state<LineTranslation[]>([]);
 	let translationError = $state(false);
+	let leanEditor = $state<LeanEditor>();
+	let saveState = $state<SaveState>({ kind: 'idle' });
+	// true while SvelteKit loads another level and its saved code
+	const loadingLevel = $derived(navigating.to?.route.id === '/app/levels/[slug]');
 
-	// Runs before the editor mounts, including when SvelteKit reuses this page for another slug.
+	// the code the autosaver last saw, so loading a level's code isn't saved back as an edit
+	let lastSeenCode = untrack(() => data.initialCode);
+	let autosaver: Autosaver | undefined;
+	// autosavers for levels the user already left that still have code to save
+	const leaving = new Set<Autosaver>();
+	const allSavers = () => [...(autosaver ? [autosaver] : []), ...leaving];
+
+	function loadedSaveState(lastSavedAt: number | null): SaveState {
+		return lastSavedAt ? { kind: 'saved', at: lastSavedAt } : { kind: 'idle' };
+	}
+
+	// runs before the editor mounts, including when SvelteKit reuses this page for another slug
 	$effect.pre(() => {
+		syncClock(data.serverNow);
 		code = data.initialCode;
+		lastSeenCode = data.initialCode;
+		saveState = loadedSaveState(data.lastSavedAt);
 		status = 'Connecting…';
 		diagnostics = [];
 		translatedLines = [];
 		translationError = false;
+	});
+
+	// one autosaver per level. Its save function is bound to this level's id, so when the user
+	// switches levels, the old autosaver flushes any waiting edit to the level it came from
+	$effect(() => {
+		const levelId = data.level.id;
+		const saver = createAutosaver({
+			save: (nextCode, savedAt, options) => saveLevelCode(levelId, nextCode, savedAt, options),
+			onstate: (state) => {
+				if (autosaver === saver) saveState = state;
+				else if (!saver.hasUnsaved) leaving.delete(saver);
+			}
+		});
+		autosaver = saver;
+
+		return () => {
+			if (autosaver === saver) autosaver = undefined;
+			// keep it until its code is stored, so a failed save while switching levels still
+			// retries and still counts when the tab closes
+			leaving.add(saver);
+			void saver.dispose().then(() => {
+				if (!saver.hasUnsaved) leaving.delete(saver);
+			});
+		};
+	});
+
+	onMount(() => {
+		// save right away if the tab is closed, hidden, or reloaded, including levels just left
+		const flushAll = () => {
+			for (const saver of allSavers()) void saver.flush({ keepalive: true });
+		};
+		const flushOnHide = () => {
+			if (document.visibilityState === 'hidden') flushAll();
+		};
+		// ask before closing if some code isn't stored yet (e.g. a failed or in-progress save)
+		const warnIfUnsaved = (event: BeforeUnloadEvent) => {
+			if (allSavers().some((saver) => saver.hasUnsaved)) event.preventDefault();
+		};
+		document.addEventListener('visibilitychange', flushOnHide);
+		window.addEventListener('pagehide', flushAll);
+		window.addEventListener('beforeunload', warnIfUnsaved);
+		return () => {
+			document.removeEventListener('visibilitychange', flushOnHide);
+			window.removeEventListener('pagehide', flushAll);
+			window.removeEventListener('beforeunload', warnIfUnsaved);
+		};
+	});
+
+	// every edit restarts the 500 ms autosave timer
+	$effect(() => {
+		const current = code;
+		untrack(() => {
+			if (current === lastSeenCode) return;
+			lastSeenCode = current;
+			autosaver?.schedule(current);
+		});
 	});
 </script>
 
@@ -50,6 +132,7 @@
 	{#snippet editor()}
 		{#key data.level.id}
 			<LeanEditor
+				bind:this={leanEditor}
 				bind:value={code}
 				lockedLines={data.lockedLines}
 				onstatus={(nextStatus) => (status = nextStatus)}
@@ -58,22 +141,20 @@
 					translationError = lines === null;
 					if (lines) translatedLines = lines;
 				}}
-			/>
+			>
+				{#snippet titleBar()}
+					<SaveStatus {saveState} loading={loadingLevel} />
+				{/snippet}
+			</LeanEditor>
 		{/key}
 	{/snippet}
 
 	{#snippet output()}
-		<p>Connection Status: <span role="status">{status}</span></p>
-
-		<ul>
-			{#each diagnostics as diagnostic, index (index)}
-				<li>
-					{severities[diagnostic.severity]} at line {diagnostic.range.start.line + 1}, column
-					{diagnostic.range.start.character + 1}:
-					<pre>{diagnostic.message}</pre>
-				</li>
-			{/each}
-		</ul>
+		<LeanResults
+			{status}
+			{diagnostics}
+			onselect={(line, character) => leanEditor?.goTo(line, character)}
+		/>
 	{/snippet}
 
 	{#snippet translation()}

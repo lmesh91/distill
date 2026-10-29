@@ -1,6 +1,8 @@
 import { error, redirect } from '@sveltejs/kit';
-import { getLevels } from '$lib/server/collections';
+import { ObjectId } from 'mongodb';
+import { getLevels, getUserLevelProgresses } from '$lib/server/collections';
 import { getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
+import { getLevelProgress, type LevelProgressSnapshot } from '$lib/server/progress';
 import { getInitialCode } from '$lib/levels/initialCode';
 import { findLockedLines } from '$lib/levels/lockedLines';
 import type { PageServerLoad } from './$types';
@@ -22,10 +24,22 @@ export const load: PageServerLoad = async ({ locals, url, params }) => {
 		error(404, 'Level not found');
 	}
 
-	const initialCode = getInitialCode(level);
+	let progress: LevelProgressSnapshot | null;
+	try {
+		progress = await getLevelProgress(getUserLevelProgresses(), userId, new ObjectId(level.id));
+	} catch (err) {
+		console.error('Loading level progress failed:', err);
+		error(503, 'Could not load your progress');
+	}
+
+	const initialCode = getInitialCode(level, progress);
 	return {
 		level,
 		initialCode,
-		lockedLines: findLockedLines(level.starterCode, level.lockedLines, initialCode)
+		lockedLines: findLockedLines(level.starterCode, level.lockedLines, initialCode),
+		// when the code was last saved, for the save indicator
+		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null,
+		// the server's clock, so autosave timestamps match it even if the device clock is off
+		serverNow: Date.now()
 	};
 };

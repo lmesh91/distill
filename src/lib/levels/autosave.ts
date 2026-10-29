@@ -1,0 +1,252 @@
+/** what the save indicator shows
+ * `at` is a millisecond timestamp */
+export type SaveState =
+	| { kind: 'idle' }
+	| { kind: 'saving' }
+	| { kind: 'saved'; at: number }
+	| { kind: 'error'; message: string; retrying: boolean; short?: string };
+
+/** thrown by a save function
+ * `retryable` errors are retried automatically */
+export class SaveError extends Error {
+	readonly retryable: boolean;
+	// a few words for the title bar when the message is too long to show there
+	readonly short?: string;
+
+	constructor(message: string, retryable: boolean, short?: string) {
+		super(message);
+		this.retryable = retryable;
+		this.short = short;
+	}
+}
+
+// difference between the server's clock and this device's, so a fast or slow device clock
+// doesn't make every save look like it's from the future (the progress API rejects those)
+let clockOffset = 0;
+
+// call with the server's current time, e.g. from page data or a response's Date header
+export function syncClock(serverNow: number, localNow = Date.now()) {
+	if (Number.isFinite(serverNow)) clockOffset = serverNow - localNow;
+}
+
+// the current time on the server's clock, as best this device knows it
+export function serverNow() {
+	return Date.now() + clockOffset;
+}
+
+export interface AutosaverOptions {
+	/** saves `code` for one level. Resolves when saved
+	 * rejects (ideally with a SaveError) on failure */
+	save: (code: string, savedAt: number, options: { keepalive: boolean }) => Promise<void>;
+	onstate: (state: SaveState) => void;
+	// wait this long after the last edit before saving
+	delay?: number;
+	// wait this long before retrying a failed save
+	retryDelay?: number;
+	now?: () => number;
+}
+
+/**
+ * debounced autosave for one level's code
+ *
+ * create one per level: the `save` function decides where the code goes, so code is never
+ * written to a different level. Call `flush()` when leaving the level so the last edit
+ * isn't lost or saved late
+ */
+export function createAutosaver({
+	save,
+	onstate,
+	delay = 500,
+	retryDelay = 5000,
+	now = serverNow
+}: AutosaverOptions) {
+	let pending: string | null = null;
+	// true while a save request is out, so its code isn't counted as saved yet
+	let inFlight = false;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	let running: Promise<void> = Promise.resolve();
+	let disposed = false;
+
+	function startTimer(ms: number) {
+		clearTimeout(timer);
+		timer = setTimeout(() => {
+			timer = undefined;
+			void run(false);
+		}, ms);
+	}
+
+	// saves run one at a time, so an older save can never finish after a newer one starts
+	function run(keepalive: boolean): Promise<void> {
+		running = running.then(async () => {
+			if (pending === null) return;
+			const code = pending;
+			pending = null;
+			const savedAt = now();
+			inFlight = true;
+			onstate({ kind: 'saving' });
+			try {
+				await save(code, savedAt, { keepalive });
+				inFlight = false;
+				// newer edits may have arrived while saving
+				// their own timer will save them
+				if (pending === null) onstate({ kind: 'saved', at: savedAt });
+			} catch (error) {
+				inFlight = false;
+				const retryable = !(error instanceof SaveError) || error.retryable;
+				const message = error instanceof SaveError ? error.message : 'Could not save.';
+				// keep the failed code unless the user has typed something newer since
+				pending ??= code;
+				// retries keep going after dispose(): the code from a level the user left still
+				// needs to reach the server
+				const short = error instanceof SaveError ? error.short : undefined;
+				onstate({ kind: 'error', message, retrying: retryable, ...(short ? { short } : {}) });
+				if (retryable) startTimer(retryDelay);
+			}
+		});
+		return running;
+	}
+
+	return {
+		// call on every edit. Saves `delay` ms after the edits stop
+		schedule(code: string) {
+			if (disposed) return;
+			pending = code;
+			startTimer(delay);
+		},
+		// saves any waiting edit right away. Use `keepalive` when the page is closing
+		flush({ keepalive = false } = {}): Promise<void> {
+			clearTimeout(timer);
+			timer = undefined;
+			return run(keepalive);
+		},
+		// saves any waiting edit, then stops taking new edits. A failed save still retries
+		dispose(): Promise<void> {
+			const done = this.flush();
+			disposed = true;
+			return done;
+		},
+		// true while an edit is waiting to be saved
+		get hasPending() {
+			return pending !== null;
+		},
+		// true while some code isn't safely stored yet: waiting, being sent, or failed
+		get hasUnsaved() {
+			return pending !== null || inFlight;
+		}
+	};
+}
+
+export type Autosaver = ReturnType<typeof createAutosaver>;
+
+export type SaveIcon = 'not-saved' | 'saving' | 'saved' | 'error';
+
+export interface SaveIndicator {
+	icon: SaveIcon;
+	// full sentence for the tooltip and screen readers
+	label: string;
+	// small text next to the icon, e.g. "Just now" or "5 min ago"
+	time: string;
+}
+
+// how long ago a save was, short enough for the editor's title bar
+export function timeSince(at: number, now: number): string {
+	const seconds = Math.max(0, Math.floor((now - at) / 1000));
+	if (seconds < 60) return 'just now';
+	const minutes = Math.floor(seconds / 60);
+	if (minutes < 60) return `${minutes} min ago`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours} hr ago`;
+	const days = Math.floor(hours / 24);
+	return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+// the small text next to the icon starts with a capital, e.g. "Just now"
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+/**
+ * what the save indicator shows
+ * `lastSavedAt` is the last successful save, so saving and errors can still show it.
+ * `loading` is true while the page loads another level's saved code
+ */
+export function describeSaveState(
+	state: SaveState,
+	lastSavedAt: number | null,
+	now: number,
+	loading = false
+): SaveIndicator {
+	const last = lastSavedAt === null ? '' : timeSince(lastSavedAt, now);
+	if (loading) return { icon: 'saving', label: 'Loading your saved code…', time: '' };
+	switch (state.kind) {
+		case 'idle':
+			return { icon: 'not-saved', label: 'Not saved yet', time: '' };
+		case 'saving':
+			return { icon: 'saving', label: 'Saving…', time: capitalize(last) };
+		case 'saved': {
+			const time = timeSince(state.at, now);
+			return { icon: 'saved', label: `Saved ${time}`, time: capitalize(time) };
+		}
+		case 'error':
+			return {
+				icon: 'error',
+				label: state.retrying ? `${state.message} Retrying…` : state.message,
+				// the full message is in the tooltip
+				time: state.short ?? (last ? `Last saved ${last}` : 'Not saved')
+			};
+	}
+}
+
+// saves a level's code with the progress API (PUT /api/levels/:levelId/progress)
+export async function saveLevelCode(
+	levelId: string,
+	code: string,
+	savedAt: number,
+	{ keepalive = false } = {},
+	fetchFn: typeof fetch = fetch
+): Promise<void> {
+	let response: Response;
+	try {
+		response = await fetchFn(`/api/levels/${encodeURIComponent(levelId)}/progress`, {
+			method: 'PUT',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ code, savedAt }),
+			// lets the request finish after the tab closes
+			// browsers cap keepalive bodies at 64 KiB
+			keepalive: keepalive && code.length < 60_000
+		});
+	} catch {
+		throw new SaveError('Could not reach the server.', true);
+	}
+
+	// every response says what time the server thinks it is
+	const serverDate = Date.parse(response.headers.get('date') ?? '');
+	if (response.ok) return;
+	// 409: a newer save is already stored. saves from this tab run in order with rising
+	// timestamps, so the newer one came from another tab or device. this tab's code is still
+	// on screen, so keep it unsaved and let the user decide instead of dropping it
+	if (response.status === 409) {
+		throw new SaveError(
+			'A newer version was saved from another tab. Reload to get it, or keep typing to save this one.',
+			false,
+			'A newer save was found'
+		);
+	}
+	if (response.status === 401) throw new SaveError('Sign in again to save your work.', false);
+	if (response.status === 404) throw new SaveError('This level no longer exists.', false);
+	if (response.status === 413) throw new SaveError('Your code is too long to save.', false);
+	if (response.status === 400) {
+		// the API rejects timestamps more than 5 minutes ahead of its clock. That means this
+		// device's clock is fast, so match the server's clock and try again
+		const body: unknown = await response.json().catch(() => null);
+		const future =
+			!!body &&
+			typeof body === 'object' &&
+			'error' in body &&
+			body.error === 'savedAt is in the future';
+		if (future && Number.isFinite(serverDate)) {
+			syncClock(serverDate);
+			throw new SaveError('Your device clock is off. Using the server’s time.', true);
+		}
+		throw new SaveError('Could not save this code.', false);
+	}
+	throw new SaveError('Could not save.', true);
+}

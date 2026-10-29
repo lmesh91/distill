@@ -1,22 +1,25 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { EditorSelection, EditorState, StateEffect, StateField, Text } from '@codemirror/state';
 	import { Decoration, EditorView, drawSelection, keymap, lineNumbers } from '@codemirror/view';
-	import { changeKeepsLines, nearestFreeLine } from '$lib/levels/lockedLines';
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 	import { indentUnit } from '@codemirror/language';
 	import { connectLean, type Diagnostic, type LineTranslation } from '$lib/lean/client';
+	import { changeKeepsLines, nearestFreeLine } from '$lib/levels/lockedLines';
 
 	let {
 		value = $bindable(''),
 		onstatus,
 		ondiagnostics,
 		ontranslation,
-		lockedLines = []
+		lockedLines = [],
+		titleBar
 	}: {
 		value?: string;
 		/** 1-based lines of `value` the user can't edit, tracked as lines are added around them */
 		lockedLines?: number[];
+		// shown on the right of the editor's title bar, e.g. the save status
+		titleBar?: Snippet;
 		onstatus?: (status: string) => void;
 		ondiagnostics?: (diagnostics: Diagnostic[]) => void;
 		ontranslation?: (lines: LineTranslation[] | null) => void;
@@ -156,7 +159,20 @@
 		};
 	});
 
-	// Parent-driven updates (for example, loading starter code) use the same Lean session.
+	/**
+	 * moves the cursor to a 0-based Lean position, scrolls it into view and focuses the editor
+	 * used by the results panel to jump to an error
+	 */
+	export function goTo(line: number, character = 0) {
+		if (!editor) return;
+		const doc = editor.state.doc;
+		const target = doc.line(Math.min(Math.max(line + 1, 1), doc.lines));
+		const pos = target.from + Math.min(Math.max(character, 0), target.length);
+		editor.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+		editor.focus();
+	}
+
+	// parent-driven updates use the same Lean session
 	$effect(() => {
 		const nextValue = value;
 		const nextLocked = lockedLines;
@@ -171,7 +187,10 @@
 </script>
 
 <section class="lean-editor" aria-labelledby={`${id}-title`}>
-	<h2 id={`${id}-title`}>Lean editor</h2>
+	<div class="title-bar">
+		<h2 id={`${id}-title`}>Lean editor</h2>
+		{@render titleBar?.()}
+	</div>
 	<div class="editor-container" bind:this={container}></div>
 	<p class="keyboard-help" id={`${id}-help`}>
 		Tab indents; Shift+Tab outdents. Press Escape then Tab to move focus out of the editor.
@@ -197,12 +216,22 @@
 		outline-offset: 2px;
 	}
 
-	h2 {
+	.title-bar {
+		display: flex;
 		flex: none;
-		margin: 0;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-width: 0;
 		padding: 8px 12px;
 		border-bottom: 2px solid #777;
 		background: #f3f3f3;
+	}
+
+	h2 {
+		flex: none;
+		margin: 0;
+		white-space: nowrap;
 		font:
 			600 14px / 1.4 system-ui,
 			sans-serif;
