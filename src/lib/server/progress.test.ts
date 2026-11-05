@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { MongoServerError, ObjectId } from 'mongodb';
-import { saveLevelProgress } from './progress.ts';
+import { getLevelProgress, saveLevelProgress } from './progress.ts';
 
 const levelId = new ObjectId();
 const clientSavedAt = new Date('2026-10-15T12:00:00Z');
@@ -78,4 +78,25 @@ test('other database errors are rethrown', async () => {
 	const updateError = new MongoServerError({ message: 'boom', code: 1 });
 	const { levels, progress } = fakes({ updateError });
 	await assert.rejects(saveLevelProgress(levels, progress, input), updateError);
+});
+
+test('loads only the status, code and save time of the user’s progress for one level', async () => {
+	const saved = {
+		status: 'in_progress' as const,
+		currentCode: 'example : True := by',
+		clientSavedAt
+	};
+	let call: unknown[] = [];
+	const progress = {
+		findOne: async (...args: unknown[]) => {
+			call = args;
+			return saved;
+		}
+	} as unknown as Parameters<typeof getLevelProgress>[0];
+
+	assert.deepEqual(await getLevelProgress(progress, 'user-1', levelId), saved);
+	assert.deepEqual(call, [
+		{ userId: 'user-1', levelId },
+		{ projection: { _id: 0, status: 1, currentCode: 1, clientSavedAt: 1 } }
+	]);
 });
