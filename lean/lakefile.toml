@@ -1,6 +1,6 @@
 name = "Distill"
 version = "0.1.0"
-defaultTargets = ["distill"]
+defaultTargets = ["distill", "distill-verifier"]
 
 [[lean_lib]]
 name = "Distill"
@@ -8,3 +8,7 @@ name = "Distill"
 [[lean_exe]]
 name = "distill"
 root = "Main"
+
+[[lean_exe]]
+name = "distill-verifier"
+root = "Verifier"
