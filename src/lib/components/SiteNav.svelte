@@ -3,11 +3,14 @@
 	import { page } from '$app/state';
 	import { Show, SignOutButton } from 'svelte-clerk';
 	import { primaryLinks } from '$lib/navigation/links';
+	import logo from '$lib/assets/distill-logo.png';
 </script>
 
 <header class="site-header">
 	<nav class="site-nav" aria-label="Primary">
-		<a class="brand" href={resolve('/')}>Distill</a>
+		<a class="brand" href={resolve('/')}>
+			<img src={logo} alt="Distill" width="92" height="32" />
+		</a>
 
 		<ul class="links">
 			{#each primaryLinks as link (link.href)}
@@ -25,7 +28,7 @@
 		<div class="account">
 			<!-- Ends the Clerk session, then returns to the signed-out home page. -->
 			<Show when="signed-in">
-				<SignOutButton redirectUrl="/" class="sign-out" />
+				<SignOutButton redirectUrl="/" class="button small sign-out" />
 			</Show>
 		</div>
 	</nav>
@@ -33,31 +36,37 @@
 
 <style>
 	.site-header {
-		border-bottom: 1px solid #d0d0d0;
-		background: #fff;
+		border-bottom: var(--border-width) solid var(--color-border);
+		background: var(--color-surface);
 	}
 
 	.site-nav {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem 2rem;
-		max-width: 75rem;
+		gap: var(--space-2) var(--space-6);
+		max-width: var(--page-width);
 		margin: 0 auto;
-		padding: 0.75rem 1rem;
+		padding: var(--space-3) var(--page-gutter);
 	}
 
 	.brand {
-		font-size: 1.25rem;
-		font-weight: 700;
-		color: #333;
-		text-decoration: none;
+		display: inline-flex;
+		align-items: center;
+	}
+
+	.brand img {
+		display: block;
+		width: auto;
+		height: 2rem;
+		/* the logo is pixel art, so keep its edges sharp when scaled */
+		image-rendering: pixelated;
 	}
 
 	.links {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.25rem 1.25rem;
+		gap: var(--space-1) var(--space-2);
 		margin: 0;
 		padding: 0;
 		list-style: none;
@@ -65,43 +74,26 @@
 
 	.links a {
 		display: inline-block;
-		padding: 0.25rem 0;
-		color: #555;
+		padding: var(--space-1) var(--space-2);
+		border-radius: var(--radius-sm);
+		color: var(--color-text-muted);
+		font-weight: var(--weight-medium);
 		text-decoration: none;
-		border-bottom: 2px solid transparent;
 	}
 
 	.links a:hover {
-		color: #333;
+		color: var(--color-ink);
+		background: var(--color-surface-sunken);
 	}
 
+	/* the current page gets the yellow marker highlight */
 	.links a[aria-current='page'] {
-		color: #333;
-		font-weight: 600;
-		border-bottom-color: #333;
+		background: var(--color-highlight);
+		color: var(--color-ink);
+		font-weight: var(--weight-bold);
 	}
 
 	.account {
 		margin-left: auto;
-	}
-
-	.account :global(.sign-out) {
-		padding: 0.375rem 0.875rem;
-		border: 1px solid #4a4a4a;
-		border-radius: 6px;
-		background: #fff;
-		color: #333;
-		font: inherit;
-		cursor: pointer;
-	}
-
-	.account :global(.sign-out:hover) {
-		background: #f3f3f3;
-	}
-
-	.account :global(.sign-out:focus-visible),
-	a:focus-visible {
-		outline: 2px solid #1f6feb;
-		outline-offset: 2px;
 	}
 </style>

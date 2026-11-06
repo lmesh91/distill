@@ -1,0 +1,98 @@
+/*
+ * Distill design tokens (#20). use these variables instead of raw colors, sizes or fonts
+ * see docs/design-system/README.md for when to use each one, and /design for a live preview
+ */
+:root {
+	/* ---- color: brand ---- */
+	--color-brand: #1a6db8; /* the blue from the Distill logo */
+	--color-brand-strong: #145a99; /* hover and pressed brand */
+	--color-brand-soft: #e3eef9; /* tinted backgrounds, selected rows */
+
+	/* ---- color: accents (from our slide deck) ---- */
+	--color-highlight: #fff269; /* marker highlight behind key words, current nav item */
+	--color-pink: #f6b5d3;
+	--color-mint: #b8f5d9;
+
+	/* ---- color: surfaces and text ---- */
+	--color-ink: #1b1b1f; /* main text, borders, pixel shadows */
+	--color-text: var(--color-ink);
+	--color-text-muted: #5b5b66; /* secondary text, captions */
+	--color-text-subtle: #6e6e78; /* placeholders, timestamps */
+	--color-text-on-brand: #ffffff;
+	--color-page: #faf8f3; /* page background, like notebook paper */
+	--color-surface: #ffffff; /* panels, cards, the editor */
+	--color-surface-sunken: #f1eee6; /* title bars, gutters, code blocks */
+	--color-border: var(--color-ink);
+	--color-border-subtle: #d8d4c8; /* dividers inside panels */
+
+	/* ---- color: status (all at least 4.5:1 on white) ---- */
+	--color-success: #1a7f37;
+	--color-success-soft: #e6f4ea;
+	--color-warning: #9a6700;
+	--color-warning-soft: #fdf3d8;
+	--color-error: #b42318;
+	--color-error-soft: #fdeceb;
+	--color-neutral: #6e6e78;
+
+	--color-focus: var(--color-brand);
+
+	/* ---- typography ---- */
+	--font-display:
+		'Jersey 10', 'Space Grotesk Variable', system-ui, sans-serif; /* pixel font: 24px and up only */
+	--font-body: 'Space Grotesk Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+
+	--text-xs: 0.75rem; /* 12px: timestamps, badges */
+	--text-sm: 0.875rem; /* 14px: panel text, labels */
+	--text-md: 1rem; /* 16px: body */
+	--text-lg: 1.125rem; /* 18px: lead paragraphs */
+	--text-xl: 1.5rem; /* 24px: section headings (pixel font ok) */
+	--text-2xl: 2.25rem; /* 36px */
+	--text-3xl: clamp(2.5rem, 5vw, 3.5rem); /* page titles */
+
+	--weight-regular: 400;
+	--weight-medium: 500;
+	--weight-bold: 650;
+
+	--leading-tight: 1.15;
+	--leading-normal: 1.5;
+	--leading-code: 1.8;
+
+	/* ---- spacing (4px steps) ---- */
+	--space-1: 0.25rem; /* 4px */
+	--space-2: 0.5rem; /* 8px */
+	--space-3: 0.75rem; /* 12px */
+	--space-4: 1rem; /* 16px */
+	--space-5: 1.5rem; /* 24px */
+	--space-6: 2rem; /* 32px */
+	--space-7: 3rem; /* 48px */
+	--space-8: 4rem; /* 64px */
+
+	/* ---- shape ---- */
+	--border-width: 2px;
+	--radius-sm: 4px;
+	--radius: 6px;
+	--radius-lg: 10px;
+	--radius-full: 999px;
+
+	/* solid, offset "pixel" shadows give buttons and cards a game-like feel */
+	--shadow-pixel-sm: 2px 2px 0 var(--color-ink);
+	--shadow-pixel: 4px 4px 0 var(--color-ink);
+	--shadow-popover: 0 8px 24px rgb(27 27 31 / 0.16);
+
+	/* ---- layout ---- */
+	--page-width: 75rem;
+	--page-gutter: var(--space-4);
+
+	/* ---- motion ---- */
+	--duration-fast: 120ms;
+	--duration-normal: 200ms;
+	--ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--duration-fast: 0ms;
+		--duration-normal: 0ms;
+	}
+}
