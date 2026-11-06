@@ -1,4 +1,5 @@
 import { json, redirect, type Handle } from '@sveltejs/kit';
+import { normalizedRouteId } from './routes.ts';
 
 function within(path: string, root: string): boolean {
 	return path === root || path.startsWith(`${root}/`);
@@ -6,9 +7,7 @@ function within(path: string, root: string): boolean {
 
 // Run after Clerk populates locals, before database access or route handlers.
 export const protectRoutes: Handle = ({ event, resolve }) => {
-	// Route IDs also cover encoded URLs and SvelteKit data requests. Route groups
-	// are organizational and do not change whether a route needs an account.
-	const path = (event.route.id ?? event.url.pathname).replace(/\/\([^)]+\)/g, '');
+	const path = normalizedRouteId(event);
 	const appRoute = within(path, '/app');
 	const accountApi = within(path, '/api') && path !== '/api/webhooks/clerk';
 

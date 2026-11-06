@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { isRedirect, type RequestEvent } from '@sveltejs/kit';
 import { protectRoutes } from './auth.ts';
+import { normalizedRouteId } from './routes.ts';
 import { load } from '../../routes/app/+layout.server.ts';
 
 function request(path: string, userId: string | null = null, method = 'GET') {
@@ -18,6 +19,41 @@ function request(path: string, userId: string | null = null, method = 'GET') {
 function denyResolve(): never {
 	assert.fail('An unauthenticated request must not reach the database or route handler');
 }
+
+test('route normalization removes whole groups at any position and preserves the root', () => {
+	for (const [id, expected] of [
+		['/', '/'],
+		['/(public)', '/'],
+		['/(outer)/(inner)', '/'],
+		['/(account)/app/(tools)/lean', '/app/lean'],
+		['/(account)/(tools)/app/lean', '/app/lean'],
+		['/admin/(editor)', '/admin'],
+		['/api/(private)/admin/(editor)/levels/[id]', '/api/admin/levels/[id]'],
+		['/api/webhooks/clerk/(public)', '/api/webhooks/clerk'],
+		['/(group)app/lean', '/(group)app/lean'],
+		['/app/example(group)', '/app/example(group)']
+	]) {
+		const event = request('/unrelated');
+		event.route.id = id as typeof event.route.id;
+		assert.equal(normalizedRouteId(event), expected, id);
+	}
+});
+
+test('route normalization prefers the matched ID over encoded, data, base, and rerouted URLs', () => {
+	for (const path of ['/%61pp/lean', '/app/lean/__data.json', '/distill/app/lean', '/editor']) {
+		const event = request(path);
+		event.route.id = '/app/lean';
+		assert.equal(normalizedRouteId(event), '/app/lean');
+	}
+});
+
+test('unmatched routes retain the raw pathname, including literal group-like segments', () => {
+	for (const path of ['/app/missing', '/%61pp/missing', '/(public)/missing']) {
+		const event = request(path);
+		event.route.id = null;
+		assert.equal(normalizedRouteId(event), path);
+	}
+});
 
 async function expectSignIn(event: RequestEvent) {
 	await assert.rejects(
@@ -75,6 +111,18 @@ test('account APIs return JSON 401 without a redirect or downstream work', async
 		assert.match(response.headers.get('content-type') ?? '', /application\/json/);
 		assert.deepEqual(await response.json(), { error: 'Unauthorized' });
 	}
+});
+
+test('grouped APIs remain protected and the grouped Clerk webhook remains public', async () => {
+	const event = request('/api/whoami');
+	event.route.id = '/(account)/api/(private)/whoami' as typeof event.route.id;
+	const denied = await protectRoutes({ event, resolve: denyResolve });
+	assert.equal(denied.status, 401);
+
+	const webhook = request('/api/webhooks/clerk', null, 'POST');
+	webhook.route.id = '/(public)/api/webhooks/clerk/(webhook)' as typeof webhook.route.id;
+	const response = new Response('public');
+	assert.equal(await protectRoutes({ event: webhook, resolve: async () => response }), response);
 });
 
 test('public pages, auth flows, health, and the signed webhook remain reachable', async () => {
