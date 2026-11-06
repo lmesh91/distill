@@ -116,7 +116,7 @@
 <LevelLayout title={data.level.title} help={proofHelp}>
 	{#snippet toolbar()}
 		{#if data.level.type !== 'from-scratch' && data.level.hints.length > 0}
-			<button class="hints" type="button">Hints</button>
+			<button class="button small" type="button">Hints</button>
 		{/if}
 	{/snippet}
 
@@ -158,20 +158,5 @@
 	.description {
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
-	}
-
-	.hints {
-		padding: 0.375rem 1rem;
-		border: 1px solid #4a4a4a;
-		border-radius: 6px;
-		background: #fff;
-		color: #333;
-		font: inherit;
-		cursor: pointer;
-	}
-
-	.hints:focus-visible {
-		outline: 2px solid #1f6feb;
-		outline-offset: 2px;
 	}
 </style>

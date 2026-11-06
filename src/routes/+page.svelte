@@ -21,16 +21,20 @@
 		'q holds by hq, and p holds by hp. ∎'
 	];
 
+	// accent is the color strip on top of each card, from the design system's accents
 	const modes = [
 		{
+			accent: 'mint',
 			title: 'Guided translation',
 			body: 'Start from a proof written in English and rewrite it in Lean, one step at a time.'
 		},
 		{
+			accent: 'pink',
 			title: 'Prove from scratch',
 			body: 'Get a theorem with no proof attached and write your own, using the tactics you have unlocked.'
 		},
 		{
+			accent: 'highlight',
 			title: 'Live English',
 			body: 'As you type, Distill turns your Lean into plain English so you can check that it says what you mean.'
 		}
@@ -48,7 +52,9 @@
 <main class="home">
 	<section class="hero" aria-labelledby="hero-title">
 		<div class="pitch">
-			<h1 id="hero-title">Learn Lean by translating proofs you already know.</h1>
+			<h1 id="hero-title" class="display">
+				Learn Lean by translating <span class="highlight">proofs you already know.</span>
+			</h1>
 			<p class="lead">
 				Distill is a game for people who already write math proofs. Each level asks you to prove
 				something in the Lean theorem prover, and every line you write is translated back into
@@ -79,10 +85,10 @@
 	</section>
 
 	<section class="how" aria-labelledby="how-title">
-		<h2 id="how-title">How Distill works</h2>
+		<h2 id="how-title" class="display">How Distill works</h2>
 		<ul class="modes">
 			{#each modes as mode (mode.title)}
-				<li class="mode">
+				<li class="mode card" style:--accent={`var(--color-${mode.accent})`}>
 					<h3>{mode.title}</h3>
 					<p>{mode.body}</p>
 				</li>
@@ -93,157 +99,136 @@
 
 <style>
 	.home {
-		box-sizing: border-box;
-		max-width: 75rem;
+		max-width: var(--page-width);
 		margin: 0 auto;
-		padding: 3rem 1rem 4rem;
-		color: #333;
+		padding: var(--space-7) var(--page-gutter) var(--space-8);
 	}
 
 	.hero {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
 		align-items: center;
-		gap: 3rem;
+		gap: var(--space-7);
 	}
 
 	h1 {
-		margin: 0 0 1rem;
-		font-size: clamp(2rem, 4vw, 2.75rem);
-		line-height: 1.15;
+		margin: 0 0 var(--space-4);
+		font-size: var(--text-3xl);
 	}
 
 	.lead {
-		margin: 0 0 1.75rem;
-		font-size: 1.125rem;
+		margin: 0 0 var(--space-5);
+		font-size: var(--text-lg);
 		line-height: 1.6;
-		color: #555;
+		color: var(--color-text-muted);
 	}
 
 	.ctas {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 0.75rem;
+		gap: var(--space-3);
 	}
 
-	.button {
-		display: inline-block;
-		padding: 0.75rem 1.25rem;
-		border: 2px solid #333;
-		border-radius: 6px;
-		color: #333;
-		font-weight: 600;
-		text-decoration: none;
-	}
-
-	.button.primary {
-		background: #333;
-		color: #fff;
-	}
-
-	.button:hover {
-		background: #f3f3f3;
-	}
-
-	.button.primary:hover {
-		background: #4a4a4a;
-	}
-
-	.button:focus-visible {
-		outline: 2px solid #1f6feb;
-		outline-offset: 2px;
+	.ctas .button {
+		min-height: 3rem;
+		padding-inline: var(--space-5);
 	}
 
 	.example {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
 		align-items: stretch;
-		gap: 0.75rem;
+		gap: var(--space-3);
 		margin: 0;
 	}
 
 	.pane {
-		padding: 0.75rem 1rem;
-		border: 2px solid #4a4a4a;
-		border-radius: 6px;
-		background: #fff;
+		padding: var(--space-3) var(--space-4);
+		border: var(--border-width) solid var(--color-border);
+		border-radius: var(--radius-lg);
+		background: var(--color-surface);
+		box-shadow: var(--shadow-pixel);
 	}
 
 	.pane:first-child {
-		background: #f3f3f3;
+		background: var(--color-surface-sunken);
 	}
 
 	.pane-title {
-		margin: 0 0 0.5rem;
-		font-size: 0.875rem;
-		font-weight: 600;
+		margin: 0 0 var(--space-2);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-bold);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-muted);
 	}
 
 	pre {
 		margin: 0;
 		overflow-x: auto;
-		font:
-			13px / 1.8 ui-monospace,
-			SFMono-Regular,
-			Consolas,
-			monospace;
+		font-size: 13px;
+		line-height: var(--leading-code);
 	}
 
 	ol {
 		margin: 0;
 		padding-left: 1.25rem;
 		font-size: 0.9375rem;
-		line-height: 1.5;
+		line-height: var(--leading-normal);
 	}
 
 	ol li + li {
-		margin-top: 0.375rem;
+		margin-top: var(--space-2);
 	}
 
 	.arrow {
 		align-self: center;
-		font-size: 1.5rem;
+		font-size: var(--text-xl);
+		color: var(--color-brand);
 	}
 
 	figcaption {
 		grid-column: 1 / -1;
-		font-size: 0.875rem;
-		color: #555;
+		margin-top: var(--space-2);
+		font-size: var(--text-sm);
+		color: var(--color-text-muted);
 	}
 
 	.how {
-		margin-top: 4rem;
+		margin-top: var(--space-8);
 	}
 
 	h2 {
-		margin: 0 0 1.25rem;
-		font-size: 1.5rem;
+		margin: 0 0 var(--space-5);
+		font-size: var(--text-2xl);
 	}
 
 	.modes {
 		display: grid;
 		grid-template-columns: repeat(3, minmax(0, 1fr));
-		gap: 1rem;
+		gap: var(--space-5);
 		margin: 0;
 		padding: 0;
 		list-style: none;
 	}
 
+	/* a colored strip on top of each mode card */
 	.mode {
-		padding: 1.25rem;
-		border: 2px solid #4a4a4a;
-		border-radius: 6px;
+		border-top-width: 10px;
+		border-top-color: var(--accent);
+		box-shadow:
+			0 -2px 0 var(--color-ink),
+			var(--shadow-pixel);
 	}
 
 	h3 {
-		margin: 0 0 0.5rem;
-		font-size: 1.125rem;
+		margin: 0 0 var(--space-2);
+		font-size: var(--text-lg);
 	}
 
 	.mode p {
 		margin: 0;
-		line-height: 1.5;
-		color: #555;
+		color: var(--color-text-muted);
 	}
 
 	@media (max-width: 60rem) {
@@ -253,13 +238,13 @@
 		}
 
 		.hero {
-			gap: 2rem;
+			gap: var(--space-6);
 		}
 	}
 
 	@media (max-width: 36rem) {
 		.home {
-			padding-top: 2rem;
+			padding-top: var(--space-6);
 		}
 
 		.example {
