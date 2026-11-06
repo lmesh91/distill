@@ -30,3 +30,34 @@ from. Vertical panes never shrink past their title bar.
 
 `goal`, `editor` and `output` are required. Headings rendered inside `brief` pick up the panel
 heading style.
+
+# ProofCheckStatus
+
+`ProofCheckStatus.svelte` shows where a "Check proof" request is (#57): waiting for a free Lean
+worker, checking (with a seconds counter), accepted, rejected with the reason, or an error. It
+renders nothing while idle. Pair it with `createProofChecker` from `src/lib/levels/proofCheck.ts`,
+which calls `POST /api/submissions`, retries while Lean is busy (503 with `Retry-After`), and
+cancels an older check when a new one starts:
+
+```svelte
+<script lang="ts">
+	import ProofCheckStatus from '$lib/components/ProofCheckStatus.svelte';
+	import { createProofChecker, type ProofCheckState } from '$lib/levels/proofCheck';
+
+	let check = $state<ProofCheckState>({ kind: 'idle' });
+	const checker = createProofChecker({ onstate: (next) => (check = next) });
+</script>
+
+<button
+	class="button primary"
+	type="button"
+	disabled={check.kind === 'waiting' || check.kind === 'running'}
+	onclick={() => checker.check(data.level.slug, code)}
+>
+	Check proof
+</button>
+<ProofCheckStatus {check} />
+```
+
+`check()` resolves with the final state, so a page can react to an accepted proof (for example,
+open the post-completion dialog).
