@@ -42,8 +42,8 @@ instance : HasSubset (Set α) where
 
 -- Set equality notation, A = B
 -- `=` is Lean's built-in equality and can't be redefined, so instead we prove
--- that it agrees with `Set.Eq`. The `ext` tactic then turns a goal `A = B`
--- into `A ⊆ B` and `B ⊆ A`.
+-- that it agrees with the classical definition of set equality.
+-- The `ext` tactic then turns a goal `A = B` into `A ⊆ B` and `B ⊆ A`.
 @[ext (iff := false)]
 theorem Set.ext {A B : Set α} (h₁ : A ⊆ B) (h₂ : B ⊆ A) : A = B := by
   cases A; cases B
