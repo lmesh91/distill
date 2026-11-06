@@ -35,6 +35,16 @@ Use `npm run check` for Svelte and TypeScript checks, and `npm run build` for a 
 
 Proofs are checked with the Lake project in `lean/`, which pins the Lean version in `lean/lean-toolchain`. Install [elan](https://github.com/leanprover/elan) so that `lake` is on your PATH, and use Node 24.
 
+Submission compilation also requires Linux and [Bubblewrap](https://github.com/containers/bubblewrap)
+(`bwrap` on PATH, version 0.8 or newer), with unprivileged user namespaces enabled.
+It also requires systemd 254+ with a running user manager and cgroup v2 CPU, memory,
+and PID controllers delegated to that user. See the [resource setup](docs/api/README.md#resource-limits)
+for host configuration. Unsupported hosts reject submissions; there is no fallback.
+On Ubuntu/Debian, install it with `sudo apt-get install bubblewrap`. Run
+`lake build` in `lean/` to build the trusted imports and verification helper. Each submission runs
+in an isolated sandbox; there is no unsandboxed fallback. On macOS or Windows,
+run the backend in a Linux VM or WSL2 with these prerequisites.
+
 The browser talks to Lean's language server through a WebSocket relay, which starts `lake serve` in `lean/` for each connection and forwards messages in both directions. The dev server proxies `/lean` to the relay, so run it alongside `npm run dev`:
 
 ```sh
@@ -54,5 +64,5 @@ Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PA
 - `npm run test:levels`: checks published-level lookup and serialization, including missing or unpublished levels.
 - `npm run test:auth`: checks protected pages and APIs, sign-in redirects, public routes, and authentication checks during client navigation.
 
-Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
+Submissions use Lean 4.35.0’s `lake comparator` to check the required theorem against a trusted level challenge. Level authors must configure the `verification` field described in the API documentation; existing levels without it return 503 when submitted. Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
 for setup, request and response formats, limits, and testing.

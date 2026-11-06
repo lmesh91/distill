@@ -1,7 +1,7 @@
-import type { ObjectId } from "mongodb";
+import type { ObjectId } from 'mongodb';
 
-// TODO: Fix this type to reflect the actual level types
-export type LevelType = "guided" | "hints" | "free";
+export type LevelType = 'guided' | 'hints' | 'from-scratch';
+import type { VerificationTarget } from './submission';
 
 export interface Level {
     _id?: ObjectId; // TODO: Potentially create NewLevel interface instead, and require this id
@@ -14,6 +14,7 @@ export interface Level {
     statement: string;
     starterCode: string;
     expectedGoal?: string;
+    verification?: VerificationTarget;
     hints?: string[];
     published: boolean;
     createdAt: Date;
