@@ -1,4 +1,4 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error } from '@sveltejs/kit';
 import { ObjectId } from 'mongodb';
 import { getLevels, getUserLevelProgresses } from '$lib/server/collections';
 import { getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
@@ -6,7 +6,12 @@ import { getLevelProgress, type LevelProgressSnapshot } from '$lib/server/progre
 import { getInitialCode } from '$lib/levels/initialCode';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ params }) => {
+export const load: PageServerLoad = async ({ locals, params }) => {
+	const { userId } = locals.auth();
+	if (!userId) {
+		error(401, 'Unauthorized');
+	}
+
 	let level: LevelPageData | null;
 	try {
 		level = await getPublishedLevelBySlug(getLevels(), params.slug);
