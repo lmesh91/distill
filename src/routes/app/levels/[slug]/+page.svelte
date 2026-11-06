@@ -31,10 +31,7 @@
 	</p>
 {/snippet}
 
-<LevelLayout
-	title={data.level.title}
-	help={data.level.type === 'from-scratch' ? proofHelp : undefined}
->
+<LevelLayout title={data.level.title} help={proofHelp}>
 	{#snippet toolbar()}
 		{#if data.level.type !== 'from-scratch' && data.level.hints.length > 0}
 			<button class="hints" type="button">Hints</button>
