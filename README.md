@@ -48,5 +48,7 @@ Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PA
 - `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
 - `npm run test:submissions`: check code submission functionality
 
+The Lean side has its own tests: run `lake test` in `lean/`.
+
 Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
 for setup, request and response formats, limits, and testing.

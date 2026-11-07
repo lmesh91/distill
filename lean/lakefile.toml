@@ -1,6 +1,7 @@
 name = "Distill"
 version = "0.1.0"
 defaultTargets = ["distill"]
+testDriver = "Tests"
 
 [[lean_lib]]
 name = "Distill"
@@ -8,3 +9,7 @@ name = "Distill"
 [[lean_exe]]
 name = "distill"
 root = "Main"
+
+[[lean_lib]]
+name = "Tests"
+globs = ["Tests.+"]

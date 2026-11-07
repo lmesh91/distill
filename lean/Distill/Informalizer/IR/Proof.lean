@@ -3,8 +3,8 @@ import Distill.Informalizer.IR.Common
 /-!
 # Proof IR
 
-The Proof IR records how a Lean proof was constructed. One `ProofIR` describes one
-declaration. It keeps only what translation needs and cannot cheaply recompute; everything
+The Proof IR records how a Lean proof was constructed. One `ProofIR` describes one tactic
+proof (outermost `by` block), usually the whole body of a declaration. It keeps only what translation needs and cannot cheaply recompute; everything
 else (parent links, context differences, the hypotheses and constants a proof uses) is
 derived on demand by the helpers at the end of this file.
 
@@ -59,7 +59,7 @@ open Lean
 
 /-! ## Statement and hypotheses -/
 
-/-- The statement of the declaration being proved. -/
+/-- What the `by` block proves: the declaration's statement when the block is its body. -/
 structure Statement where
   /-- The binders before the colon, in order. Their names, types and binder info are in the
   hypothesis table. -/
@@ -98,9 +98,9 @@ structure Assignment where
   /-- The innermost node that made the assignment, e.g. the `refine` inside a `have`. -/
   node : Nat
   /-- The term assigned to the goal, one level deep: goals in it are left as metavariables
-  (they are the goal's subgoals) rather than replaced by their own assignments. Delayed-
-  assignment placeholders (created by `intro` and `have`) are replaced by the goals they
-  stand for, and metavariables that are not goals (e.g. implicit arguments solved by
+  (they are the goal's subgoals) rather than replaced by their own assignments. A subgoal
+  occurs applied to the terms its new hypotheses (`ProofIR.newHyps`) stand for, in order
+  (`fun x => ?g1 x`). Metavariables that are not goals (e.g. implicit arguments solved by
   unification) are instantiated. -/
   proof : Expr
   deriving Inhabited, Repr
@@ -108,12 +108,13 @@ structure Assignment where
 /-- A proof obligation. In Lean, a goal is a metavariable whose type and local context never
 change; a tactic "changes the goal" by assigning it and creating new goals.
 
-The table holds every goal some node reported, plus intermediate goals needed to connect
-them (e.g. the ones `use` creates and closes internally). Implicit arguments solved by
-unification are not goals. -/
+The table holds every goal some node reported. Goals a tactic creates and closes internally are
+not in it: their proofs are part of the assignment of the reported goal they belong to.
+Implicit arguments solved by unification are not goals. -/
 structure GoalInfo where
   mvarId : MVarId
-  /-- Case tag, e.g. `mp`, `mpr`, `left`, `h`. Often hygienic (`body._@…`) for internal goals. -/
+  /-- Case tag where the goal first appears, e.g. `mp`, `mpr`, `left`, `h`. Often hygienic
+  (`body._@…`) for internal goals. -/
   tag : Name
   target : Expr
   /-- Visible hypotheses in the goal's local context, in order. -/
@@ -251,15 +252,20 @@ structure TacticNode where
 
 /-! ## Declaration -/
 
-/-- The Proof IR of one declaration. -/
+/-- The Proof IR of one tactic proof: an outermost `by` block. -/
 structure ProofIR where
+  /-- The declaration the `by` block is part of. -/
   decl : Name
+  /-- Whether the `by` block is the declaration's whole body, so that `statement` is the
+  declaration's statement. Otherwise (`⟨by …, by …⟩`, a `by` in a signature) `statement` is only
+  the goal of the block, and its binders include whatever the surrounding term bound. -/
+  isDeclBody : Bool
   statement : Statement
   /-- The goal of the outermost `by` block; its context is the statement binders. -/
   rootGoal : MVarId
   /-- All tactic nodes in execution order. `nodes[i].id = i`. -/
   nodes : Array TacticNode
-  /-- Every goal some node reported, plus the intermediate goals that connect them. -/
+  /-- Every goal some node reported (see `GoalInfo`). -/
   goals : Std.HashMap MVarId GoalInfo
   /-- Every hypothesis and variable of the statement and the proof. -/
   hyps : Std.HashMap FVarId HypInfo
@@ -279,6 +285,16 @@ def hyp? (ir : ProofIR) (h : FVarId) : Option HypInfo :=
 /-- Nodes the user wrote, in execution order. -/
 def surfaceNodes (ir : ProofIR) : Array TacticNode :=
   ir.nodes.filter (·.role == .surface)
+
+/-- The surface nodes nested in node `id` without another surface node in between, looking
+through inner and structural nodes: the tactics of a `have h : t := by …` block, the
+alternative of `first | … | …` that succeeded, the tactics under `·`. -/
+partial def nestedSurface (ir : ProofIR) (id : Nat) : Array TacticNode :=
+  let children := (ir.node? id).map (·.children) |>.getD #[]
+  children.foldl (init := #[]) fun acc c =>
+    match ir.node? c with
+    | some n => if n.role == .surface then acc.push n else acc ++ ir.nestedSurface c
+    | none => acc
 
 /-- The node `id` is nested in. -/
 def parent? (ir : ProofIR) (id : Nat) : Option TacticNode :=
