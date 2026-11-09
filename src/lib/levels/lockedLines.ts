@@ -1,9 +1,10 @@
 /**
  * Finds where a level's locked starter lines are in the code the editor opens with.
  *
- * `lockedLines` are 1-based line numbers in `starterCode`. Saved code may have extra lines, so
- * each locked line is matched by its text, in order, and dropped if the user's code lost it.
- * Returns 1-based line numbers in `code`.
+ * `lockedLines` are 1-based line numbers in `starterCode`. Saved code may have extra or missing
+ * lines, so the whole starter is aligned with the code (longest common subsequence of lines) and
+ * each locked line follows its aligned position, which keeps repeated lines such as blanks apart.
+ * A locked line with no match is dropped. Returns 1-based line numbers in `code`.
  */
 export function findLockedLines(
 	starterCode: string,
@@ -11,18 +12,31 @@ export function findLockedLines(
 	code: string
 ): number[] {
 	const starter = starterCode.split('\n');
+	const wanted = [...new Set(lockedLines)]
+		.filter((line) => line >= 1 && line <= starter.length)
+		.sort((a, b) => a - b);
+	if (code === starterCode) return wanted;
+
 	const lines = code.split('\n');
-	const found: number[] = [];
-	let next = 0;
-	for (const lineNumber of [...lockedLines].sort((a, b) => a - b)) {
-		const text = starter[lineNumber - 1];
-		if (text === undefined) continue;
-		const index = lines.indexOf(text, next);
-		if (index === -1) continue;
-		found.push(index + 1);
-		next = index + 1;
+	// common[i][j]: length of the longest common subsequence of starter[i..] and lines[j..]
+	const common = Array.from({ length: starter.length + 1 }, () =>
+		new Array<number>(lines.length + 1).fill(0)
+	);
+	for (let i = starter.length - 1; i >= 0; i--) {
+		for (let j = lines.length - 1; j >= 0; j--) {
+			common[i][j] =
+				starter[i] === lines[j]
+					? common[i + 1][j + 1] + 1
+					: Math.max(common[i + 1][j], common[i][j + 1]);
+		}
 	}
-	return found;
+	const match = new Map<number, number>();
+	for (let i = 0, j = 0; i < starter.length && j < lines.length; ) {
+		if (starter[i] === lines[j]) match.set(i++ + 1, j++ + 1);
+		else if (common[i + 1][j] >= common[i][j + 1]) i++;
+		else j++;
+	}
+	return wanted.flatMap((line) => match.get(line) ?? []);
 }
 
 /**
@@ -52,16 +66,26 @@ export type LineRange = { from: number; to: number };
 export type Change = { from: number; to: number; inserted: string };
 
 /**
- * Whether a change leaves every locked line intact. New lines may still be added directly before
- * or after a locked line, but its text can't change and it can't be merged with a neighbour.
+ * Whether a change to `doc` leaves every locked line intact. Whole lines may still be added or
+ * removed directly before or after a locked line, but its text can't change and it can't be merged
+ * with a neighbour.
  */
-export function changeKeepsLines(change: Change, locked: LineRange[]): boolean {
+export function changeKeepsLines(change: Change, locked: LineRange[], doc: string): boolean {
+	// after the change, is the text just before `change.from` / after `change.to` a line break?
+	const breakBefore =
+		change.inserted === ''
+			? change.from === 0 || doc[change.from - 1] === '\n'
+			: change.inserted.endsWith('\n');
+	const breakAfter =
+		change.inserted === ''
+			? change.to === doc.length || doc[change.to] === '\n'
+			: change.inserted.startsWith('\n');
 	return locked.every(({ from, to }) => {
-		if (change.from === change.to) {
-			if (change.from < from || change.from > to) return true;
-			if (change.from === to && change.inserted.startsWith('\n')) return true;
-			return change.from === from && change.inserted.endsWith('\n');
-		}
-		return change.to < from || change.from > to;
+		if (change.to < from || change.from > to) return true;
+		if (change.to === from && change.from < from) return breakBefore;
+		if (change.from === to && change.to > to) return breakAfter;
+		if (change.from !== change.to) return false;
+		if (change.from === to && change.inserted.startsWith('\n')) return true;
+		return change.from === from && change.inserted.endsWith('\n');
 	});
 }

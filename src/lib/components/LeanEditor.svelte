@@ -52,9 +52,10 @@
 	const lockedLine = Decoration.line({ class: 'cm-locked-line' });
 	const keepLocked = EditorState.changeFilter.of((tr) => {
 		const ranges = tr.startState.field(locked).map((start) => tr.startState.doc.lineAt(start));
+		const doc = tr.startState.doc.toString();
 		let allowed = true;
 		tr.changes.iterChanges((from, to, _fromB, _toB, inserted) => {
-			allowed &&= changeKeepsLines({ from, to, inserted: inserted.toString() }, ranges);
+			allowed &&= changeKeepsLines({ from, to, inserted: inserted.toString() }, ranges, doc);
 		});
 		return allowed;
 	});

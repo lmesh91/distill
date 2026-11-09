@@ -51,7 +51,11 @@ export function connectLean(socket: WebSocket, initialCode: string, callbacks: C
 
 	function connectRpc() {
 		request('$/lean/rpc/connect', { uri }, ({ result, error }) => {
-			if (error || disposed) return;
+			if (disposed) return;
+			if (error) {
+				callbacks.ontranslation?.(null);
+				return;
+			}
 			sessionId = (result as { sessionId: string }).sessionId;
 			clearInterval(keepAlive);
 			keepAlive = setInterval(() => send('$/lean/rpc/keepAlive', { uri, sessionId }), keepAliveMs);
