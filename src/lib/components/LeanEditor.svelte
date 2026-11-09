@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, type Snippet } from 'svelte';
 	import { EditorState } from '@codemirror/state';
 	import { EditorView, drawSelection, keymap, lineNumbers } from '@codemirror/view';
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
@@ -9,9 +9,12 @@
 	let {
 		value = $bindable(''),
 		onstatus,
-		ondiagnostics
+		ondiagnostics,
+		titleBar
 	}: {
 		value?: string;
+		// shown on the right of the editor's title bar, e.g. the save status
+		titleBar?: Snippet;
 		onstatus?: (status: string) => void;
 		ondiagnostics?: (diagnostics: Diagnostic[]) => void;
 	} = $props();
@@ -82,7 +85,20 @@
 		};
 	});
 
-	// Parent-driven updates (for example, loading starter code) use the same Lean session.
+	/**
+	 * moves the cursor to a 0-based Lean position, scrolls it into view and focuses the editor
+	 * used by the results panel to jump to an error
+	 */
+	export function goTo(line: number, character = 0) {
+		if (!editor) return;
+		const doc = editor.state.doc;
+		const target = doc.line(Math.min(Math.max(line + 1, 1), doc.lines));
+		const pos = target.from + Math.min(Math.max(character, 0), target.length);
+		editor.dispatch({ selection: { anchor: pos }, scrollIntoView: true });
+		editor.focus();
+	}
+
+	// parent-driven updates use the same Lean session
 	$effect(() => {
 		const nextValue = value;
 		if (editor && nextValue !== editor.state.doc.toString()) {
@@ -92,7 +108,10 @@
 </script>
 
 <section class="lean-editor" aria-labelledby={`${id}-title`}>
-	<h2 id={`${id}-title`}>Lean editor</h2>
+	<div class="title-bar">
+		<h2 id={`${id}-title`}>Lean editor</h2>
+		{@render titleBar?.()}
+	</div>
 	<div class="editor-container" bind:this={container}></div>
 	<p class="keyboard-help" id={`${id}-help`}>
 		Tab indents; Shift+Tab outdents. Press Escape then Tab to move focus out of the editor.
@@ -101,7 +120,11 @@
 
 <style>
 	.lean-editor {
+		display: flex;
+		flex: 1 1 auto;
+		flex-direction: column;
 		min-width: 0;
+		min-height: 0;
 		overflow: hidden;
 		border: 2px solid #4a4a4a;
 		border-radius: 6px;
@@ -114,18 +137,30 @@
 		outline-offset: 2px;
 	}
 
-	h2 {
-		margin: 0;
+	.title-bar {
+		display: flex;
+		flex: none;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		min-width: 0;
 		padding: 8px 12px;
 		border-bottom: 2px solid #777;
 		background: #f3f3f3;
+	}
+
+	h2 {
+		flex: none;
+		margin: 0;
+		white-space: nowrap;
 		font:
 			600 14px / 1.4 system-ui,
 			sans-serif;
 	}
 
 	.editor-container {
-		height: var(--lean-editor-height, 400px);
+		flex: 1 1 var(--lean-editor-height, 400px);
+		min-height: 0;
 	}
 
 	.keyboard-help {

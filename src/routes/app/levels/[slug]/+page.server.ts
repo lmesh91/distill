@@ -1,13 +1,15 @@
-import { error, redirect } from '@sveltejs/kit';
-import { getLevels } from '$lib/server/collections';
+import { error } from '@sveltejs/kit';
+import { ObjectId } from 'mongodb';
+import { getLevels, getUserLevelProgresses } from '$lib/server/collections';
 import { getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
+import { getLevelProgress, type LevelProgressSnapshot } from '$lib/server/progress';
 import { getInitialCode } from '$lib/levels/initialCode';
 import type { PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals, url, params }) => {
+export const load: PageServerLoad = async ({ locals, params }) => {
 	const { userId } = locals.auth();
 	if (!userId) {
-		redirect(307, `/sign-in?redirect_url=${encodeURIComponent(url.href)}`);
+		error(401, 'Unauthorized');
 	}
 
 	let level: LevelPageData | null;
@@ -21,5 +23,20 @@ export const load: PageServerLoad = async ({ locals, url, params }) => {
 		error(404, 'Level not found');
 	}
 
-	return { level, initialCode: getInitialCode(level) };
+	let progress: LevelProgressSnapshot | null;
+	try {
+		progress = await getLevelProgress(getUserLevelProgresses(), userId, new ObjectId(level.id));
+	} catch (err) {
+		console.error('Loading level progress failed:', err);
+		error(503, 'Could not load your progress');
+	}
+
+	return {
+		level,
+		initialCode: getInitialCode(level, progress),
+		// when the code was last saved, for the save indicator
+		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null,
+		// the server's clock, so autosave timestamps match it even if the device clock is off
+		serverNow: Date.now()
+	};
 };
