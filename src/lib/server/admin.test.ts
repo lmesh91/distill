@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { isHttpError, type RequestEvent } from '@sveltejs/kit';
+import { isHttpError, isRedirect, type RequestEvent } from '@sveltejs/kit';
 import { handleAdmin } from './admin.ts';
 import { isAdmin, requireAdmin } from './roles.ts';
 
@@ -15,12 +15,16 @@ function request(
 	routeId: string | null = path
 ): RequestEvent {
 	const url = new URL(path, 'https://distill.example');
+	const originalRequest = new Request(url, { method });
+	const isDataRequest = url.pathname.endsWith('/__data.json');
+	// SvelteKit removes the data suffix before passing the URL to server hooks.
+	if (isDataRequest) url.pathname = url.pathname.slice(0, -'/__data.json'.length);
 	return {
 		url,
-		request: new Request(url, { method }),
+		request: originalRequest,
 		route: { id: routeId },
 		locals: auth,
-		isDataRequest: path.includes('__data.json')
+		isDataRequest
 	} as RequestEvent;
 }
 
@@ -50,40 +54,80 @@ test('only the exact administrator claim on an authenticated session grants acce
 	}
 });
 
-const protectedRoutes: [path: string, routeId: string | null][] = [
+const protectedPages: [path: string, routeId: string | null][] = [
 	['/admin', '/admin'],
 	['/admin/', '/admin'],
 	['/admin/levels/new', '/admin/levels/new'],
 	['/admin/levels/123?/save', '/admin/levels/[id]'],
 	['/admin/__data.json', '/admin'],
 	['/admin/levels/123/__data.json', '/admin/levels/[id]'],
+	['/%61dmin/levels', '/admin/levels'],
+	['/admin/levels', '/(authenticated)/admin/(editor)/levels'],
+	['/distill/admin', '/admin'],
+	['/management', '/admin'],
+	['/admin/not-found', null],
+	['/admin/levels?search=a%26b&page=2&redirect_url=https://evil.example', '/admin/levels'],
+	['/admin/levels/123/__data.json?page=2', '/admin/levels/[id]']
+];
+const protectedApis: [path: string, routeId: string | null][] = [
 	['/api/admin', '/api/admin'],
 	['/api/admin/', '/api/admin'],
 	['/api/admin/users/123/progress', '/api/admin/users/[id]/progress'],
 	['/api/admin/levels?role=admin', '/api/admin/levels'],
-	['/%61dmin/levels', '/admin/levels'],
 	['/api/%61dmin/levels', '/api/admin/levels'],
-	['/admin/levels', '/(authenticated)/admin/(editor)/levels'],
 	['/api/admin/levels', '/api/(private)/admin/levels'],
-	['/distill/admin', '/admin'],
-	['/management', '/admin'],
-	['/admin/not-found', null],
+	['/management-api', '/api/admin'],
 	['/api/admin/not-found', null]
 ];
+const protectedRoutes = [...protectedPages, ...protectedApis];
 
-test('denied page, data, action, and API requests never reach downstream handlers', async () => {
-	for (const [path, routeId] of protectedRoutes) {
+test('denied page, data, and action requests redirect signed-out users and forbid non-admins', async () => {
+	for (const [path, routeId] of protectedPages) {
 		for (const method of ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
 			for (const { auth, status } of denied) {
+				const event = request(path, auth, method, routeId);
 				await assert.rejects(
 					async () =>
 						handleAdmin({
-							event: request(path, auth, method, routeId),
+							event,
 							resolve: async () => assert.fail('Protected handler must not run')
 						}),
-					(error) => isHttpError(error, status),
-					`${method} ${path} should return ${status}`
+					(error) => {
+						if (status === 403) return isHttpError(error, 403);
+						assert.ok(isRedirect(error));
+						assert.equal(error.status, 303);
+						const location = new URL(error.location, event.url.origin);
+						assert.equal(location.origin, event.url.origin);
+						assert.equal(location.pathname, '/sign-in');
+						assert.equal(
+							location.searchParams.get('redirect_url'),
+							event.url.pathname + event.url.search
+						);
+						return true;
+					},
+					`${method} ${path} should ${status === 401 ? 'redirect to sign-in' : 'return 403'}`
 				);
+			}
+		}
+	}
+});
+
+test('denied API requests return JSON errors without redirecting or running handlers', async () => {
+	for (const [path, routeId] of protectedApis) {
+		for (const method of ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
+			for (const { auth, status } of denied) {
+				const event = request(path, auth, method, routeId);
+				event.request.headers.set('accept', 'text/html');
+				const response = await handleAdmin({
+					event,
+					resolve: async () => assert.fail('Protected handler must not run')
+				});
+				assert.equal(response.status, status);
+				assert.equal(response.headers.get('content-type'), 'application/json');
+				assert.equal(response.headers.get('location'), null);
+				assert.deepEqual(await response.json(), {
+					error: status === 401 ? 'Unauthorized' : 'Forbidden'
+				});
 			}
 		}
 	}
