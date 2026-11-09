@@ -61,3 +61,8 @@ cancels an older check when a new one starts:
 
 `check()` resolves with the final state, so a page can react to an accepted proof (for example,
 open the post-completion dialog).
+
+The level page wires this into `LevelLayout`'s `actions` snippet (#56). It submits the current
+editor text and level slug, and disables the button while checking, loading another level, or
+the editor is empty. It calls `checker.cancel()` when the text or level changes and on page
+destruction, so pending retries stop and a verdict never refers to an older proof.

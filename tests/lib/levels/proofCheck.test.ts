@@ -64,6 +64,31 @@ test('submitProof tells a busy server apart from other failures', async () => {
 	await assert.rejects(submitProof('hello', 'rfl', {}, offline), /Could not reach the server/);
 });
 
+test('an unconfigured level explains the missing setup without retrying', async () => {
+	await assert.rejects(
+		submitProof(
+			'w1-3',
+			'example : 1 + 1 = 2 := by rfl',
+			{},
+			fakeFetch(503, { error: 'Level verification is not configured' })
+		),
+		(error: unknown) =>
+			error instanceof ProofCheckError &&
+			!error.busy &&
+			error.message ===
+				'Proof checking has not been set up for this level yet. The level author needs to finish its setup.'
+	);
+});
+
+test('a malformed service error still shows the fallback message', async () => {
+	const fetchImpl = (async () =>
+		new Response('Service unavailable', { status: 503 })) as typeof fetch;
+	await assert.rejects(
+		submitProof('w1-3', 'rfl', {}, fetchImpl),
+		/Proof checking is unavailable right now/
+	);
+});
+
 test('a check shows running, then the verdict', async () => {
 	const states: ProofCheckState[] = [];
 	const checker = createProofChecker({
@@ -176,6 +201,48 @@ test('cancel stops the check and goes back to idle', async () => {
 	assert.equal((await done).kind, 'idle');
 	assert.deepEqual(states.at(-1), { kind: 'idle' });
 	assert.equal(checker.checking, false);
+});
+
+test('cancel while waiting prevents further retries', async (t) => {
+	t.mock.timers.enable({ apis: ['setTimeout'] });
+	const states: ProofCheckState[] = [];
+	let submissions = 0;
+	const checker = createProofChecker({
+		onstate: (state) => states.push(state),
+		submit: async () => {
+			submissions++;
+			throw new ProofCheckError('Lean is busy.', { busy: true, retryAfterMs: 1000 });
+		}
+	});
+
+	const done = checker.check('hello', 'rfl');
+	await settle();
+	assert.equal(states.at(-1)?.kind, 'waiting');
+	checker.cancel();
+	t.mock.timers.tick(10_000);
+	assert.equal((await done).kind, 'idle');
+	assert.equal(submissions, 1);
+	assert.equal(checker.checking, false);
+	assert.deepEqual(states.at(-1), { kind: 'idle' });
+});
+
+test('a cancelled result cannot appear after editing code or leaving the level', async () => {
+	const states: ProofCheckState[] = [];
+	let finish!: (result: VerificationResult) => void;
+	const checker = createProofChecker({
+		onstate: (state) => states.push(state),
+		// Simulate a response that finishes despite the cancellation.
+		submit: () => new Promise((resolve) => (finish = resolve))
+	});
+
+	const done = checker.check('hello', 'rfl');
+	checker.cancel();
+	finish(accepted);
+	assert.equal((await done).kind, 'idle');
+	assert.deepEqual(
+		states.map((state) => state.kind),
+		['running', 'idle']
+	);
 });
 
 test('describeProofCheck shows elapsed time while busy and explains rejections', () => {

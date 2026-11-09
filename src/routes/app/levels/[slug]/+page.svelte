@@ -1,10 +1,12 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import { navigating } from '$app/state';
 	import LeanEditor from '$lib/components/LeanEditor.svelte';
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
 	import LeanResults from '$lib/components/LeanResults.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
+	import ProofCheckStatus from '$lib/components/ProofCheckStatus.svelte';
+	import { createProofChecker, type ProofCheckState } from '$lib/levels/proofCheck';
 	import type { Diagnostic } from '$lib/lean/client';
 	import {
 		createAutosaver,
@@ -23,6 +25,17 @@
 	let saveState = $state<SaveState>({ kind: 'idle' });
 	// true while SvelteKit loads another level and its saved code
 	const loadingLevel = $derived(navigating.to?.route.id === '/app/levels/[slug]');
+	let check = $state<ProofCheckState>({ kind: 'idle' });
+	const checker = createProofChecker({ onstate: (next) => (check = next) });
+	const checking = $derived(check.kind === 'waiting' || check.kind === 'running');
+	const canCheck = $derived(!loadingLevel && !checking && code.trim().length > 0);
+
+	function checkProof() {
+		if (!canCheck || checker.checking) return;
+		void checker.check(data.level.slug, code);
+	}
+
+	onDestroy(() => checker.cancel());
 
 	// the code the autosaver last saw, so loading a level's code isn't saved back as an edit
 	let lastSeenCode = untrack(() => data.initialCode);
@@ -43,6 +56,7 @@
 		saveState = loadedSaveState(data.lastSavedAt);
 		status = 'Connecting…';
 		diagnostics = [];
+		checker.cancel();
 	});
 
 	// one autosaver per level. Its save function is bound to this level's id, so when the user
@@ -97,6 +111,8 @@
 		untrack(() => {
 			if (current === lastSeenCode) return;
 			lastSeenCode = current;
+			// A verdict applies only to the submitted text, including while waiting for Lean.
+			checker.cancel();
 			autosaver?.schedule(current);
 		});
 	});
@@ -111,6 +127,7 @@
 		<code>sorry</code> placeholders with your own proof steps. Lean checks your code as you type; use
 		the Lean output to work through errors and unfinished goals.
 	</p>
+	<p>When you’re ready, select Check proof to verify that your proof solves the level’s goal.</p>
 {/snippet}
 
 <LevelLayout title={data.level.title} help={proofHelp}>
@@ -144,6 +161,13 @@
 		{/key}
 	{/snippet}
 
+	{#snippet actions()}
+		<button class="check-proof" type="button" disabled={!canCheck} onclick={checkProof}>
+			Check proof
+		</button>
+		<ProofCheckStatus {check} />
+	{/snippet}
+
 	{#snippet output()}
 		<LeanResults
 			{status}
@@ -154,6 +178,31 @@
 </LevelLayout>
 
 <style>
+	.check-proof {
+		padding: 0.5rem 1rem;
+		border: 2px solid var(--color-border, #1b1b1f);
+		border-radius: var(--radius, 6px);
+		background: var(--color-brand, #1a6db8);
+		color: #fff;
+		font: inherit;
+		font-weight: var(--weight-bold, 650);
+		cursor: pointer;
+	}
+
+	.check-proof:not(:disabled):hover {
+		filter: brightness(0.9);
+	}
+
+	.check-proof:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.check-proof:focus-visible {
+		outline: 2px solid var(--color-brand, #1a6db8);
+		outline-offset: 2px;
+	}
+
 	.statement,
 	.description {
 		white-space: pre-wrap;
