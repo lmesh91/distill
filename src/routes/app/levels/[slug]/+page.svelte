@@ -5,7 +5,7 @@
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
 	import LeanResults from '$lib/components/LeanResults.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
-	import type { Diagnostic } from '$lib/lean/client';
+	import type { Diagnostic, LineTranslation } from '$lib/lean/client';
 	import {
 		createAutosaver,
 		saveLevelCode,
@@ -19,6 +19,8 @@
 	let code = $state(untrack(() => data.initialCode));
 	let status = $state('Connecting…');
 	let diagnostics = $state<Diagnostic[]>([]);
+	let translatedLines = $state<LineTranslation[]>([]);
+	let translationError = $state(false);
 	let leanEditor = $state<LeanEditor>();
 	let saveState = $state<SaveState>({ kind: 'idle' });
 	// true while SvelteKit loads another level and its saved code
@@ -43,6 +45,8 @@
 		saveState = loadedSaveState(data.lastSavedAt);
 		status = 'Connecting…';
 		diagnostics = [];
+		translatedLines = [];
+		translationError = false;
 	});
 
 	// one autosaver per level. Its save function is bound to this level's id, so when the user
@@ -121,7 +125,12 @@
 	{/snippet}
 
 	{#snippet goal()}
-		<p class="statement">{data.level.statement}</p>
+		{#if data.level.type === 'guided' && data.level.targetProof}
+			<p>Write Lean whose translation matches this proof:</p>
+			<blockquote class="target-proof">{data.level.targetProof}</blockquote>
+		{:else}
+			<p class="statement">{data.level.statement}</p>
+		{/if}
 	{/snippet}
 
 	{#snippet brief()}
@@ -134,8 +143,13 @@
 			<LeanEditor
 				bind:this={leanEditor}
 				bind:value={code}
+				lockedLines={data.lockedLines}
 				onstatus={(nextStatus) => (status = nextStatus)}
 				ondiagnostics={(nextDiagnostics) => (diagnostics = nextDiagnostics)}
+				ontranslation={(lines) => {
+					translationError = lines === null;
+					translatedLines = lines ?? [];
+				}}
 			>
 				{#snippet titleBar()}
 					<SaveStatus {saveState} loading={loadingLevel} />
@@ -150,6 +164,17 @@
 			{diagnostics}
 			onselect={(line, character) => leanEditor?.goTo(line, character)}
 		/>
+	{/snippet}
+
+	{#snippet translation()}
+		{#if translationError}
+			<p role="status">Translation unavailable. Ensure you import Distill as your first line.</p>
+		{/if}
+		<ol class="translation">
+			{#each translatedLines as { line, english }, index (index)}
+				<li><span class="line-number">{line + 1}</span>{english}</li>
+			{/each}
+		</ol>
 	{/snippet}
 </LevelLayout>
 
@@ -173,5 +198,32 @@
 	.hints:focus-visible {
 		outline: 2px solid #1f6feb;
 		outline-offset: 2px;
+	}
+
+	.target-proof {
+		margin: 0 0 1rem;
+		padding-left: 0.75rem;
+		border-left: 3px solid #4a4a4a;
+		white-space: pre-wrap;
+	}
+
+	.translation {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+	}
+
+	.translation li {
+		display: flex;
+		gap: 0.75rem;
+		margin-bottom: 0.375rem;
+	}
+
+	.line-number {
+		flex: none;
+		min-width: 1.5rem;
+		color: #777;
+		font-variant-numeric: tabular-nums;
+		text-align: right;
 	}
 </style>
