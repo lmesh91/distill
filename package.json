@@ -16,6 +16,7 @@
 		"test:relay": "node --test relay/server.test.ts",
 		"test:editor": "node --test src/lib/lean/client.test.ts tests/lib/lean/results.test.ts",
 		"test:submissions": "node --test src/lib/server/lean.test.ts",
+		"test:proof-check": "node --test tests/lib/levels/proofCheck.test.ts",
         "test:initial-code": "node --test src/lib/levels/initialCode.test.ts",
         "test:redirects": "node --test src/lib/server/redirects.test.ts",
         "test:progress": "node --test src/lib/server/progress.test.ts",
