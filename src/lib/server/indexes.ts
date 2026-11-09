@@ -1,4 +1,4 @@
-import { getLevels, getUserLevelProgresses } from './collections';
+import { getAttempts, getLevels, getUserLevelProgresses } from './collections';
 
 let ensured: Promise<void> | undefined;
 
@@ -27,6 +27,10 @@ async function doEnsureIndexes() {
 		progress.createIndex(
 			{ userId: 1, levelId: 1 },
 			{ unique: true, name: 'progress_user_level_unique' }
+		),
+		getAttempts().createIndex(
+			{ userId: 1, levelId: 1, submittedAt: -1 },
+			{ name: 'attempts_user_level_recent' }
 		),
 	]);
 }

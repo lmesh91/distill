@@ -74,6 +74,21 @@ test('an older save that collides with a newer record is reported as stale', asy
 	assert.equal(await saveLevelProgress(levels, progress, input), 'stale');
 });
 
+test('a save colliding with a concurrent first write retries and applies', async () => {
+	const { levels } = fakes();
+	let calls = 0;
+	const progress = {
+		updateOne: async () => {
+			if (calls++ === 0) {
+				throw new MongoServerError({ message: 'E11000 duplicate key', code: 11000 });
+			}
+			return { acknowledged: true, matchedCount: 1, modifiedCount: 1, upsertedCount: 0 };
+		}
+	} as unknown as Progress;
+	assert.equal(await saveLevelProgress(levels, progress, input), 'saved');
+	assert.equal(calls, 2);
+});
+
 test('other database errors are rethrown', async () => {
 	const updateError = new MongoServerError({ message: 'boom', code: 1 });
 	const { levels, progress } = fakes({ updateError });

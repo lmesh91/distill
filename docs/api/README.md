@@ -66,9 +66,26 @@ HTTP 200 returns a verification result for both accepted and rejected submission
 		"dependencies": ["hello", "Eq.refl", "Eq", "String"],
 		"axioms": [],
 		"introducedAxioms": []
+	},
+	"progress": {
+		"status": "completed",
+		"attemptCount": 3,
+		"completedAt": "2026-11-09T19:30:00.000Z"
 	}
 }
 ```
+
+Every graded check is recorded before the response is sent, in one transaction (so
+MongoDB must be a replica set, as Atlas is). The source, verdict, reason, diagnostics,
+and any comparator message are appended to the `levelAttempts` collection, and the
+user's `userLevelProgress` record for the level is updated: `currentCode` becomes the
+graded source, `attemptCount` is incremented, and `lastAttemptedAt` set. Only an accepted result sets `status` to `completed`; the first
+`completedAt` is kept on later attempts, and a rejection never downgrades a completed
+level. A rejection stores its first error (or warning, comparator message, or reason)
+in `currentError`. `progress` in the response is the updated record. Busy, unavailable,
+or failed checks are not recorded. If recording fails the route returns 503
+`{ "error": "Could not record submission" }` and nothing is stored, so a retry is
+recorded as a single new attempt.
 
 The dependency list is illustrative; its contents depend on the elaborated proof.
 `accepted` is the authoritative verdict. `compiled` only means the compiler exited
