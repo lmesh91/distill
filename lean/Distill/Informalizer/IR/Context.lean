@@ -101,33 +101,56 @@ def withGoalContext (ir : ProofIR) (g : MVarId) (x : MetaM α) : MetaM α := do
   let insts := (← getLocalInstances).filter (gi.context.contains ·.fvar.fvarId!)
   withLCtx (ir.goalLCtx gi.context) insts x
 
+/-- The hypotheses introduced on the way from the goal `ancestor` down to `g`, a goal in its
+proof: the `newHyps` of the goals after `ancestor` on that way, outermost first. For a goal that
+is not below `ancestor`, its own `newHyps`. -/
+def hypsSince (ir : ProofIR) (ancestor g : MVarId) : Array FVarId := Id.run do
+  let mut hyps := #[]
+  let mut cur := g
+  for _ in [0:ir.goals.size + 1] do
+    if cur == ancestor then return hyps
+    hyps := ir.newHyps cur ++ hyps
+    match ir.goal? cur >>= (·.parent?) with
+    | some p => cur := p
+    | none => break
+  return ir.newHyps g
+
 mutual
   /--
-  The proof term that the assignments from `g` down add up to, or `none` if a goal on the way
-  is unassigned (or, in a malformed IR, mentions itself). `visiting` are the goals on the way.
+  The proof of `g` according to `proof?`, with the goals in it replaced by their proofs in turn.
+  `none` if `g` has no proof (or, in a malformed IR, its proof mentions itself). A goal further
+  down without a proof also gives `none` if `strict`, and otherwise stays a metavariable.
+  `visiting` are the goals on the way.
 
-  An assignment mentions a subgoal applied to terms for its new hypotheses (`fun x => ?g1 x`),
-  so the subgoal's proof is put in with those terms substituted for the hypotheses.
+  The proof of a goal mentions a goal below it applied to terms for the hypotheses introduced in
+  between (`fun x => ?g1 x`; `hypsSince`), so the lower goal's proof is put in with those terms
+  substituted for the hypotheses. A goal that stays a metavariable is applied the same way,
+  counting from the goal `fillGoal` was called for.
   -/
-  partial def proofTerm? (ir : ProofIR) (g : MVarId := ir.rootGoal)
+  partial def fillGoal (ir : ProofIR) (proof? : MVarId → Option Expr) (strict : Bool) (g : MVarId)
       (visiting : List MVarId := []) : Option Expr := do
     if visiting.contains g then none
-    let gi ← ir.goal? g
-    let a ← gi.assignment?
-    fillSubgoals ir (g :: visiting) a.proof
+    fillSubgoals ir proof? strict (g :: visiting) (← proof? g)
 
-  private partial def fillSubgoals (ir : ProofIR) (visiting : List MVarId) (e : Expr) :
-      Option Expr := do
-    let fillSubgoals := fillSubgoals ir visiting
+  private partial def fillSubgoals (ir : ProofIR) (proof? : MVarId → Option Expr) (strict : Bool)
+      (visiting : List MVarId) (e : Expr) : Option Expr := do
+    let fillSubgoals := fillSubgoals ir proof? strict visiting
     if !e.hasExprMVar then return e
-    if let .mvar m := e.getAppFn then
+    if let (.mvar m, some g) := (e.getAppFn, visiting.head?) then
       if ir.goals.contains m then
         let args ← e.getAppArgs.mapM fillSubgoals
-        let new := ir.newHyps m
+        let new := ir.hypsSince g m
         if args.size < new.size then none
-        let sub ← proofTerm? ir m visiting
-        return ((sub.abstract (new.map .fvar)).instantiateRevRange 0 new.size args).beta
-          (args.extract new.size args.size)
+        match fillGoal ir proof? strict m visiting with
+        | some sub =>
+          return ((sub.abstract (new.map .fvar)).instantiateRevRange 0 new.size args).beta
+            (args.extract new.size args.size)
+        | none =>
+          if strict then none
+          -- The hypotheses between the first goal and `g` are still variables here; they become
+          -- terms as this proof is put into the proofs of the goals above.
+          let outer := (visiting.getLast?.map (ir.hypsSince · g)).getD #[]
+          return mkAppN (.mvar m) (outer.map .fvar ++ args)
     match e with
     | .app f x => return .app (← fillSubgoals f) (← fillSubgoals x)
     | .lam n d b bi => return .lam n (← fillSubgoals d) (← fillSubgoals b) bi
@@ -137,5 +160,19 @@ mutual
     | .proj s i b => return .proj s i (← fillSubgoals b)
     | _ => return e
 end
+
+/-- The proof term that the assignments from `g` down add up to, or `none` if a goal on the way
+is unassigned (or, in a malformed IR, mentions itself). `visiting` are the goals on the way. -/
+def proofTerm? (ir : ProofIR) (g : MVarId := ir.rootGoal) (visiting : List MVarId := []) :
+    Option Expr :=
+  ir.fillGoal (fun g => (ir.goal? g >>= (·.assignment?)).map (·.proof)) (strict := true) g visiting
+
+/-- Names for the goals that do not depend on Lean's internal ids: `g0`, `g1`, … in `goalOrder`.
+Pass it to `withContext` to have goals printed as `?g0`, `?g1`, …. -/
+def goalNumbering (ir : ProofIR) : MVarId → Name :=
+  let index : Std.HashMap MVarId Nat := .ofList (ir.goalOrder.toList.zipIdx)
+  fun g => match index[g]? with
+    | some i => .mkSimple s!"g{i}"
+    | none => .mkSimple "✗"
 
 end Distill.Informalizer.IR.ProofIR

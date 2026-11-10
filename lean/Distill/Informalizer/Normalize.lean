@@ -1,5 +1,5 @@
-import Distill.Informalizer.IR.Context
-import Distill.Informalizer.IR.Presentation
+import Distill.Informalizer.Normalize.Basic
+import Distill.Informalizer.Normalize.Statement
 
 /-!
 # Normalization: Presentation IR ⟶ Presentation IR
@@ -19,32 +19,11 @@ namespace Distill.Informalizer
 open Lean Meta
 open Distill.Informalizer.IR
 
-/-- Passes can read the Proof IR, and run inside `ProofIR.withContext`: every hypothesis is in the
-local context and every goal is declared. -/
-abbrev NormalizeM := ReaderT ProofIR MetaM
-
-/-- One normalization pass. -/
-structure Pass where
-  /-- Recorded where the pass says what it did (`Restatement.rule`, `StepOrigin.rule?`). -/
-  name : Name
-  /-- Passes run in ascending order. -/
-  order : Nat := 500
-  run : PresentedDecl → NormalizeM PresentedDecl
-  deriving Inhabited
-
 /-- The built-in passes. -/
-def passes : Array Pass := #[]
-
-/-- `@[distill_normalizer] def p : Pass := …` adds `p` to the passes that normalize every
-presentation. -/
-unsafe initialize normalizerAttribute : KeyedDeclsAttribute Pass ←
-  KeyedDeclsAttribute.init {
-    builtinName := `builtin_distill_normalizer
-    name := `distill_normalizer
-    descr := "a pass that normalizes Distill's Presentation IR"
-    valueTypeName := ``Pass
-    -- The attribute has no argument: every pass is stored under the same key.
-    evalKey := fun _ _ => pure `pass }
+def passes : Array Pass := #[
+  Normalize.membershipAsProperty,
+  Normalize.groupObjects
+]
 
 /-- The passes to run, in order. -/
 def allPasses (env : Environment) : Array Pass :=
