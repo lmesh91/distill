@@ -3,6 +3,7 @@ import { mkdtemp, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { ObjectId } from 'mongodb';
 import { verifyLean } from './verification.ts';
 import { createSubmissionHandler } from './submissions.ts';
 import { parseLeanDiagnostics } from './leanDiagnostics.ts';
@@ -248,9 +249,12 @@ test('diagnostic parsing ignores non-diagnostic output and preserves multiline U
 async function submit(
 	body: unknown,
 	load: Parameters<typeof createSubmissionHandler>[0] = async (slug: string) =>
-		slug === 'test' ? { verification: target } : null
+		slug === 'test' ? { _id: new ObjectId(), verification: target } : null
 ) {
-	return createSubmissionHandler(load)({
+	return createSubmissionHandler(load, async ({ result }) => ({
+		status: result.accepted ? 'completed' : 'in_progress',
+		attemptCount: 1
+	}))({
 		request: new Request('http://localhost/api/submissions', {
 			method: 'POST',
 			headers: { 'content-type': 'application/json' },
@@ -283,7 +287,7 @@ test('API rejects unknown levels and levels without a trusted verification confi
 		(
 			await submit(
 				{ levelSlug: 'test', source: 'theorem target : True := True.intro' },
-				async () => ({})
+				async () => ({ _id: new ObjectId() })
 			)
 		).status,
 		503

@@ -5,7 +5,7 @@ import { ensureIndexes } from './indexes';
 let mongoClient: MongoClient | undefined;
 let connection: Promise<MongoClient> | undefined;
 
-function getMongoClient() {
+export function getMongoClient() {
 	if (!env.MONGODB_URI) {
 		throw new Error('MONGODB_URI is not set');
 	}

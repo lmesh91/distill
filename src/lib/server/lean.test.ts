@@ -5,14 +5,25 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { test } from 'node:test';
+import { ObjectId } from 'mongodb';
 import { compileLean } from './lean.ts';
 import { runLeanJob } from './leanJobs.ts';
 import { leanLimits } from './leanLimits.ts';
 import { createSubmissionHandler } from './submissions.ts';
 
-const POST = createSubmissionHandler(async () => ({
-	verification: { theoremName: 'target', challengeSource: 'theorem target : 2 + 2 = 4 := by sorry' }
-}));
+const POST = createSubmissionHandler(
+	async () => ({
+		_id: new ObjectId(),
+		verification: {
+			theoremName: 'target',
+			challengeSource: 'theorem target : 2 + 2 = 4 := by sorry'
+		}
+	}),
+	async ({ result }) => ({
+		status: result.accepted ? 'completed' : 'in_progress',
+		attemptCount: 1
+	})
+);
 
 function submit(body: string, userId: string | null = 'test-user', type = 'application/json') {
 	return POST({
@@ -319,4 +330,64 @@ test('runtime failures reject in the service and become a generic API error', as
 		if (previous === undefined) delete process.env.LEAN_PROJECT_DIR;
 		else process.env.LEAN_PROJECT_DIR = previous;
 	}
+});
+
+test('API records each checked attempt for the signed-in user and returns the updated progress', async (t) => {
+	const levelId = new ObjectId();
+	const recorded: unknown[] = [];
+	const handler = createSubmissionHandler(
+		async () => ({
+			_id: levelId,
+			verification: {
+				theoremName: 'target',
+				challengeSource: 'theorem target : 2 + 2 = 4 := by sorry'
+			}
+		}),
+		async (input) => {
+			recorded.push(input);
+			return { status: 'completed', attemptCount: 3 };
+		}
+	);
+	const source = 'theorem target : 2 + 2 = 4 := rfl\n';
+	const request = () => ({
+		request: new Request('http://localhost/api/submissions', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ levelSlug: 'test', source })
+		}),
+		locals: { auth: () => ({ userId: 'test-user' }) }
+	});
+	const response = await handler(request() as Parameters<typeof handler>[0]);
+	assert.equal(response.status, 200);
+	const body = await response.json();
+	assert.equal(body.accepted, true);
+	assert.deepEqual(body.progress, { status: 'completed', attemptCount: 3 });
+	assert.equal(recorded.length, 1);
+	const [input] = recorded as {
+		userId: string;
+		levelId: ObjectId;
+		source: string;
+		result: unknown;
+	}[];
+	assert.equal(input.userId, 'test-user');
+	assert.equal(input.levelId, levelId);
+	assert.equal(input.source, source);
+	assert.equal((input.result as { accepted: boolean }).accepted, true);
+
+	t.mock.method(console, 'error', () => {});
+	const failing = createSubmissionHandler(
+		async () => ({
+			_id: levelId,
+			verification: {
+				theoremName: 'target',
+				challengeSource: 'theorem target : 2 + 2 = 4 := by sorry'
+			}
+		}),
+		async () => {
+			throw new Error('database down');
+		}
+	);
+	const failed = await failing(request() as Parameters<typeof failing>[0]);
+	assert.equal(failed.status, 503);
+	assert.deepEqual(await failed.json(), { error: 'Could not record submission' });
 });
