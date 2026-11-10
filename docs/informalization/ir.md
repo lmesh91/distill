@@ -169,7 +169,7 @@ theorem t (p q : Prop) (hp : p) (hq : q) : p ∧ q := by
   exact ⟨hp, hq⟩
 ```
 
-The golden tests in `lean/Tests` use it on the demo levels, alternate proofs of them, other proof shapes, and proofs that fail. Run them with `lake test` in `lean/`. When the output changes on purpose, update the docstring above the affected `#guard_msgs`.
+The golden tests in `lean/Tests/Extraction` use it on the demo levels, alternate proofs of them, other proof shapes, and proofs that fail. Run them with `lake test` in `lean/`. When the output changes on purpose, update the docstring above the affected `#guard_msgs`.
 
 ## Presentation IR
 

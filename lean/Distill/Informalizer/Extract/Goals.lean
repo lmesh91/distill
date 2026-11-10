@@ -116,6 +116,7 @@ structure NodeFacts where
   info : TacticInfo
   /-- The terms the node elaborated directly; see `RawNode.terms`. -/
   terms : Array Expr
+  deriving Inhabited
 
 private def NodeFacts.contains (n m : NodeFacts) : Bool :=
   n.id < m.id && m.id ≤ n.last
@@ -165,12 +166,53 @@ private def foldByValue (proof : Expr) (context : Array FVarId) (h : MVarId) :
   if v.hasMVar || occurrences proof v != 1 then return none
   return proof.replace fun e => if e == v then some (.mvar h) else none
 
-/-- The goal's case tag where it first appears: `case` and `next` clear it later. -/
-private def firstTag (nodes : Array NodeFacts) (g : MVarId) : Option Name :=
-  nodes.findSome? fun n =>
-    if n.info.goalsBefore.contains g then n.info.mctxBefore.findDecl? g |>.map (·.userName)
-    else if n.info.goalsAfter.contains g then n.info.mctxAfter.findDecl? g |>.map (·.userName)
-    else none
+/-- Each goal's case tag where it first appears: `case` and `next` clear it later. -/
+private def firstTags (nodes : Array NodeFacts) : Std.HashMap MVarId Name :=
+  nodes.foldl (init := {}) fun m n =>
+    let add (m : Std.HashMap MVarId Name) (gs : List MVarId) (mctx : MetavarContext) :=
+      gs.foldl (init := m) fun m g =>
+        if m.contains g then m else match mctx.findDecl? g with
+          | some d => m.insert g d.userName
+          | none => m
+    add (add m n.info.goalsBefore n.info.mctxBefore)
+      (n.info.goalsAfter.filter (!n.info.goalsBefore.contains ·)) n.info.mctxAfter
+
+/-- The nodes directly nested in each node, and the outermost nodes, as indices into `nodes`. -/
+private def nesting (nodes : Array NodeFacts) : Array (Array Nat) × Array Nat := Id.run do
+  let mut kids := Array.replicate nodes.size #[]
+  let mut tops := #[]
+  -- The nodes `i` is nested in, innermost first.
+  let mut open_ : List Nat := []
+  for h : i in [0:nodes.size] do
+    open_ := open_.dropWhile (!nodes[·]!.contains nodes[i])
+    match open_ with
+    | p :: _ => kids := kids.modify p (·.push i)
+    | [] => tops := tops.push i
+    open_ := i :: open_
+  return (kids, tops)
+
+/--
+The innermost node that assigned `g`, as an index into `nodes`. A node assigns `g` if a node
+nested in it does, so this goes down from the outermost nodes. Of the nodes directly nested in
+one, the one that assigned `g` is the first whose final state has it assigned: nodes that were
+undone are not among them, so the states of the others only gain assignments. It also goes
+through nodes that did not assign `g`, since a term proof's first node starts from the final
+state.
+-/
+private def assigner? (nodes : Array NodeFacts) (kids : Array (Array Nat)) (tops : Array Nat)
+    (g : MVarId) : Option Nat := Id.run do
+  let mut level := tops
+  let mut found := none
+  repeat
+    let mut lo := 0
+    let mut hi := level.size
+    while lo < hi do
+      let mid := (lo + hi) / 2
+      if (assignmentIn nodes[level[mid]!]!.info.mctxAfter g).isSome then hi := mid else lo := mid + 1
+    let some i := level[lo]? | break
+    if assignedIn nodes[i]!.info g then found := some i
+    level := kids[i]!
+  return found
 
 /--
 Builds the goal table. `nodes` are the proof's live tactic nodes, in pre-order. Runs in the final
@@ -179,6 +221,8 @@ metavariable context.
 def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
     MetaM (Std.HashMap MVarId GoalInfo) := do
   let goalSet := Std.HashSet.ofArray goals
+  let (kids, tops) := nesting nodes
+  let tags := firstTags nodes
   -- The nodes each goal is a goal before, in order.
   let holders : Std.HashMap MVarId (Array NodeFacts) := nodes.foldl (init := {}) fun m n =>
     n.info.goalsBefore.foldl (init := m) fun m g => m.alter g (some <| ·.getD #[] |>.push n)
@@ -188,17 +232,21 @@ def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
     let context ← goalContext g
     let assignment? ← do
       -- The nodes that assign the same goal are nested in one another: take the innermost.
-      let some n := nodes.reverse.find? (assignedIn ·.info g) | pure none
+      let some i := assigner? nodes kids tops g | pure none
+      let n := nodes[i]!
+      -- Nodes are in pre-order, so those nested in `n` come right after it.
+      let inside := (nodes.extract (i + 1) nodes.size).takeWhile (n.contains ·)
       -- The value as the node assigned it: later `instantiateMVars` calls store instantiated
       -- versions, in which the goal's subgoals are already replaced by their proofs.
       let some v := assignmentIn n.info.mctxAfter g | pure none
       let mut proof ← instantiateExceptGoals goalSet context v
       -- Goals only seen inside the node that its proof does not mention.
       let mentioned := (proof.collectMVars {}).result
-      let nested := goals.filter fun h => h != g && !mentioned.contains h &&
-        (holders[h]?.any fun hs => hs.all (n.contains ·))
+      let candidates := Std.HashSet.ofList (inside.toList.flatMap (·.info.goalsBefore))
+      let nested := goals.filter fun h => candidates.contains h && h != g &&
+        !mentioned.contains h && (holders[h]?.any fun hs => hs.all (n.contains ·))
       if !nested.isEmpty then
-        let terms := n.terms ++ (nodes.filter (n.contains ·)).flatMap (·.terms)
+        let terms := n.terms ++ inside.flatMap (·.terms)
         if let some p ← proofWithNestedGoals goalSet context g terms nested then proof := p
         for h in nested do
           unless (proof.collectMVars {}).result.contains h do
@@ -206,7 +254,7 @@ def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
       pure (some { node := n.id, proof : Assignment })
     table := table.insert g {
       mvarId := g
-      tag := (firstTag nodes g).getD decl.userName
+      tag := tags[g]?.getD decl.userName
       target := ← instantiateExceptGoals goalSet context decl.type
       context
       assignment? }
@@ -274,18 +322,23 @@ n`) reuse names for unrelated hypotheses. The link has `fromAlias := false`.
 -/
 def inferLineage (nodes : Array NodeFacts) (goals : Std.HashMap MVarId GoalInfo)
     (hyps : Std.HashMap FVarId HypInfo) : Std.HashMap FVarId HypInfo := Id.run do
+  -- The nodes each goal is a goal after.
+  let makers : Std.HashMap MVarId (Array NodeFacts) := nodes.foldl (init := {}) fun m n =>
+    n.info.goalsAfter.foldl (init := m) fun m g => m.alter g (some <| ·.getD #[] |>.push n)
   let mut hyps := hyps
   for (g, gi) in goals do
     let some p := gi.parent? | continue
     let some parent := goals[p]? | continue
-    let steps := nodes.filter fun n => n.info.goalsBefore.contains p && n.info.goalsAfter.contains g
+    let steps := (makers[g]?.getD #[]).filter (·.info.goalsBefore.contains p)
+    let parentContext := Std.HashSet.ofArray parent.context
+    let context := Std.HashSet.ofArray gi.context
     for h in gi.context do
       let some hi := hyps[h]? | continue
-      if hi.replaces?.isSome || parent.context.contains h then continue
+      if hi.replaces?.isSome || parentContext.contains h then continue
       let name := hi.userName.eraseMacroScopes
       unless steps.any (atNames ·.info.stx name) do continue
       let previous? := parent.context.find? fun p =>
-        !gi.context.contains p && hyps[p]?.any (·.userName == hi.userName)
+        !context.contains p && hyps[p]?.any (·.userName == hi.userName)
       if let some previous := previous? then
         hyps := hyps.insert h { hi with replaces? := some { previous, fromAlias := false } }
   return hyps

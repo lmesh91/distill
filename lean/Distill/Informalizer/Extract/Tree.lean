@@ -45,6 +45,12 @@ private structure WalkState where
 
 private abbrev WalkM := StateT WalkState IO
 
+/-- Changes the proof being collected, if any. It is taken out of the state first, so that its
+arrays are changed in place rather than copied. -/
+private def modifyCurrent (f : RawProof → RawProof) : WalkM Unit := do
+  if let some proof ← modifyGet fun s => (s.current?, { s with current? := none }) then
+    modify ({ · with current? := some (f proof) })
+
 private def sameRange (a b : Syntax) : Bool :=
   a.getPos?.isSome && a.getPos? == b.getPos? && a.getTailPos? == b.getTailPos?
 
@@ -95,8 +101,9 @@ private partial def walk (ctx? : Option ContextInfo) (body? : Option Syntax) (pa
   | .node info children => do
     let mut parent? := parent?
     let mut body? := body?
-    let outer := (← get).current?
     let isBody := (Term.getBodyInfo? info).isSome
+    -- Only kept for bodies: holding on to the proof being collected would copy it on every change.
+    let outer ← if isBody then pure (← get).current? else pure none
     match info, ctx? with
     | .ofCustomInfo _, some ctx =>
       if let some body := Term.getBodyInfo? info then
@@ -117,20 +124,19 @@ private partial def walk (ctx? : Option ContextInfo) (body? : Option Syntax) (pa
         if ti.stx.getKind == ``Lean.Parser.Term.byTactic then
           let isDeclBody := body?.any (sameRange · ti.stx)
           modify ({ · with current? := some { nodes := #[], aliases := #[], isDeclBody } })
-      if let some proof := (← get).current? then
-        let idx := proof.nodes.size
-        let mut nodes := proof.nodes.push { ctx, info := ti, path, parent? }
-        if let some p := parent? then
-          nodes := nodes.modify p fun n => { n with children := n.children.push idx }
-        modify ({ · with current? := some { proof with nodes } })
+      if let some idx := (← get).current?.map (·.nodes.size) then
+        modifyCurrent fun proof =>
+          let nodes := proof.nodes.push { ctx, info := ti, path, parent? }
+          { proof with nodes := match parent? with
+            | some p => nodes.modify p fun n => { n with children := n.children.push idx }
+            | none => nodes }
         parent? := some idx
     | .ofTermInfo ti, _ =>
-      if let (some proof, some p, false) := ((← get).current?, parent?, ti.isBinder) then
-        let nodes := proof.nodes.modify p fun n => { n with terms := n.terms.push ti.expr }
-        modify ({ · with current? := some { proof with nodes } })
+      if let (some p, false) := (parent?, ti.isBinder) then
+        modifyCurrent fun proof =>
+          { proof with nodes := proof.nodes.modify p fun n => { n with terms := n.terms.push ti.expr } }
     | .ofFVarAliasInfo a, _ =>
-      if let some proof := (← get).current? then
-        modify ({ · with current? := some { proof with aliases := proof.aliases.push a } })
+      modifyCurrent fun proof => { proof with aliases := proof.aliases.push a }
     | _, _ => pure ()
     let mut i := 0
     for c in children do

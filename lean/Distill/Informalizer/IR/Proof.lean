@@ -316,7 +316,7 @@ def newHyps (ir : ProofIR) (g : MVarId) : Array FVarId :=
   match ir.goal? g with
   | none => #[]
   | some gi =>
-    let parentCtx := (gi.parent? >>= ir.goal?).map (·.context) |>.getD #[]
+    let parentCtx := Std.HashSet.ofArray ((gi.parent? >>= ir.goal?).map (·.context) |>.getD #[])
     gi.context.filter (!parentCtx.contains ·)
 
 end ProofIR

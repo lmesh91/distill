@@ -1,6 +1,6 @@
 import Distill.Informalizer.Extract.Recognizers
 
-/-! A library tactic and its recognizer, used from `Tests/Extensibility.lean`. -/
+/-! A library tactic and its recognizer, used from `Tests/Extraction/Extensibility.lean`. -/
 
 open Distill.Informalizer.Extract
 
