@@ -48,6 +48,7 @@
 		display: flex;
 		flex-direction: column;
 		gap: var(--space-3);
+		font-family: var(--font-body);
 		font-size: var(--text-sm);
 		color: var(--color-text);
 	}
@@ -146,7 +147,7 @@
 		padding: 0 var(--space-2);
 		border-radius: var(--radius-sm);
 		font-size: var(--text-xs);
-		color: #fff;
+		color: var(--color-on-status);
 		background: var(--color-neutral);
 	}
 
@@ -162,7 +163,7 @@
 		margin: 0;
 		padding: var(--space-2) var(--space-3);
 		overflow-x: auto;
-		font: 12.5px / 1.6 var(--font-mono);
+		font: var(--text-code-sm) / 1.6 var(--font-mono);
 		white-space: pre-wrap;
 	}
 </style>

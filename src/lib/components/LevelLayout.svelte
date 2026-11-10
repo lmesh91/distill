@@ -318,12 +318,15 @@
 		border-radius: var(--radius);
 		background: var(--color-surface);
 		color: var(--color-text);
-		font-size: var(--text-sm);
+		/* the goal, description and translation are read like a textbook, next to KaTeX math */
+		font-family: var(--font-reading);
+		font-size: var(--text-md);
 	}
 
 	/* panel headings are small uppercase labels, so the content stands out */
 	.panel :global(h2) {
 		margin: 0 0 var(--space-2);
+		font-family: var(--font-body);
 		font-size: var(--text-xs);
 		font-weight: var(--weight-bold);
 		letter-spacing: 0.06em;

@@ -184,6 +184,7 @@
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
+
 	.target-proof {
 		margin: 0 0 var(--space-4);
 		padding-left: var(--space-3);

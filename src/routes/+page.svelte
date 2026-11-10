@@ -166,14 +166,15 @@
 	pre {
 		margin: 0;
 		overflow-x: auto;
-		font-size: 13px;
+		font-size: var(--text-code-sm);
 		line-height: var(--leading-code);
 	}
 
 	ol {
 		margin: 0;
 		padding-left: 1.25rem;
-		font-size: 0.9375rem;
+		font-family: var(--font-reading);
+		font-size: var(--text-md);
 		line-height: var(--leading-normal);
 	}
 
@@ -217,7 +218,7 @@
 		border-top-width: 10px;
 		border-top-color: var(--accent);
 		box-shadow:
-			0 -2px 0 var(--color-ink),
+			0 -2px 0 var(--color-border),
 			var(--shadow-pixel);
 	}
 

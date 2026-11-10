@@ -4,6 +4,16 @@
 		<meta charset="utf-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1" />
 		<meta name="text-scale" content="scale" />
+		<script>
+			// apply the saved theme before the page paints, so it never flashes the wrong one
+			// with nothing saved, the CSS follows the system setting
+			try {
+				const theme = localStorage.getItem('distill-theme');
+				if (theme === 'light' || theme === 'dark') document.documentElement.dataset.theme = theme;
+			} catch {
+				// storage can be blocked; the system setting still applies
+			}
+		</script>
 		%sveltekit.head%
 	</head>
 	<body data-sveltekit-preload-data="hover">

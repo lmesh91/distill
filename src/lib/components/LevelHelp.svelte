@@ -86,6 +86,7 @@
 
 	button:hover {
 		background: var(--color-highlight);
+		color: var(--color-on-highlight);
 	}
 
 	.tooltip {

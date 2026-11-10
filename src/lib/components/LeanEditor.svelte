@@ -141,7 +141,7 @@
 					'.cm-scroller': {
 						overflow: 'auto',
 						fontFamily: 'var(--font-mono)',
-						fontSize: '14px',
+						fontSize: 'var(--text-code)',
 						lineHeight: 'var(--leading-code)'
 					},
 					'.cm-content': { padding: '12px 0' },
@@ -152,8 +152,17 @@
 						borderRight: '1px solid var(--color-border-subtle)'
 					},
 					'.cm-lineNumbers .cm-gutterElement': { minWidth: '36px', padding: '0 10px' },
-					'.cm-cursor': { borderLeftColor: '#333' },
-					'.cm-locked-line': { backgroundColor: '#f3f3f3', color: '#767676', cursor: 'not-allowed' }
+					'.cm-cursor': { borderLeftColor: 'var(--color-ink)' },
+					'.cm-locked-line': {
+						backgroundColor: 'var(--color-surface-sunken)',
+						color: 'var(--color-text-subtle)',
+						cursor: 'not-allowed'
+					},
+					'.cm-tooltip': {
+						border: '1px solid var(--color-border-subtle)',
+						backgroundColor: 'var(--color-surface)',
+						color: 'var(--color-text)'
+					}
 				})
 			]
 		});

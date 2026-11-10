@@ -30,7 +30,22 @@ see everything below rendered live.
 Distill is a game, so the style borrows from pixel art and our slide deck: an off-white "notebook
 paper" page, ink-black 2px borders, solid offset "pixel" shadows, the blue from our logo, and
 yellow, pink and mint accents. Text stays plain and readable; the game feel comes from headings,
-borders and shadows.
+borders, shadows and the pixel code font.
+
+## Dark mode
+
+Dark mode follows the system setting, and the sun/moon button in the nav overrides it (saved in
+`localStorage` as `distill-theme`). It works by redefining the color tokens in `tokens.css`, so
+components get it for free as long as they use tokens:
+
+- Use `--color-ink` / `--color-text` for text and borders; they turn light in dark mode.
+- Use `--color-shadow` for shadows (it stays black in dark mode).
+- Text on the yellow highlight uses `--color-on-highlight`, and text or icons on solid status
+  colors use `--color-on-status`; never hard-code `#fff` or `#000`.
+- Check new screens in both themes. `/design` shows every token in whichever theme is active.
+
+Clerk's sign-in card stays light in dark mode for now (`src/lib/styles/clerk.ts` uses fixed hex
+values).
 
 ## Colors
 
@@ -60,14 +75,22 @@ Status colors also have a `-soft` background (`--color-error-soft`, etc.) for ba
 
 - **Display: Jersey 10**, a pixel font, for page and section headings. Use the `.display` class,
   and only at `--text-xl` (24px) or larger; it isn't readable smaller.
-- **Body: Space Grotesk** (variable) for all other text and UI.
-- **Code: the system monospace font** (`--font-mono`) for Lean.
+- **Body: Space Grotesk** (variable) for UI: buttons, labels, navigation, status text.
+- **Reading: Source Serif 4** (`--font-reading`) for level goals, descriptions and English
+  translations. It sits well next to KaTeX's math, which a geometric sans like Space Grotesk
+  doesn't. Level panels use it by default; their small headings stay in the body font.
+- **Code: Distill Mono** (`--font-mono`) for Lean. It's Departure Mono with pixel glyphs added
+  for the Lean symbols it lacked (∀ ∃ ∧ ∨ ∈ ⊆ ∩ ∪ ℕ ℝ ↔ ⊢ and more); see
+  `src/lib/assets/fonts/README.md`. Use `--text-code` (16.5px) or `--text-code-sm` (11px) so its
+  pixels stay sharp.
 
-Both fonts are self-hosted from npm (`@fontsource/jersey-10`, `@fontsource-variable/space-grotesk`)
-under the SIL Open Font License, so no requests go to Google Fonts.
+Jersey 10, Space Grotesk and Source Serif 4 are self-hosted from npm (`@fontsource`), and Distill
+Mono from `src/lib/assets/fonts`, all under the SIL Open Font License, so no requests go to
+Google Fonts.
 
 Sizes: `--text-xs` 12px, `--text-sm` 14px, `--text-md` 16px, `--text-lg` 18px, `--text-xl` 24px,
-`--text-2xl` 36px, `--text-3xl` 40–56px (scales with the window).
+`--text-2xl` 36px, `--text-3xl` 40–56px (scales with the window). Code: `--text-code` 16.5px,
+`--text-code-sm` 11px.
 
 Small panel headings (like "Your goal" and "Lean output") use `--text-xs`, bold, uppercase, with
 `letter-spacing: 0.06em`, in `--color-text-muted`.
@@ -102,6 +125,6 @@ Buttons press into their shadow on click. Disabled buttons lose the shadow and f
 
 ## Not done yet
 
-- Dark mode. The tokens make it a matter of redefining the variables under
-  `@media (prefers-color-scheme: dark)`, but every screen needs checking first.
-- Lean syntax highlighting colors (#69) should be added here as `--syntax-*` tokens.
+- Lean syntax highlighting colors (#69) should be added here as `--syntax-*` tokens, with values
+  for both themes.
+- Clerk's components in dark mode.

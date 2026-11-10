@@ -1,5 +1,14 @@
 /* page-wide defaults built on tokens.css. components add their own styles on top */
 
+/* Departure Mono 1.500 plus pixel Lean symbols, SIL OFL 1.1 (see src/lib/assets/fonts) */
+@font-face {
+	font-family: 'Distill Mono';
+	src: url('../assets/fonts/distill-mono.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
 *,
 *::before,
 *::after {
@@ -69,7 +78,7 @@ textarea {
 
 ::selection {
 	background: var(--color-highlight);
-	color: var(--color-ink);
+	color: var(--color-on-highlight);
 }
 
 img,

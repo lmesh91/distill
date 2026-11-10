@@ -3,6 +3,7 @@
 	import { ClerkProvider } from 'svelte-clerk';
 	import '@fontsource/jersey-10';
 	import '@fontsource-variable/space-grotesk';
+	import '@fontsource-variable/source-serif-4';
 	import '$lib/styles/global.css';
 	import SiteNav from '$lib/components/SiteNav.svelte';
 	import { clerkAppearance } from '$lib/styles/clerk';

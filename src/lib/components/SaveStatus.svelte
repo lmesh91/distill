@@ -91,7 +91,7 @@
 	}
 
 	.error .mark {
-		stroke: #fff;
+		stroke: var(--color-on-status);
 	}
 
 	.time {

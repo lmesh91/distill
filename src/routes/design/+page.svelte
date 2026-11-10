@@ -24,7 +24,8 @@
 				['--color-page', 'Page background'],
 				['--color-surface', 'Panels, cards, editor'],
 				['--color-surface-sunken', 'Title bars, gutters'],
-				['--color-border-subtle', 'Dividers inside panels']
+				['--color-border-subtle', 'Dividers inside panels'],
+				['--color-shadow', 'Pixel shadows']
 			]
 		},
 		{
@@ -95,7 +96,8 @@
 		<h2 id="type" class="display">Typography</h2>
 		<p class="muted">
 			<strong>Jersey 10</strong> (pixel) for headings 24px and up, <strong>Space Grotesk</strong>
-			for everything else, and the system monospace font for Lean code.
+			for the interface, <strong>Source Serif 4</strong> for level text and translations, and
+			<strong>Distill Mono</strong> for Lean code.
 		</p>
 		<ul class="type-scale">
 			{#each typeScale as [name, use, display] (name)}
@@ -105,10 +107,16 @@
 				</li>
 			{/each}
 		</ul>
+		<p class="reading">
+			Reading text: since x is in A ∩ B, it's in both A and B, so every element of A ∩ B is in A.
+		</p>
 		<pre class="code-sample"><code
 				>theorem and_swap (p q : Prop) : p ∧ q → q ∧ p := by
   intro ⟨hp, hq⟩
-  exact ⟨hq, hp⟩</code
+  exact ⟨hq, hp⟩
+
+example : ∀ n : ℕ, ∃ m : ℤ, (m : ℝ) ≤ n := by sorry
+example (A B : Set α) : A ∩ B ⊆ A ∪ B := fun x hx ↦ Or.inl hx.1</code
 			></pre>
 		<p>
 			Use <span class="highlight">the marker highlight</span> sparingly, for the one phrase that matters
@@ -238,8 +246,15 @@
 		border-bottom: 1px solid var(--color-border-subtle);
 	}
 
+	.reading {
+		margin: var(--space-5) 0 0;
+		font-family: var(--font-reading);
+		font-size: var(--text-lg);
+	}
+
 	.code-sample {
 		margin: var(--space-5) 0;
+		font-size: var(--text-code);
 		padding: var(--space-4);
 		border: var(--border-width) solid var(--color-border);
 		border-radius: var(--radius);

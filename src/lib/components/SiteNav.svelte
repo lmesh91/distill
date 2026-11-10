@@ -4,6 +4,7 @@
 	import { Show, SignOutButton } from 'svelte-clerk';
 	import { primaryLinks } from '$lib/navigation/links';
 	import logo from '$lib/assets/distill-logo.png';
+	import ThemeToggle from './ThemeToggle.svelte';
 </script>
 
 <header class="site-header">
@@ -26,6 +27,7 @@
 		</ul>
 
 		<div class="account">
+			<ThemeToggle />
 			<!-- Ends the Clerk session, then returns to the signed-out home page. -->
 			<Show when="signed-in">
 				<SignOutButton redirectUrl="/" class="button small sign-out" />
@@ -63,6 +65,17 @@
 		image-rendering: pixelated;
 	}
 
+	/* the logo blue is dark on dark backgrounds, so lift it a little */
+	:global(:root[data-theme='dark']) .brand img {
+		filter: brightness(1.45);
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:global(:root:not([data-theme='light'])) .brand img {
+			filter: brightness(1.45);
+		}
+	}
+
 	.links {
 		display: flex;
 		flex-wrap: wrap;
@@ -89,11 +102,14 @@
 	/* the current page gets the yellow marker highlight */
 	.links a[aria-current='page'] {
 		background: var(--color-highlight);
-		color: var(--color-ink);
+		color: var(--color-on-highlight);
 		font-weight: var(--weight-bold);
 	}
 
 	.account {
+		display: flex;
+		align-items: center;
+		gap: var(--space-2);
 		margin-left: auto;
 	}
 </style>

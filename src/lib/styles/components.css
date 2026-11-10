@@ -93,7 +93,7 @@
 	padding: 0 var(--space-2);
 	border-radius: var(--radius-sm);
 	background: var(--color-neutral);
-	color: #fff;
+	color: var(--color-on-status);
 	font-size: var(--text-xs);
 	font-weight: var(--weight-bold);
 	line-height: 1.6;
@@ -125,7 +125,7 @@
 .highlight {
 	padding: 0 0.15em;
 	background: var(--color-highlight);
-	color: var(--color-ink);
+	color: var(--color-on-highlight);
 	box-decoration-break: clone;
 	-webkit-box-decoration-break: clone;
 }

@@ -19,11 +19,14 @@
 	--color-text-muted: #5b5b66; /* secondary text, captions */
 	--color-text-subtle: #6e6e78; /* placeholders, timestamps */
 	--color-text-on-brand: #ffffff;
+	--color-on-highlight: #1b1b1f; /* text on the yellow highlight, the same in light and dark */
+	--color-on-status: #ffffff; /* text and icon marks on solid status colors */
 	--color-page: #faf8f3; /* page background, like notebook paper */
 	--color-surface: #ffffff; /* panels, cards, the editor */
 	--color-surface-sunken: #f1eee6; /* title bars, gutters, code blocks */
 	--color-border: var(--color-ink);
 	--color-border-subtle: #d8d4c8; /* dividers inside panels */
+	--color-shadow: var(--color-ink); /* the solid pixel shadows */
 
 	/* ---- color: status (all at least 4.5:1 on white) ---- */
 	--color-success: #1a7f37;
@@ -40,7 +43,10 @@
 	--font-display:
 		'Jersey 10', 'Space Grotesk Variable', system-ui, sans-serif; /* pixel font: 24px and up only */
 	--font-body: 'Space Grotesk Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+	/* level text and English translations; a serif that sits well next to KaTeX math */
+	--font-reading: 'Source Serif 4 Variable', Georgia, 'Times New Roman', serif;
+	/* Departure Mono plus the Lean symbols it was missing (src/lib/assets/fonts/README.md) */
+	--font-mono: 'Distill Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
 	--text-xs: 0.75rem; /* 12px: timestamps, badges */
 	--text-sm: 0.875rem; /* 14px: panel text, labels */
@@ -49,6 +55,10 @@
 	--text-xl: 1.5rem; /* 24px: section headings (pixel font ok) */
 	--text-2xl: 2.25rem; /* 36px */
 	--text-3xl: clamp(2.5rem, 5vw, 3.5rem); /* page titles */
+	/* Distill Mono is pixel art drawn at 11px. 16.5px makes each font pixel exactly 3 screen
+	 * pixels on Retina displays, so code stays sharp */
+	--text-code: 16.5px;
+	--text-code-sm: 11px;
 
 	--weight-regular: 400;
 	--weight-medium: 500;
@@ -56,7 +66,7 @@
 
 	--leading-tight: 1.15;
 	--leading-normal: 1.5;
-	--leading-code: 1.8;
+	--leading-code: 1.6;
 
 	/* ---- spacing (4px steps) ---- */
 	--space-1: 0.25rem; /* 4px */
@@ -76,8 +86,8 @@
 	--radius-full: 999px;
 
 	/* solid, offset "pixel" shadows give buttons and cards a game-like feel */
-	--shadow-pixel-sm: 2px 2px 0 var(--color-ink);
-	--shadow-pixel: 4px 4px 0 var(--color-ink);
+	--shadow-pixel-sm: 2px 2px 0 var(--color-shadow);
+	--shadow-pixel: 4px 4px 0 var(--color-shadow);
 	--shadow-popover: 0 8px 24px rgb(27 27 31 / 0.16);
 
 	/* ---- layout ---- */
@@ -88,6 +98,70 @@
 	--duration-fast: 120ms;
 	--duration-normal: 200ms;
 	--ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+
+	color-scheme: light;
+}
+
+/* ---- dark mode ----
+ * follows the system setting unless the user picked a theme with the toggle in the nav,
+ * which sets data-theme on <html>. the two blocks below must stay identical
+ */
+:root[data-theme='dark'] {
+	--color-brand: #6aaeea;
+	--color-brand-strong: #96c6f0;
+	--color-brand-soft: #1d3550;
+	--color-pink: #d47fa6;
+	--color-mint: #4fbf8f;
+	--color-ink: #ecebe6;
+	--color-text-muted: #b4b2ab;
+	--color-text-subtle: #9a988f;
+	--color-text-on-brand: #0e1116;
+	--color-on-status: #141518;
+	--color-page: #141518;
+	--color-surface: #1c1e23;
+	--color-surface-sunken: #25272d;
+	--color-border-subtle: #3a3c43;
+	--color-shadow: #000000;
+	--color-success: #4cc38a;
+	--color-success-soft: #12301f;
+	--color-warning: #e3b341;
+	--color-warning-soft: #33290f;
+	--color-error: #ff8a80;
+	--color-error-soft: #3a1714;
+	--color-neutral: #9a988f;
+	--shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+
+	color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light']) {
+		--color-brand: #6aaeea;
+		--color-brand-strong: #96c6f0;
+		--color-brand-soft: #1d3550;
+		--color-pink: #d47fa6;
+		--color-mint: #4fbf8f;
+		--color-ink: #ecebe6;
+		--color-text-muted: #b4b2ab;
+		--color-text-subtle: #9a988f;
+		--color-text-on-brand: #0e1116;
+		--color-on-status: #141518;
+		--color-page: #141518;
+		--color-surface: #1c1e23;
+		--color-surface-sunken: #25272d;
+		--color-border-subtle: #3a3c43;
+		--color-shadow: #000000;
+		--color-success: #4cc38a;
+		--color-success-soft: #12301f;
+		--color-warning: #e3b341;
+		--color-warning-soft: #33290f;
+		--color-error: #ff8a80;
+		--color-error-soft: #3a1714;
+		--color-neutral: #9a988f;
+		--shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+
+		color-scheme: dark;
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {
