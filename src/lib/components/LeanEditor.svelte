@@ -131,20 +131,25 @@
 					runtime.update(value);
 				}),
 				EditorView.theme({
-					'&': { height: '100%', color: '#333', backgroundColor: '#fff' },
+					// colors and fonts come from the design system (src/lib/styles/tokens.css)
+					'&': {
+						height: '100%',
+						color: 'var(--color-text)',
+						backgroundColor: 'var(--color-surface)'
+					},
 					'&.cm-focused': { outline: 'none' },
 					'.cm-scroller': {
 						overflow: 'auto',
-						fontFamily: 'ui-monospace, SFMono-Regular, Consolas, monospace',
+						fontFamily: 'var(--font-mono)',
 						fontSize: '14px',
-						lineHeight: '1.8'
+						lineHeight: 'var(--leading-code)'
 					},
 					'.cm-content': { padding: '12px 0' },
 					'.cm-line': { padding: '0 14px' },
 					'.cm-gutters': {
-						backgroundColor: '#f3f3f3',
-						color: '#767676',
-						borderRight: '1px solid #d0d0d0'
+						backgroundColor: 'var(--color-surface-sunken)',
+						color: 'var(--color-text-subtle)',
+						borderRight: '1px solid var(--color-border-subtle)'
 					},
 					'.cm-lineNumbers .cm-gutterElement': { minWidth: '36px', padding: '0 10px' },
 					'.cm-cursor': { borderLeftColor: '#333' },
@@ -206,14 +211,14 @@
 		min-width: 0;
 		min-height: 0;
 		overflow: hidden;
-		border: 2px solid #4a4a4a;
-		border-radius: 6px;
-		background: #fff;
-		color: #333;
+		border: var(--border-width) solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+		color: var(--color-text);
 	}
 
 	.lean-editor:focus-within {
-		outline: 2px solid #2563eb;
+		outline: 2px solid var(--color-focus);
 		outline-offset: 2px;
 	}
 
@@ -222,20 +227,32 @@
 		flex: none;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
+		gap: var(--space-3);
 		min-width: 0;
-		padding: 8px 12px;
-		border-bottom: 2px solid #777;
-		background: #f3f3f3;
+		padding: var(--space-2) var(--space-3);
+		border-bottom: var(--border-width) solid var(--color-border);
+		background: var(--color-surface-sunken);
 	}
 
 	h2 {
 		flex: none;
 		margin: 0;
 		white-space: nowrap;
-		font:
-			600 14px / 1.4 system-ui,
-			sans-serif;
+		font: var(--weight-bold) var(--text-sm) / 1.4 var(--font-body);
+	}
+
+	/* cursor and selection colors from the design system; these win over the CodeMirror theme */
+	.lean-editor :global(.cm-cursor) {
+		border-left: 2px solid var(--color-ink);
+	}
+
+	.lean-editor :global(.cm-activeLineGutter) {
+		color: var(--color-ink);
+	}
+
+	.lean-editor :global(.cm-focused .cm-selectionBackground),
+	.lean-editor :global(.cm-selectionBackground) {
+		background-color: var(--color-brand-soft);
 	}
 
 	.editor-container {

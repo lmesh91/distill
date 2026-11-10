@@ -12,6 +12,6 @@
 	.auth-page {
 		display: flex;
 		justify-content: center;
-		padding: 4rem 1rem;
+		padding: var(--space-8) var(--page-gutter);
 	}
 </style>

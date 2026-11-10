@@ -120,7 +120,7 @@
 <LevelLayout title={data.level.title} help={proofHelp}>
 	{#snippet toolbar()}
 		{#if data.level.type !== 'from-scratch' && data.level.hints.length > 0}
-			<button class="hints" type="button">Hints</button>
+			<button class="button small" type="button">Hints</button>
 		{/if}
 	{/snippet}
 
@@ -184,26 +184,10 @@
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
-
-	.hints {
-		padding: 0.375rem 1rem;
-		border: 1px solid #4a4a4a;
-		border-radius: 6px;
-		background: #fff;
-		color: #333;
-		font: inherit;
-		cursor: pointer;
-	}
-
-	.hints:focus-visible {
-		outline: 2px solid #1f6feb;
-		outline-offset: 2px;
-	}
-
 	.target-proof {
-		margin: 0 0 1rem;
-		padding-left: 0.75rem;
-		border-left: 3px solid #4a4a4a;
+		margin: 0 0 var(--space-4);
+		padding-left: var(--space-3);
+		border-left: 3px solid var(--color-border);
 		white-space: pre-wrap;
 	}
 
@@ -215,14 +199,15 @@
 
 	.translation li {
 		display: flex;
-		gap: 0.75rem;
-		margin-bottom: 0.375rem;
+		gap: var(--space-3);
+		margin-bottom: var(--space-2);
 	}
 
 	.line-number {
 		flex: none;
 		min-width: 1.5rem;
-		color: #777;
+		color: var(--color-text-subtle);
+		font-family: var(--font-body);
 		font-variant-numeric: tabular-nums;
 		text-align: right;
 	}
