@@ -132,8 +132,10 @@
 <main class="level">
 	<header class="top-bar">
 		<div class="heading">
-			<a class="back" href={resolve('/app')}><span aria-hidden="true">←</span> Map</a>
-			<h1>{title}</h1>
+			<a class="back button ghost small" href={resolve('/app')}>
+				<span aria-hidden="true">←</span> Map
+			</a>
+			<h1 class="display">{title}</h1>
 		</div>
 		{#if toolbar || help}
 			<div class="toolbar">
@@ -217,44 +219,36 @@
 	.level {
 		display: flex;
 		flex-direction: column;
-		box-sizing: border-box;
 		height: 100%;
-		max-width: 75rem;
+		max-width: var(--page-width);
 		margin: 0 auto;
-		padding: 1rem;
+		padding: var(--space-4) var(--page-gutter);
 	}
 
 	.top-bar {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr) auto;
 		align-items: center;
-		gap: 1.5rem;
-		margin-bottom: 1rem;
-		padding-bottom: 0.75rem;
-		border-bottom: 1px solid #d0d0d0;
+		gap: var(--space-5);
+		margin-bottom: var(--space-4);
+		padding-bottom: var(--space-3);
+		border-bottom: var(--border-width) solid var(--color-border);
 	}
 
 	.heading {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: center;
-		gap: 0.5rem 1.5rem;
+		gap: var(--space-2) var(--space-4);
 	}
 
 	.back {
-		font-weight: 600;
-		color: #333;
-		text-decoration: none;
-	}
-
-	.back:focus-visible {
-		outline: 2px solid #1f6feb;
-		outline-offset: 2px;
+		margin-left: calc(-1 * var(--space-3));
 	}
 
 	h1 {
 		margin: 0;
-		font-size: 1.25rem;
+		font-size: 2rem;
 	}
 
 	.toolbar {
@@ -262,7 +256,7 @@
 		grid-column: 2;
 		justify-self: end;
 		align-items: center;
-		gap: 0.75rem;
+		gap: var(--space-3);
 	}
 
 	.columns {
@@ -304,8 +298,8 @@
 		flex-wrap: wrap;
 		grid-row: 2;
 		align-items: center;
-		gap: 0.75rem;
-		margin-top: 0.75rem;
+		gap: var(--space-3);
+		margin-top: var(--space-3);
 	}
 
 	.workspace > :global(.resize-handle) {
@@ -319,20 +313,29 @@
 	.panel {
 		min-width: 0;
 		overflow-y: auto;
-		padding: 0.75rem 1rem;
-		border: 2px solid #4a4a4a;
-		border-radius: 6px;
-		background: #fff;
-		color: #333;
+		padding: var(--space-3) var(--space-4);
+		border: var(--border-width) solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface);
+		color: var(--color-text);
+		/* the goal, description and translation are read like a textbook, next to KaTeX math */
+		font-family: var(--font-reading);
+		font-size: var(--text-md);
 	}
 
+	/* panel headings are small uppercase labels, so the content stands out */
 	.panel :global(h2) {
-		margin: 0 0 0.5rem;
-		font-size: 0.875rem;
+		margin: 0 0 var(--space-2);
+		font-family: var(--font-body);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-bold);
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+		color: var(--color-text-muted);
 	}
 
 	.panel :global(* + h2) {
-		margin-top: 1.5rem;
+		margin-top: var(--space-5);
 	}
 
 	.split {
@@ -364,13 +367,13 @@
 			flex: none;
 			grid-template-columns: minmax(0, 1fr);
 			grid-template-rows: none;
-			gap: 1rem;
+			gap: var(--space-4);
 		}
 
 		.workspace {
 			display: flex;
 			flex-direction: column;
-			gap: 1rem;
+			gap: var(--space-4);
 		}
 
 		.actions {

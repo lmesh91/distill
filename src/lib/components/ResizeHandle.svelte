@@ -108,7 +108,7 @@
 		width: 10px;
 		height: 16px;
 		opacity: 0;
-		fill: #4a4a4a;
+		fill: var(--color-ink);
 		transform: translate(-50%, -50%) rotate(90deg);
 	}
 
@@ -123,7 +123,6 @@
 	}
 
 	.resize-handle:focus-visible {
-		outline: 2px solid #1f6feb;
 		outline-offset: -2px;
 	}
 </style>

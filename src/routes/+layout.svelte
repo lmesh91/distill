@@ -1,12 +1,17 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
 	import { ClerkProvider } from 'svelte-clerk';
+	import '@fontsource/jersey-10';
+	import '@fontsource-variable/space-grotesk';
+	import '@fontsource-variable/source-serif-4';
+	import '$lib/styles/global.css';
 	import SiteNav from '$lib/components/SiteNav.svelte';
+	import { clerkAppearance } from '$lib/styles/clerk';
 
 	let { children }: { children: Snippet } = $props();
 </script>
 
-<ClerkProvider>
+<ClerkProvider appearance={clerkAppearance}>
 	<div class="app">
 		<SiteNav />
 		<div class="page">
@@ -16,10 +21,6 @@
 </ClerkProvider>
 
 <style>
-	:global(body) {
-		margin: 0;
-	}
-
 	.app {
 		display: grid;
 		grid-template-rows: auto minmax(0, 1fr);

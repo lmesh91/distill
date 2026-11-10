@@ -74,22 +74,19 @@
 		width: 1.75rem;
 		height: 1.75rem;
 		padding: 0;
-		border: 1px solid #4a4a4a;
+		border: var(--border-width) solid var(--color-border);
 		border-radius: 50%;
-		background: #fff;
-		color: #333;
+		background: var(--color-surface);
+		box-shadow: var(--shadow-pixel-sm);
+		color: var(--color-ink);
 		font: inherit;
-		font-weight: 600;
+		font-weight: var(--weight-bold);
 		cursor: help;
 	}
 
 	button:hover {
-		background: #f3f3f3;
-	}
-
-	button:focus-visible {
-		outline: 2px solid #1f6feb;
-		outline-offset: 2px;
+		background: var(--color-highlight);
+		color: var(--color-on-highlight);
 	}
 
 	.tooltip {
@@ -98,25 +95,25 @@
 		top: 100%;
 		right: 0;
 		width: min(22rem, calc(100vw - 2rem));
-		padding-top: 0.5rem;
+		padding-top: var(--space-2);
 	}
 
 	.content {
 		max-height: 65dvh;
 		overflow-y: auto;
-		padding: 1rem;
-		border: 1px solid #d0d0d0;
-		border-radius: 8px;
-		background: #fff;
-		color: #333;
-		box-shadow: 0 4px 16px #0002;
-		font-size: 0.875rem;
-		line-height: 1.5;
+		padding: var(--space-4);
+		border: var(--border-width) solid var(--color-border);
+		border-radius: var(--radius-lg);
+		background: var(--color-surface);
+		color: var(--color-text);
+		box-shadow: var(--shadow-pixel);
+		font-size: var(--text-sm);
+		line-height: var(--leading-normal);
 	}
 
 	.content :global(h2) {
-		margin: 0 0 0.5rem;
-		font-size: 0.875rem;
+		margin: 0 0 var(--space-2);
+		font-size: var(--text-sm);
 	}
 
 	.content :global(p) {
@@ -124,6 +121,6 @@
 	}
 
 	.content :global(p + h2) {
-		margin-top: 1rem;
+		margin-top: var(--space-4);
 	}
 </style>
