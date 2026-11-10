@@ -29,13 +29,12 @@ structure TranslateParams where
 /-- The English of one proof, line by line. `env` is the environment after its declaration. -/
 def lineTranslations (env : Environment) (p : Informalized) : Array LineTranslation := Id.run do
   let mut out := #[]
-  -- A `by` block that is not a declaration's body has no statement of its own.
-  if p.ir.isDeclBody then
+  if let some statement := p.english.statement? then
     -- The line of the declaration's name, or of the proof if it has none (`example`).
     let nameLine? := (declRangeExt.find? (asyncMode := .local) env p.ir.decl).map
       (·.selectionRange.pos.line)
     if let some line := nameLine? <|> nodeLine? p.ir 0 then
-      out := out.push { line := line - 1, english := p.english.statement }
+      out := out.push { line := line - 1, english := statement }
   for s in p.english.steps do
     if let some line := stepLine? p.ir s then
       out := out.push { line := line - 1, english := s.text }

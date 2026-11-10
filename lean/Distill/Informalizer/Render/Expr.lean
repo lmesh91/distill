@@ -32,6 +32,14 @@ private def binary (c : Name) (arity : Nat) (op : String) (prec lhs rhs : Nat) :
     unless e.isAppOfArity c arity do return none
     infixMath r op prec lhs rhs (e.getArg! (arity - 2)) (e.getArg! (arity - 1)))
 
+/-- `∩` or `∪`. A chain of one operator needs no parentheses, but there is no convention for
+which of the two binds tighter, so an operand made with the other one gets them. -/
+private def setOperator (c : Name) (op : String) (prec : Nat) : Name × MathTranslator :=
+  (c, fun r e => do
+    unless e.isAppOfArity c 4 do return none
+    let a := e.getArg! 2
+    infixMath r op prec (if a.consumeMData.isAppOf c then prec else 71) 71 a (e.getArg! 3))
+
 /-- `x ∈ S`. The set is the argument before the element. -/
 private def mathMem : MathTranslator := fun r e => do
   unless e.isAppOfArity ``Membership.mem 5 do return none
@@ -50,8 +58,8 @@ def mathTranslators : Std.HashMap Name MathTranslator := .ofList [
   (``Membership.mem, mathMem),
   (``Distill.Set.mk, mathSetOf),
   binary ``HasSubset.Subset 4 "\\subseteq" 50 51 51,
-  binary ``Inter.inter 4 "\\cap" 70 70 71,
-  binary ``Union.union 4 "\\cup" 65 65 66,
+  setOperator ``Inter.inter "\\cap" 70,
+  setOperator ``Union.union "\\cup" 65,
   binary ``Eq 3 "=" 50 51 51,
   binary ``And 2 "\\land" 35 36 35,
   binary ``Or 2 "\\lor" 30 31 30
@@ -89,7 +97,7 @@ private def connective (c : Name) (word : String) : Name × ProseTranslator :=
     let text := match parts.toList.map (·.text) with
       | [a, b] => s!"{a} {word} {b}"
       | texts => s!"{", ".intercalate texts.dropLast} {word} {texts.getLast!}"
-    return some { text })
+    return some { text, disjunction := c == ``Or })
 
 /-- The built-in clauses, by head constant of the proposition. -/
 def proseTranslators : Std.HashMap Name ProseTranslator := .ofList [
@@ -114,9 +122,23 @@ partial def math (e : Expr) : RenderM (Option Math) := do
     let some decl := (← getLCtx).find? f | return none
     mention e
     return some { tex := nameTex decl.userName }
-  | .forallE _ a b _ =>
-    if b.hasLooseBVars || !(← isProp a) then return none
-    infixMath (mkRenderer ()) "\\to" 25 26 25 a b
+  | .forallE n a b bi =>
+    if !b.hasLooseBVars && (← isProp a) then
+      return ← infixMath (mkRenderer ()) "\\to" 25 26 25 a b
+    -- Only propositions: `α → β` is a type of functions.
+    if (← isProp a) || !(← isProp e) then return none
+    -- `\forall x \in S,\ p` for `∀ x, x ∈ S → p`, and `\forall x,\ p` otherwise.
+    withLocalDecl n bi a fun x => do
+      let body := b.instantiate1 x
+      let name := nameTex n
+      if let .forallE _ p q _ := body.consumeMData then
+        if let some (set, elem) := membership? p then
+          if elem == x && !q.hasLooseBVars && !set.containsFVar x.fvarId! then
+            let some s ← math set | return none
+            let some q ← math q | return none
+            return some { tex := s!"\\forall {name} \\in {s.at 51},\\ {q.tex}", prec := 0 }
+      let some body ← math body | return none
+      return some { tex := s!"\\forall {name},\\ {body.tex}", prec := 0 }
   | _ =>
     let .const c _ := e.getAppFn | return none
     for t in mathAttribute.getValues (← getEnv) c ++ mathTranslators[c]?.toList do
@@ -166,7 +188,7 @@ private partial def proseForall (e : Expr) : RenderM (Option Prose) := do
   let (ps, conclusion) ← premises e
   if !ps.isEmpty then
     let ps ← ps.mapM prose
-    unless ps.all (·.simple) do return none
+    unless Prose.joinable ps.toList do return none
     return some {
       text := s!"if {joinAnd (ps.toList.map (·.text))}, then {(← prose conclusion).text}"
       simple := false }

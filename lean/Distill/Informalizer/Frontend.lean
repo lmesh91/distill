@@ -25,8 +25,8 @@ def report (ir : ProofIR) (lineOffset : Nat := 0) : MetaM String := do
   let r ← informalize ir
   let mut out ← ir.withContext (r.presented.format ir) (goalName := ir.goalNumbering)
   out := out ++ "English\n"
-  if ir.isDeclBody then
-    out := out ++ s!"  {r.english.statement}\n"
+  if let some statement := r.english.statement? then
+    out := out ++ s!"  {statement}\n"
   for s in r.english.steps do
     let line := match stepLine? ir s with
       | some l => toString (l - lineOffset)
@@ -67,7 +67,7 @@ elab "#informalize_statement " cmd:command : command =>
   elabAndDescribe cmd fun ir _ => do
     let r ← informalize ir
     let v ← ir.withContext (verify ir r.presented)
-    return s!"{r.english.statement}\n  statement: {v.statement.describe}"
+    return s!"{r.english.statement?.getD "(no statement)"}\n  statement: {v.statement.describe}"
 
 /-- Informalizes every proof in a Lean file and prints its Presentation IR and English, for
 tests. -/

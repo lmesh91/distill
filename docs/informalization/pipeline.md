@@ -27,7 +27,7 @@ Every stage has a fallback, so the pipeline produces output for any proof. Suppo
 
 `present` builds the first Presentation IR of a proof. It says no more than the Proof IR does:
 
-- **Statement.** Each binder of the statement becomes an object in a group of its own, or a hypothesis if it is a proof of a proposition. They stay in the order they were written. The conclusion is the goal the proof starts with.
+- **Statement.** Each binder of the statement becomes an object in a group of its own, or a hypothesis if it is a proof of a proposition. They stay in the order they were written, except that a hypothesis which a later binder is stated with becomes a property of the object before it. The conclusion is the goal the proof starts with.
 - **Proof.** Each surface node becomes an `untranslated` step, in execution order. An `untranslated` step only names its node, and is shown as the Lean the user wrote. Its `evidence` is the part of the Lean proof the node is responsible for.
 
 Translating a tactic means giving its node steps of other kinds here (`fix`, `assume`, `derive`, …).
@@ -83,8 +83,9 @@ The statement introduces the object groups in order, then states the hypotheses 
 > Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
 
 - A group is introduced by its noun ("let $A$ and $B$ be sets"), or by its membership property alone ("let $x, y \in A$"). Other properties follow with "such that".
-- An implicit object (`{α : Type}`) is introduced only if the rest of the text names it. A set is then "a set of elements of $\alpha$" instead of "a set".
+- An implicit object (`{α : Type}`) is introduced only if the rest of the text names it or it has properties. A set is then "a set of elements of $\alpha$" instead of "a set".
 - Hypotheses that are plain formulas are joined into "If … and …, then …". Otherwise they are stated as "Suppose that … and that …. Then …".
+- Only a proof of a proposition has a statement: `def n : Nat := by …` has steps and nothing else.
 
 ### Expressions
 
@@ -105,14 +106,14 @@ The built-in translators (`Distill.Informalizer.Render.Expr`) cover the construc
 | `Set α` | "a set", or "a set of elements of $\alpha$" / "a set of sets" when the elements are named |
 | `Type`, `Prop` | "a type", "a proposition" |
 | any other type `T` | "an element of $T$", or "a term of type `T`" if `T` has no formula |
-| `x ∈ S`, `A ⊆ B`, `A ∩ B`, `A ∪ B`, `a = b` | `x \in S`, `A \subseteq B`, `A \cap B`, `A \cup B`, `a = b` |
+| `x ∈ S`, `A ⊆ B`, `A ∩ B`, `A ∪ B`, `a = b` | `x \in S`, `A \subseteq B`, `A \cap B`, `A \cup B`, `a = b`; `∩` and `∪` are parenthesized when mixed |
 | `{x \| p x}` | `\{x \mid p\}` |
-| `p ∧ q`, `p ∨ q` | "$p$ and $q$", "$p$ or $q$"; `\land`, `\lor` inside a formula or when the two are mixed |
+| `p ∧ q`, `p ∨ q` | "$p$ and $q$", "$p$ or $q$"; `\land`, `\lor` inside a formula or when the two are mixed. An "or" clause is never listed with "and" |
 | `p → q` | "if $p$, then $q$"; `\to` inside a formula |
-| `∀ x, p x` | "for every set $S$, …", "for all sets $S$ and $T$, …", and "for every $x \in A$, …" for `∀ x, x ∈ A → …` |
+| `∀ x, p x` | "for every set $S$, …", "for all sets $S$ and $T$, …", and "for every $x \in A$, …" for `∀ x, x ∈ A → …`; `\forall x \in A,\ …` inside a formula |
 | a variable | its name: `α` ⟶ `\alpha`, `h₁` ⟶ `h_{1}`, `hAB` ⟶ `\mathit{hAB}` |
 
-A library adds translators for its own definitions without changing Distill. Each is handed a `Renderer` to write subexpressions with, and returns `none` for an expression it does not handle, in which case the next translator for the constant is tried:
+A library adds translators for its own definitions without changing Distill. Each is handed a `Renderer` to write subexpressions with, and returns `none` for an expression it does not handle, in which case the next translator for the constant is tried. `r.math` records which variables the text names; a translator that writes a variable's name itself calls `mention`, or an implicit object it names is not introduced.
 
 ```lean
 @[distill_math Set.compl] def mathCompl : MathTranslator := fun r e => do
@@ -140,7 +141,7 @@ Proof steps are still rendered by the fallback, which shows the Lean:
 `verify` checks a `PresentedDecl` against the Proof IR it came from, with Lean's type checker. It is to the Presentation IR what the proof term check of `#proof_ir` is to the Proof IR.
 
 - **Statement.** The presented statement is `∀ objects and their properties, hypotheses → conclusion`, in the order the presentation introduces them. It has to be the original statement: the same term, definitionally equal, or equivalent by a proof of `original ↔ presented` that `verify` builds and type-checks. That proof reorders the binders, and uses the proofs recorded in `MathExpr.history` where a hypothesis or the conclusion was restated.
-- **Proof.** The `evidence` of the steps has to add up to a term without holes, and that term, carried over the equivalence, has to prove the presented statement.
+- **Proof.** The `evidence` of the steps has to add up to a term without holes, and that term, carried over the equivalence, has to prove the presented statement. Only the sum is checked, not which step carries which piece.
 
 A presentation that drops a hypothesis, restates something as a statement that is not equivalent, or loses the evidence of a step does not verify. An unfinished proof is reported as incomplete.
 

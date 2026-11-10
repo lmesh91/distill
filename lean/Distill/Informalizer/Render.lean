@@ -34,7 +34,9 @@ structure RenderedStep where
 
 /-- The English of one declaration. -/
 structure Rendered where
-  statement : String
+  /-- `none` if there is no theorem to state: the proof is a `by` block inside a declaration, or
+  what it builds is not a proof of a proposition (`def n : Nat := by exact 1`). -/
+  statement? : Option String
   /-- In presentation order. -/
   steps : Array RenderedStep
   deriving Inhabited, Repr
@@ -94,33 +96,36 @@ private def statementText (d : PresentedDecl) : RenderM String := do
   let hypotheses ← d.hypotheses.toList.mapM fun h => do
     Render.prose (← instantiateMVars h.prop.expr)
   let conclusion ← Render.prose (← instantiateMVars d.conclusion.prop.expr)
+  -- "Then if …" would stack two connectives.
+  let conditional := conclusion.text.startsWith "if "
   let mut sentences := [s!"{roleLabel d.role}."]
   unless clauses.isEmpty do
     sentences := sentences ++ [s!"{capitalize (joinClauses clauses)}."]
   if hypotheses.isEmpty then
-    -- "Then if …" would stack two connectives.
-    let then_ := if clauses.isEmpty || conclusion.text.startsWith "if " then "" else "then "
+    let then_ := if clauses.isEmpty || conditional then "" else "then "
     sentences := sentences ++ [s!"{capitalize (then_ ++ conclusion.text)}."]
-  else if conclusion.simple && hypotheses.all (·.simple) then
+  else if conclusion.simple && Prose.joinable hypotheses then
     sentences := sentences ++
       [s!"If {joinAnd (hypotheses.map (·.text))}, then {conclusion.text}."]
   else
     sentences := sentences ++ [
       s!"Suppose {joinAnd (hypotheses.map (s!"that {·.text}"))}.",
-      s!"Then {conclusion.text}."]
+      s!"{capitalize ((if conditional then "" else "then ") ++ conclusion.text)}."]
   return " ".intercalate sentences
 
 /--
 The statement: "Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$,
 then $C \subseteq A \cap B$."
 
-An implicit object (`{α : Type}`) is introduced only if the rest of the text names it. Which
+An implicit object (`{α : Type}`) is introduced only if the rest of the text names it, or if it
+has properties, which are stated where it is introduced. Which
 objects that leaves out is not known before the text is written, so the text is written again
 until none of the objects it leaves out is named.
 -/
 def renderStatement (d : PresentedDecl) : MetaM String := do
   let implicit := d.objects.flatMap fun g => g.objects.filterMap fun o =>
-    if o.binderInfo == .implicit || o.binderInfo == .strictImplicit then some o.fvar else none
+    if (o.binderInfo == .implicit || o.binderInfo == .strictImplicit) && o.properties.isEmpty
+    then some o.fvar else none
   let mut omitted : FVarIdSet := implicit.foldl (·.insert ·) {}
   -- Every round but the last introduces an object more.
   for _ in [0:implicit.size] do
@@ -146,7 +151,9 @@ def renderStep (ir : ProofIR) (s : ProofStep) : MetaM RenderedStep := do
 
 /-- The English of `d`, the presentation of `ir`. Runs inside `ir.withContext`. -/
 def render (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
-  let statement ← ir.withGoalContext ir.rootGoal (renderStatement d)
-  return { statement, steps := ← d.proof.steps.mapM (renderStep ir) }
+  let statement? ← ir.withGoalContext ir.rootGoal do
+    if ir.isDeclBody && (← isProp d.conclusion.prop.expr) then some <$> renderStatement d
+    else pure none
+  return { statement?, steps := ← d.proof.steps.mapM (renderStep ir) }
 
 end Distill.Informalizer

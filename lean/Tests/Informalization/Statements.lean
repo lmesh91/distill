@@ -215,7 +215,7 @@ theorem mixed (A B C : Set α) (x : α) (h : (x ∈ A ∨ x ∈ B) ∧ x ∈ C) 
 /-! Parentheses follow the precedence of the operators. -/
 
 /--
-info: Theorem. Let $A$, $B$ and $C$ be sets. Then $A \cap (B \cup C) \cap A = A \cap (B \cap C) \cup (A \cup B) \cup C$.
+info: Theorem. Let $A$, $B$ and $C$ be sets. Then $A \cap (B \cup C) \cap A = (A \cap (B \cap C)) \cup (A \cup B) \cup C$.
   statement: identical to the original statement
 -/
 #guard_msgs in
@@ -237,6 +237,78 @@ info: Theorem. For every set $A$ of terms of type `Nat`, $A \subseteq A$.
 #guard_msgs in
 #informalize_statement
 theorem no_binders : ∀ A : Set Nat, A ⊆ A := sorry
+
+/-! A `∀` inside a formula stays a formula. -/
+
+/--
+info: Theorem. Let $\alpha$ be a type and let $A$ and $B$ be sets of elements of $\alpha$. If $(\forall x \in A,\ x \in B) \land (\forall x \in B,\ x \in A)$, then $(\forall x,\ x \in A) \to A = B$.
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+theorem forall_in_formula (A B : Set α) (h : (∀ x, x ∈ A → x ∈ B) ∧ (∀ x, x ∈ B → x ∈ A)) :
+    (∀ x : α, x ∈ A) → A = B := sorry
+
+/-! "or" is not listed with "and", and `∩` is not mixed with `∪` without parentheses. -/
+
+/--
+info: Theorem. Let $\alpha$ be a type, let $A$, $B$ and $C$ be sets of elements of $\alpha$, and let $x$ be an element of $\alpha$. Then $x \in A \lor x \in B \to x \in C \to x \in C \cup (A \cap B)$.
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+theorem or_and (A B C : Set α) (x : α) : x ∈ A ∨ x ∈ B → x ∈ C → x ∈ C ∪ A ∩ B := sorry
+
+/--
+info: Theorem. Let $A$, $B$ and $C$ be sets. Suppose that $A = B$ or $A = C$ and that $B = C$. Then $A \cup B \cup C = A \cap B \cap C$.
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+theorem or_hypothesis (A B C : Set α) (h : A = B ∨ A = C) (h' : B = C) : A ∪ B ∪ C = A ∩ B ∩ C := sorry
+
+/-! A conclusion that is an implication after hypotheses that are not plain formulas. -/
+
+/--
+info: Theorem. Let $A$ and $B$ be sets. Suppose that for every $x \in A$, $x \in B$. If $B \subseteq A$, then $A = B$.
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+theorem then_if (A B : Set α) (h : ∀ x, x ∈ A → x ∈ B) : B ⊆ A → A = B := sorry
+
+/-! An implicit object with a property is introduced, so that the property is stated. -/
+
+/--
+info: Theorem. Let $A$ and $B$ be sets and let $x \in A$. If $A \subseteq B$, then $A \cap B = A$.
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+theorem implicit_element {A B : Set α} {x : α} (hx : x ∈ A) : A ⊆ B → A ∩ B = A := sorry
+
+/-! A hypothesis that a later binder is stated with stays before it. -/
+
+def restrict (A : Set α) (_ : A ⊆ A) : Set α := A
+
+/--
+info: Theorem. Let $\alpha$ be a type, let $A$ be a set of elements of $\alpha$ such that $A \subseteq A$, let $y$ be an element of $\alpha$, and let $B$ be a set of elements of $\alpha$. If `y ∈ restrict A h`, then $y \in A$.
+  statement: equivalent to the original statement (proof checked)
+-/
+#guard_msgs in
+#informalize_statement
+theorem needed_hypothesis (A : Set α) (h : A ⊆ A) (y : α) (hy : y ∈ restrict A h) (B : Set α) :
+    y ∈ A := sorry
+
+/-! Only propositions have a statement. -/
+
+/--
+info: (no statement)
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+def number (n : Nat) : Nat := by exact n + 1
 
 /-! ## What has no English yet
 

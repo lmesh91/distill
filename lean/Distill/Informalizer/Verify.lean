@@ -13,7 +13,7 @@ Presenting and normalizing a proof must not change what it says. `verify` checks
   builds and checks. The proof reorders the binders, and uses the proofs recorded in
   `MathExpr.history` where a hypothesis or the conclusion was restated.
 * **Proof.** The `Evidence` of the steps adds up to a term without holes, and that term proves
-  the presented statement.
+  the presented statement. Only the sum is checked: which step carries which piece is not.
 
 This is to the Presentation IR what `checkProofTerm` is to the Proof IR. It is meant for tests
 and debugging (`#informalize` prints the result), not for every translation.
@@ -255,6 +255,14 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
 
 /-- Checks `d`, the presentation of `ir`, against `ir`. Runs inside `ir.withContext`. -/
 def verify (ir : ProofIR) (d : PresentedDecl) : MetaM Verification := do
+  -- A statement that did not elaborate has holes nothing declares.
+  let stated := ir.statement.conclusion :: ir.statement.binders.toList.filterMap fun b =>
+    (ir.hyp? b).map (·.type)
+  if ← stated.anyM fun e => return (← instantiateMVars e).hasExprMVar then
+    let reason := "the statement has holes"
+    return {
+      original := ir.statement.conclusion, presented := d.conclusion.prop.expr
+      statement := .failed reason, proof := .failed reason }
   let original ← instantiateMVars
     (← mkForallFVars (ir.statement.binders.map .fvar) ir.statement.conclusion)
   let bs ← presentedBinders d

@@ -8,7 +8,8 @@ import Distill.Informalizer.IR.Presentation
 
 * **Statement.** Every binder becomes an object in a group of its own, or a hypothesis if it is
   a proof of a proposition, in the order they were written. The conclusion is the goal of the
-  proof.
+  proof. A hypothesis that a later binder is stated with (`(h : 0 < n) (i : Fin' n h)`) has to
+  come before that binder, so it becomes a property of the object before it.
 * **Proof.** Every surface node becomes an `untranslated` step, in execution order, with the
   part of the Lean proof it is responsible for as its `evidence`.
 
@@ -71,6 +72,15 @@ def present (ir : ProofIR) : MetaM PresentedDecl := do
   for h in ir.statement.binders do
     let some hi := ir.hyp? h | continue
     if ← isProp hi.type then
+      let needed := ir.statement.binders.any fun b =>
+        (ir.hyp? b).any fun bi => bi.type.containsFVar h || bi.value?.any (·.containsFVar h)
+      if needed && !objects.isEmpty then
+        let claim : Claim := { id := nextId, prop := { expr := hi.type }, hyp? := some h }
+        nextId := nextId + 1
+        objects := objects.modify (objects.size - 1) fun g =>
+          { g with objects := g.objects.modify (g.objects.size - 1) fun o =>
+              { o with properties := o.properties.push claim } }
+        continue
       hypotheses := hypotheses.push { id := nextId, prop := { expr := hi.type }, hyp? := some h }
       nextId := nextId + 1
     else

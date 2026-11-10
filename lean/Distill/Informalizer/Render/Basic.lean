@@ -64,9 +64,9 @@ private def subscriptDigit? (c : Char) : Option Char :=
   else none
 
 /-- A variable name as LaTeX: `α` is `\alpha`, `h₁` and `h1` are `h_{1}`, `x'` is `x'`, and a
-name of several letters is set upright in italics, `\mathit{hAB}`. -/
+name of several letters is set as one word, `\mathit{hAB}`. -/
 def nameTex (n : Name) : String :=
-  let s := (toString n.eraseMacroScopes).toList.filter (· != '✝')
+  let s := (toString n.eraseMacroScopes).toList.filter (!"✝«»".contains ·)
   let primes := (s.reverse.takeWhile (· == '\'')).length
   let s := s.take (s.length - primes)
   let digits := (s.reverse.takeWhile (subscriptDigit? · |>.isSome)).reverse
@@ -76,7 +76,10 @@ def nameTex (n : Name) : String :=
   let letter (c : Char) : String :=
     match greek.lookup c with
     | some g => s!"\\{g} "
-    | none => if c == '_' then "\\_" else c.toString
+    | none =>
+      if "_#%&{}$".contains c then s!"\\{c}"
+      else if c == ' ' then "\\ "
+      else if "^~\\".contains c then "" else c.toString
   let baseTex := match base with
     | [c] => (letter c).trimAscii.toString
     | cs => s!"\\mathit\{{(String.join (cs.map letter)).trimAscii}}"
@@ -115,7 +118,14 @@ structure Prose where
   /-- Whether the text can be joined to others with "and", or put after "if", without becoming
   hard to read. A formula is; a clause with "if" or "for every" in it is not. -/
   simple : Bool := true
+  /-- Whether the text is an "or" of clauses. It is then not joined to others with "and", which
+  would not say how the two group. -/
+  disjunction : Bool := false
   deriving Inhabited, Repr
+
+/-- Whether the clauses can be listed with "and": "P, Q and R". -/
+def Prose.joinable (ps : List Prose) : Bool :=
+  ps.all (·.simple) && (ps.length ≤ 1 || ps.all (!·.disjunction))
 
 /-! ## The monad -/
 
@@ -131,7 +141,9 @@ structure RenderState where
 
 abbrev RenderM := ReaderT RenderContext (StateRefT RenderState MetaM)
 
-/-- Records that the text names the free variables of `e`. -/
+/-- Records that the text names the free variables of `e`. `Renderer.math` and the fallbacks do
+this themselves; a translator that writes a variable's name on its own has to call it, or an
+implicit object it names is not introduced. -/
 def mention (e : Expr) : RenderM Unit :=
   modify fun s => { s with mentioned := (collectFVars {} e).fvarIds.foldl (·.insert ·) s.mentioned }
 

@@ -56,6 +56,8 @@ def membershipAsProperty : Pass where
         let o := groups[gi]!.objects[oi]!
         guard (o.properties.isEmpty && o.value?.isNone && !o.binderInfo.isInstImplicit)
         guard !(set.containsFVar x)
+        -- A set defined with a hypothesis can only be named after the hypotheses.
+        guard !(set.hasAnyFVar fun f => !groups.any (·.objects.any (·.fvar == f)))
         let o := { o with properties := #[h] }
         -- The last group that `S` needs.
         let last? := (List.range groups.size).reverse.find? fun i =>
