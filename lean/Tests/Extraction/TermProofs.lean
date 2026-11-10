@@ -496,10 +496,10 @@ info: ProofIR term_with_hole
     binders     [p, hp]
     conclusion  p
   nodes
-    #0 surface `_`  1:50–1:51  ?g0 ⟶ —   [exact @?_mvar.1706 p hp]
+    #0 surface `_`  1:50–1:51  ?g0 ⟶ —   [exact @?_mvar.1739 p hp]
   goals
     ?g0 ⊢ p   ctx [p, hp]
-        assigned by #0: @?_mvar.1706 p hp
+        assigned by #0: @?_mvar.1739 p hp
   hyps
     p : Prop
     hp : p
