@@ -1,15 +1,16 @@
 import Distill.Informalizer.IR.Common
+import Lean.Elab.Term
 
 /-!
 # Walking the InfoTree
 
-Collects the `TacticInfo` nodes of a command's InfoTree, grouped by tactic proof, with the
-context, path and nesting extraction needs. Nothing here interprets the tactics.
+Collects the `TacticInfo` nodes of a command's InfoTree, grouped by proof, with the context,
+path and nesting extraction needs. Nothing here interprets the tactics.
 -/
 
 namespace Distill.Informalizer.Extract
 
-open Lean Elab
+open Lean Elab Meta
 
 /-- A `TacticInfo` node together with what the walk knows about its position. -/
 structure RawNode where
@@ -22,57 +23,99 @@ structure RawNode where
   /-- Indices of the tactic nodes directly nested in this one, in execution order. -/
   children : Array Nat := #[]
   /-- The terms elaborated directly by this node (not by a nested tactic node), in pre-order,
-  as they were before later metavariable assignments. -/
+  as they were before later metavariable assignments. Binders are left out. -/
   terms : Array Expr := #[]
 
-/-- The tactic nodes of one tactic proof (one outermost `by` block). -/
+/-- The nodes of one proof: a declaration body that proves a proposition, or a `by` block in
+some other term. -/
 structure RawProof where
-  /-- Pre-order, so execution order. `nodes[0]` is the `by` block itself. -/
+  /-- Pre-order, so execution order. `nodes[0]` is the `by` block, or `termProofRoot?`'s node. -/
   nodes : Array RawNode
   aliases : Array FVarAliasInfo
-  /-- Whether the `by` block is the whole body of the declaration (`theorem t … := by …`), as
-  opposed to a part of a term, of the signature, of an instance, …. -/
+  /-- Whether the proof is the whole body of a declaration (also of a `where` clause or
+  `let rec`), as opposed to a `by` block in a term that is not a proof, in a signature, …. -/
   isDeclBody : Bool
+  /-- Whether the body is a term, so that `nodes[0]` was made up by `termProofRoot?`. -/
+  isTermProof : Bool := false
 
 private structure WalkState where
   proofs : Array RawProof := #[]
-  /-- The proof being collected, if the walk is inside an outermost `by` block. -/
+  /-- The proof being collected, if the walk is inside one. -/
   current? : Option RawProof := none
 
 private abbrev WalkM := StateT WalkState IO
 
-/-- The bodies (after `:=`) of the declarations in a command: every declaration of a `mutual`
-block, and the auxiliary definitions in `where` clauses. -/
-private partial def declBodies (stx : Syntax) : Array Syntax :=
-  let own :=
-    if stx.isOfKind ``Lean.Parser.Command.declValSimple then #[stx[1]]
-    else if stx.isOfKind ``Lean.Parser.Term.whereDecls then
-      -- `letRecDecl`s, each holding a `letDecl` around a `letIdDecl` whose last argument is the body.
-      stx[1].getSepArgs.filterMap fun d =>
-        let d := d[2][0]
-        if d.isOfKind ``Lean.Parser.Term.letIdDecl then d.getArgs.back? else none
-    else #[]
-  own ++ stx.getArgs.flatMap declBodies
-
 private def sameRange (a b : Syntax) : Bool :=
   a.getPos?.isSome && a.getPos? == b.getPos? && a.getTailPos? == b.getTailPos?
 
-/-- `cmd?` is the innermost command being elaborated. Subtrees that elaboration left as `.hole`s
+/-- The goal of a term proof. Lean has no metavariable for a declaration's body, so this one is
+made up; its name cannot clash with Lean's, which are numbered. -/
+def termProofGoal : MVarId := ⟨`_distill_term_proof⟩
+
+private partial def firstTerm? : InfoTree → Option TermInfo
+  | .context _ t => firstTerm? t
+  | .hole _ => none
+  | .node (.ofTermInfo ti) _ => some ti
+  | .node _ children => children.toList.findSome? firstTerm?
+
+/--
+The node for the declaration body `stx`, if it is a term that proves a proposition. It is made to
+look like a tactic that assigned the whole body to `termProofGoal`, so the `by` blocks in the body
+are found the same way as those in `exact ⟨by …, by …⟩`. `value` is the elaborated body.
+-/
+private def termProofRoot? (ctx : ContextInfo) (stx : Syntax) (value : Expr)
+    (children : PersistentArray InfoTree) : IO (Option TacticInfo) := do
+  if stx.isOfKind ``Lean.Parser.Term.byTactic then return none
+  let some ti := children.toList.findSome? firstTerm? | return none
+  let type? ← ctx.runMetaM ti.lctx do
+    let type ← instantiateMVars (← ti.expectedType?.getDM (inferType ti.expr))
+    return if ← isProp type then some type else none
+  let some type := type? | return none
+  let mctx := ctx.mctx.addExprMVarDecl termProofGoal .anonymous ti.lctx #[] type .syntheticOpaque 0
+  return some {
+    stx, elaborator := .anonymous, goalsBefore := [termProofGoal]
+    -- Set once the body's `by` blocks are known.
+    goalsAfter := []
+    mctxBefore := mctx
+    mctxAfter := { mctx with eAssignment := mctx.eAssignment.insert termProofGoal value } }
+
+/-- A term proof leaves the goals of its `by` blocks, like `refine ⟨?_, ?_⟩`. -/
+private def finishProof (proof : RawProof) : RawProof :=
+  if !proof.isTermProof then proof else
+  let blocks := proof.nodes[0]?.map (·.children.toList) |>.getD []
+  let goalsAfter := blocks.filterMap fun i => proof.nodes[i]? >>= (·.info.goalsBefore.head?)
+  { proof with nodes := proof.nodes.modify 0 fun n => { n with info.goalsAfter := goalsAfter } }
+
+/-- `body?` is the innermost declaration body. Subtrees that elaboration left as `.hole`s
 (postponed, asynchronous) are skipped: callers must pass a tree with them substituted. -/
-private partial def walk (ctx? : Option ContextInfo) (cmd? : Option Syntax) (path : Array Nat)
+private partial def walk (ctx? : Option ContextInfo) (body? : Option Syntax) (path : Array Nat)
     (parent? : Option Nat) : InfoTree → WalkM Unit
-  | .context i t => walk (i.mergeIntoOuter? ctx?) cmd? path parent? t
+  | .context i t => walk (i.mergeIntoOuter? ctx?) body? path parent? t
   | .hole _ => pure ()
   | .node info children => do
     let mut parent? := parent?
-    let cmd? := if let .ofCommandInfo ci := info then some ci.stx else cmd?
+    let mut body? := body?
+    let outer := (← get).current?
+    let isBody := (Term.getBodyInfo? info).isSome
     match info, ctx? with
+    | .ofCustomInfo _, some ctx =>
+      if let some body := Term.getBodyInfo? info then
+        -- A `where` or `let rec` body inside another body is a proof of its own.
+        modify ({ · with current? := none })
+        body? := some info.stx
+        parent? := none
+        if let some value := body.value? then
+          if let some root ← termProofRoot? ctx info.stx value children then
+            parent? := some 0
+            modify ({ · with current? := some {
+              nodes := #[{ ctx, info := root, path, parent? := none }], aliases := #[]
+              isDeclBody := true, isTermProof := true } })
     | .ofTacticInfo ti, some ctx =>
       if (← get).current?.isNone then
         -- Only `by` blocks start a proof. Other tactic infos outside one (e.g. from `decreasing_by`
         -- machinery) are ignored.
         if ti.stx.getKind == ``Lean.Parser.Term.byTactic then
-          let isDeclBody := cmd?.any fun cmd => (declBodies cmd).any (sameRange · ti.stx)
+          let isDeclBody := body?.any (sameRange · ti.stx)
           modify ({ · with current? := some { nodes := #[], aliases := #[], isDeclBody } })
       if let some proof := (← get).current? then
         let idx := proof.nodes.size
@@ -82,7 +125,7 @@ private partial def walk (ctx? : Option ContextInfo) (cmd? : Option Syntax) (pat
         modify ({ · with current? := some { proof with nodes } })
         parent? := some idx
     | .ofTermInfo ti, _ =>
-      if let (some proof, some p) := ((← get).current?, parent?) then
+      if let (some proof, some p, false) := ((← get).current?, parent?, ti.isBinder) then
         let nodes := proof.nodes.modify p fun n => { n with terms := n.terms.push ti.expr }
         modify ({ · with current? := some { proof with nodes } })
     | .ofFVarAliasInfo a, _ =>
@@ -91,16 +134,15 @@ private partial def walk (ctx? : Option ContextInfo) (cmd? : Option Syntax) (pat
     | _, _ => pure ()
     let mut i := 0
     for c in children do
-      walk ctx? cmd? (path.push i) parent? c
+      walk ctx? body? (path.push i) parent? c
       i := i + 1
     -- Leaving the node that started the current proof finishes it.
-    if parent?.isSome && (← get).current?.any (·.nodes.size > 0) then
-      if let .ofTacticInfo ti := info then
-        if let some proof := (← get).current? then
-          if ti.stx.getKind == ``Lean.Parser.Term.byTactic && proof.nodes[0]?.any (·.path == path) then
-            modify fun s => { proofs := s.proofs.push proof, current? := none }
+    if let some proof := (← get).current? then
+      if proof.nodes[0]?.any (·.path == path) then
+        modify fun s => { s with proofs := s.proofs.push (finishProof proof), current? := none }
+    if isBody then modify ({ · with current? := outer })
 
-/-- The tactic proofs in a command's InfoTree, in source order. -/
+/-- The proofs in a command's InfoTree. -/
 def collectProofs (tree : InfoTree) : IO (Array RawProof) := do
   let ((), s) ← (walk none none #[] none tree).run {}
   return s.proofs

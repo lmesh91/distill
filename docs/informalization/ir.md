@@ -117,6 +117,7 @@ structure HypInfo where
   value? : Option Expr := none
   binderInfo : BinderInfo := .default
   replaces? : Option HypLineage := none
+  isRecursive : Bool := false
 ```
 
 It includes the ID (`fvarId`) and name (`userName`) of the hypotheses as well as its `type` and `value?` (when assigned to a specific value via `let` or `set`).
@@ -155,40 +156,6 @@ Most tactics will have their own information defined in the `detail` field. As a
 `.intro [x, hx]`
 `.have hBx (some (hAB x hx.1)) none`
 `.term .exact ⟨hBx, hx.2⟩`
-
-### Extracting the Proof IR
-
-`Distill.Informalizer.Extract.extractProofs (tree : InfoTree) : IO (Array ProofIR)` builds one `ProofIR` per tactic proof (outermost `by` block) in the InfoTree of a command. It only needs the InfoTree, so it runs wherever InfoTrees are available: in the language server on a document's snapshots, or after elaborating source text. Parts of the tree that asynchronous elaboration left as holes must be substituted first (`InfoState.substituteLazy`).
-
-Usually the `by` block is the whole body of a declaration (also one of a `mutual` block, or an auxiliary definition in a `where` clause), and `isDeclBody` is true. A `by` block inside a term (`⟨by …, by …⟩`), in a signature or in an instance also gets a `ProofIR`, with `isDeclBody` false: its `statement` is then only the goal of the block, and its binders include the variables the surrounding term bound. A `by` block nested in a term *inside* a tactic proof (`exact ⟨by …, by …⟩`) is part of that proof instead.
-
-Extraction records what Lean did, not what it means. Deciding that an `intro` fixes a variable or assumes a hypothesis, or that a step unfolds a definition, is left to translation.
-
-How the parts of the IR are filled in:
-
-- **Roles.** A node is *surface* if its syntax is user-written and of the `tactic` category, also when nested in another tactic (the tactics of `have h : t := by …`). Sequences, `by`, `·`, `focus`, `case` and similar are *structural* when the user wrote them or no surface node encloses them. Everything else inside a surface node is *inner*, e.g. the `refine_lift` expansion of `have`, or the parts of `intro x hx` that introduce one name each. `ProofIR.nestedSurface` finds the surface nodes inside a node, looking through the others.
-- **Undone tactics.** Combinators like `first | t₁ | t₂` (which `try` and `<|>` expand to), `repeat` and `fail_if_success` run tactics whose effects are then undone. Lean still records their nodes, so extraction discards a node, and all nodes inside it, if it made an assignment that the final state does not have, or by the combinator's rule: the alternatives of `first` other than the last, the last iteration of `repeat`, and everything inside `fail_if_success`. Discarded nodes are inner, have no detail, and the goals only they created are left out of the goal table. A failed tactic that assigned nothing elsewhere (a failed iteration of `any_goals`, a tactic that raised an error) is not detected; it stays a node that changed nothing.
-- **Assignments.** A goal is assigned by the innermost node that assigned it, which can be an inner node (`intro x hx` assigns its goal in the inner `intro x`). The proof is the assigned term with everything instantiated except other goals, which stay as metavariables. A subgoal occurs applied to terms for the hypotheses it adds (`ProofIR.newHyps`), in order: `intro x` gives `fun x => ?g1 x`, `have h : t := v` gives `have h := v; ?g2 h`, `ext` gives `Set.ext ?g1 ?g2`, `exact ⟨by …, by …⟩` gives `⟨?g3, ?g4⟩`, and `cases h with | inl hp => …` gives `Or.casesOn … (fun hp h => ?g1 hp) …`. When a tactic replaces hypotheses, the arguments are the terms they stand for: `rw [e] at h1 h2` gives `?g1 (Eq.mp … h1) (Eq.mp … h2)`. `ProofIR.withContext` declares each goal accordingly, as a function of its new hypotheses, so that these terms type-check.
-
-  Lean assigns a goal the term with its nested `by` blocks already filled in. Extraction recovers the version with their goals from the terms the tactic elaborated, or, for terms a tactic builds itself (`calc` gives `trans ?g1 ?g3`), by finding the nested goal's proof in it. A proof that occurs more than once in the term (`rw [show b = c by exact h2] at h1` with `h2` used again) stays inlined; the goal's parent is then still the goal it is inlined in.
-- **Parents.** A goal's parent is the goal whose proof mentions it. A goal no proof mentions (inlined, or created by a tactic that then failed) gets the goal of the innermost tactic around it.
-- **Tags.** A goal's case tag is the one it had where it first appears (`case` and `next` clear it afterwards).
-- **Details.** Recognizers fill in `detail` by syntax kind. The built-in ones are:
-
-  | Tactic | Detail |
-  | --- | --- |
-  | `intro`, `intros` (names only, no patterns) | `.intro hyps`: the hypotheses added to the goal |
-  | `have h : t := e` | `.have h (some e) none` |
-  | `have h : t := by tac` | `.have h none (some g)`, where `g` is the goal `tac` proves |
-  | `exact e`, `apply e`, `refine e` | `.term mode e`, with `e` as assigned to the goal (implicit arguments filled in) |
-  | `ext` (no patterns) | `.term .apply e`, like `apply` of the extensionality lemma |
-
-  A recognizer only reports a term the node itself assigned. Any other tactic, or one whose recognizer does not find the expected shape, gets `.unrecognized`; its goals and assignments are still recorded. A project that adds tactics currently extends the table in `Extract/Recognizers.lean`.
-- **Hypotheses.** `value?` is set for `let`-style hypotheses. `replaces?` links a hypothesis to the one it replaces: from Lean's own alias information when there is some, otherwise inferred (`fromAlias := false`) when a tactic whose `at` clause names a hypothesis (`rw … at h`, `at *`) leaves a goal with a new hypothesis of that name in place of the old one. Other tactics that reuse a name (`induction n with | succ n ih`) are not linked.
-
-Unfinished proofs, `sorry` and elaboration errors still give a Proof IR: an unfinished goal at the top level has no assignment, and `sorry` or an error appears as a `sorryAx` term. Inside `·`, `case`, `have … := by` or a nested `by`, Lean's error recovery closes an unfinished goal with `sorryAx _ true` (synthetic), which tells it apart from a `sorry` the user wrote.
-
-Expressions in a `ProofIR` refer to its hypotheses and goals by id. `ProofIR.withContext` runs a `MetaM` action with all of them declared, so the expressions can be type-checked or pretty-printed, and `ProofIR.proofTerm?` puts the assignments back together into the proof term.
 
 #### Inspecting and testing
 

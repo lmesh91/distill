@@ -40,8 +40,13 @@ def goalOrder (ir : ProofIR) : Array MVarId := Id.run do
         stack := n.children.toList.map (·, false) ++ (i, true) :: rest
   return out
 
+/-- References to the declaration being defined (`HypInfo.isRecursive`), by name. -/
+def recursiveHyps (ir : ProofIR) : Array FVarId :=
+  let hs := ir.hyps.values.toArray.filter (·.isRecursive)
+  (hs.qsort (·.userName.quickLt ·.userName)).map (·.fvarId)
+
 /-- The hypotheses in the order Lean created them: the statement binders, then the new
-hypotheses of each goal in `goalOrder`. -/
+hypotheses of each goal in `goalOrder`, then the references to the declaration being defined. -/
 def hypOrder (ir : ProofIR) : Array FVarId := Id.run do
   let mut seen : Std.HashSet FVarId := {}
   let mut out := #[]
@@ -50,15 +55,16 @@ def hypOrder (ir : ProofIR) : Array FVarId := Id.run do
       unless seen.contains h || !ir.hyps.contains h do
         seen := seen.insert h
         out := out.push h
-  return out
+  return out ++ ir.recursiveHyps
 
 private def addHyp (lctx : LocalContext) (h : HypInfo) : LocalContext :=
   match h.value? with
   | some v => lctx.mkLetDecl h.fvarId h.userName h.type v
-  | none => lctx.mkLocalDecl h.fvarId h.userName h.type h.binderInfo
+  | none =>
+    lctx.mkLocalDecl h.fvarId h.userName h.type h.binderInfo (if h.isRecursive then .auxDecl else .default)
 
 private def goalLCtx (ir : ProofIR) (hs : Array FVarId) : LocalContext :=
-  hs.foldl (init := {}) fun lctx h =>
+  (hs ++ ir.recursiveHyps).foldl (init := {}) fun lctx h =>
     match ir.hyps[h]? with
     | some hi => addHyp lctx hi
     | none => lctx

@@ -20,7 +20,7 @@ info: ProofIR backtracked
             #4 surface `intro x hx`  2:2–2:12  ?g0 ⟶ ?g2   [intro [x, hx]]
               #5 inner `intro x`  2:2–2:9  ?g0 ⟶ ?g1
               #6 inner `hx`  2:10–2:12  ?g1 ⟶ ?g2
-            #7 surface `first | (refine ⟨?_, ?_⟩; exact hx.1) |…`  3:2–3:60  ?g2 ⟶ —   [unrecognized]
+            #7 structural [Lean.Parser.Tactic.first]  3:2–3:60  ?g2 ⟶ —
               #8 inner `(refine ⟨?_, ?_⟩; exact hx.1)`  3:10–3:39  ?g2 ⟶ ?✗ ?✗
                 #9 inner `(refine ⟨?_, ?_⟩; exact hx.1)`  3:10–3:39  ?g2 ⟶ ?✗ ?✗
                   #10 inner `(refine ⟨?_, ?_⟩; exact hx.1)`  3:10–3:39  ?g2 ⟶ ?✗ ?✗
@@ -67,7 +67,7 @@ info: ProofIR failed_alternative
             #4 surface `intro x hx`  2:2–2:12  ?g0 ⟶ ?g2   [intro [x, hx]]
               #5 inner `intro x`  2:2–2:9  ?g0 ⟶ ?g1
               #6 inner `hx`  2:10–2:12  ?g1 ⟶ ?g2
-            #7 surface `first | exact hx.2 | exact hx.1`  3:2–3:33  ?g2 ⟶ —   [unrecognized]
+            #7 structural [Lean.Parser.Tactic.first]  3:2–3:33  ?g2 ⟶ —
               #8 inner `exact hx.2`  3:10–3:20  ?g2 ⟶ ?g2
                 #9 inner `exact hx.2`  3:10–3:20  ?g2 ⟶ ?g2
                   #10 inner `exact hx.2`  3:10–3:20  ?g2 ⟶ ?g2
@@ -272,55 +272,46 @@ theorem intro_pattern (A B : Set α) : A ∩ B ⊆ B := by
 
 /-! `by` blocks that are not the declaration's body each get a Proof IR of their own. -/
 /--
-info: ProofIR two_blocks   (a `by` block inside it)
+info: ProofIR two_blocks
   statement
     binders     [α, A, B]
-    conclusion  A ∩ B ⊆ A
+    conclusion  A ∩ B ⊆ A ∧ A ∩ B ⊆ B
   nodes
-    #0 structural [Lean.Parser.Term.byTactic]  2:3–2:28  ?g0 ⟶ —
-      #1 structural [by]  2:3–2:5  ?g0 ⟶ —
-        #2 structural [Lean.Parser.Tactic.tacticSeq]  2:6–2:28  ?g0 ⟶ —
-          #3 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:6–2:28  ?g0 ⟶ —
-            #4 surface `intro x hx`  2:6–2:16  ?g0 ⟶ ?g2   [intro [x, hx]]
-              #5 inner `intro x`  2:6–2:13  ?g0 ⟶ ?g1
-              #6 inner `hx`  2:14–2:16  ?g1 ⟶ ?g2
-            #7 structural [«;»]  2:16–2:17  ?g2 ⟶ ?g2
-            #8 surface `exact hx.1`  2:18–2:28  ?g2 ⟶ —   [exact hx.left]
+    #0 surface `⟨by intro x hx; exact hx.1, fun x hx =>…`  2:2–2:56  ?g0 ⟶ ?g1 ?g4   [refine ⟨?g1, fun x hx => ?g4 x hx⟩]
+      #1 structural [Lean.Parser.Term.byTactic]  2:3–2:28  ?g1 ⟶ —
+        #2 structural [by]  2:3–2:5  ?g1 ⟶ —
+          #3 structural [Lean.Parser.Tactic.tacticSeq]  2:6–2:28  ?g1 ⟶ —
+            #4 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:6–2:28  ?g1 ⟶ —
+              #5 surface `intro x hx`  2:6–2:16  ?g1 ⟶ ?g3   [intro [x, hx]]
+                #6 inner `intro x`  2:6–2:13  ?g1 ⟶ ?g2
+                #7 inner `hx`  2:14–2:16  ?g2 ⟶ ?g3
+              #8 structural [«;»]  2:16–2:17  ?g3 ⟶ ?g3
+              #9 surface `exact hx.1`  2:18–2:28  ?g3 ⟶ —   [exact hx.left]
+      #10 structural [Lean.Parser.Term.byTactic]  2:42–2:55  ?g4 ⟶ —
+        #11 structural [by]  2:42–2:44  ?g4 ⟶ —
+          #12 structural [Lean.Parser.Tactic.tacticSeq]  2:45–2:55  ?g4 ⟶ —
+            #13 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:45–2:55  ?g4 ⟶ —
+              #14 surface `exact hx.2`  2:45–2:55  ?g4 ⟶ —   [exact hx.right]
   goals
-    ?g0 ⊢ A ∩ B ⊆ A   ctx [α, A, B]
-        assigned by #5: fun x => ?g1 x
-    ?g1 ⊢ x ∈ A ∩ B → x ∈ A   ctx [α, A, B, x]   parent ?g0
-        assigned by #6: fun hx => ?g2 hx
-    ?g2 ⊢ x ∈ A   ctx [α, A, B, x, hx]   parent ?g1
-        assigned by #8: hx.left
+    ?g0 ⊢ A ∩ B ⊆ A ∧ A ∩ B ⊆ B   ctx [α, A, B]
+        assigned by #0: ⟨?g1, fun x hx => ?g4 x hx⟩
+    ?g1 ⊢ A ∩ B ⊆ A   ctx [α, A, B]   parent ?g0
+        assigned by #6: fun x => ?g2 x
+    ?g2 ⊢ x ∈ A ∩ B → x ∈ A   ctx [α, A, B, x]   parent ?g1
+        assigned by #7: fun hx => ?g3 hx
+    ?g3 ⊢ x ∈ A   ctx [α, A, B, x, hx]   parent ?g2
+        assigned by #9: hx.left
+    ?g4 ⊢ x ∈ B   ctx [α, A, B, x, hx]   parent ?g0
+        assigned by #14: hx.right
   hyps
     α : Type u_1   {implicit}
     A : Set α
     B : Set α
     x : α
     hx : x ∈ A ∩ B
-  proof term: not compared (the `by` block is not the declaration's body)
----
-info: ProofIR two_blocks   (a `by` block inside it)
-  statement
-    binders     [α, A, B, x, hx]
-    conclusion  x ∈ B
-  nodes
-    #0 structural [Lean.Parser.Term.byTactic]  2:42–2:55  ?g0 ⟶ —
-      #1 structural [by]  2:42–2:44  ?g0 ⟶ —
-        #2 structural [Lean.Parser.Tactic.tacticSeq]  2:45–2:55  ?g0 ⟶ —
-          #3 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:45–2:55  ?g0 ⟶ —
-            #4 surface `exact hx.2`  2:45–2:55  ?g0 ⟶ —   [exact hx.right]
-  goals
-    ?g0 ⊢ x ∈ B   ctx [α, A, B, x, hx]
-        assigned by #4: hx.right
-  hyps
-    α : Type u_1   {implicit}
-    A : Set α
-    B : Set α
     x : α
     hx : x ∈ A ∩ B
-  proof term: not compared (the `by` block is not the declaration's body)
+  proof term: rebuilds the declaration's proof term
 -/
 #guard_msgs in
 #proof_ir
@@ -341,7 +332,7 @@ info: ProofIR rolled_back
             #4 surface `intro x hx`  2:2–2:12  ?g0 ⟶ ?g2   [intro [x, hx]]
               #5 inner `intro x`  2:2–2:9  ?g0 ⟶ ?g1
               #6 inner `hx`  2:10–2:12  ?g1 ⟶ ?g2
-            #7 surface `fail_if_success (refine ⟨?_, ?_⟩; exact…`  3:2–3:47  ?g2 ⟶ ?g2   [unrecognized]
+            #7 inner `fail_if_success (refine ⟨?_, ?_⟩; exact…`  3:2–3:47  ?g2 ⟶ ?g2
               #8 inner `(refine ⟨?_, ?_⟩; exact hx.1)`  3:18–3:47  ?g2 ⟶ ?g2
                 #9 inner `(refine ⟨?_, ?_⟩; exact hx.1)`  3:18–3:47  ?g2 ⟶ ?g2
                   #10 inner `(refine ⟨?_, ?_⟩; exact hx.1)`  3:18–3:47  ?g2 ⟶ ?g2
@@ -535,6 +526,18 @@ info: ProofIR with_where.aux
         assigned by #5: True.intro
   hyps
   proof term: rebuilds the declaration's proof term
+---
+info: ProofIR with_where
+  statement
+    binders     []
+    conclusion  True
+  nodes
+    #0 surface `let  rec aux : True := by trivial`  synthetic 1:26–1:63  ?g0 ⟶ —   [exact (fun aux => aux) with_where.aux]
+  goals
+    ?g0 ⊢ True   ctx []
+        assigned by #0: (fun aux => aux) with_where.aux
+  hyps
+  proof term: definitionally equal to the declaration's proof term
 -/
 #guard_msgs in
 #proof_ir
@@ -887,7 +890,7 @@ info: ProofIR failed_tactic_goal
       #1 structural [by]  1:56–1:58  ?g0 ⟶ ?g2
         #2 structural [Lean.Parser.Tactic.tacticSeq]  2:2–3:21  ?g0 ⟶ ?g2
           #3 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:2–3:21  ?g0 ⟶ ?g2
-            #4 surface `repeat intro _`  2:2–2:16  ?g0 ⟶ ?g2   [unrecognized]
+            #4 structural [Lean.Parser.Tactic.tacticRepeat_]  2:2–2:16  ?g0 ⟶ ?g2
               #5 structural [Lean.Parser.Tactic.tacticSeq]  2:9–2:16  ?g0 ⟶ ?g1
                 #6 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:9–2:16  ?g0 ⟶ ?g1
                   #7 surface `intro _`  2:9–2:16  ?g0 ⟶ ?g1   [intro [x✝]]
@@ -900,12 +903,12 @@ info: ProofIR failed_tactic_goal
                 #14 inner `intro _`  2:9–2:16  ?g2 ⟶ ?g2
                   #15 inner `intro _`  2:9–2:16  ?g2 ⟶ ?g2
                     #16 inner `intro _`  2:9–2:16  ?g2 ⟶ ?g2
-            #17 surface `exact ‹x ∈ A ∩ B›.1`  3:2–3:21  ?g2 ⟶ ?g2   [unrecognized]
-              #18 inner `by  assumption`  synthetic 3:8–3:19  ?g3 ⟶ ?g3
-                #19 inner `by`  synthetic 3:8–3:19  ?g3 ⟶ ?g3
-                  #20 inner `assumption`  synthetic 3:8–3:19  ?g3 ⟶ ?g3
-                    #21 inner `assumption`  synthetic 3:8–3:19  ?g3 ⟶ ?g3
-                      #22 inner `assumption`  synthetic 3:8–3:19  ?g3 ⟶ ?g3
+            #17 inner `exact ‹x ∈ A ∩ B›.1`  3:2–3:21  ?g2 ⟶ ?g2
+              #18 inner `by  assumption`  synthetic 3:8–3:19  ?✗ ⟶ ?✗
+                #19 inner `by`  synthetic 3:8–3:19  ?✗ ⟶ ?✗
+                  #20 inner `assumption`  synthetic 3:8–3:19  ?✗ ⟶ ?✗
+                    #21 inner `assumption`  synthetic 3:8–3:19  ?✗ ⟶ ?✗
+                      #22 inner `assumption`  synthetic 3:8–3:19  ?✗ ⟶ ?✗
   goals
     ?g0 ⊢ A ∩ B ⊆ A   ctx [α, A, B]
         assigned by #8: fun x => ?g1 x
@@ -913,8 +916,6 @@ info: ProofIR failed_tactic_goal
         assigned by #12: fun a => ?g2 a
     ?g2 ⊢ x✝ ∈ A   ctx [α, A, B, x✝, a✝]   parent ?g1
         unassigned
-    ?g3 ⊢ sorry ∈ A ∩ B   ctx [α, A, B, x✝, a✝]   parent ?g2
-        assigned by #17: sorry
   hyps
     α : Type u_1   {implicit}
     A : Set α

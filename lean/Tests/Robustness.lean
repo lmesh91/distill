@@ -211,7 +211,19 @@ example (A : Set α) : A ⊆ A := by
 
 /-! A command without tactic proofs. -/
 /--
-info: no tactic proofs
+info: ProofIR term_proof
+  statement
+    binders     [α, A]
+    conclusion  A ⊆ A
+  nodes
+    #0 surface `fun _ hx => hx`  1:42–1:56  ?g0 ⟶ —   [exact fun x hx => hx]
+  goals
+    ?g0 ⊢ A ⊆ A   ctx [α, A]
+        assigned by #0: fun x hx => hx
+  hyps
+    α : Type u_1   {implicit}
+    A : Set α
+  proof term: rebuilds the declaration's proof term
 -/
 #guard_msgs in
 #proof_ir

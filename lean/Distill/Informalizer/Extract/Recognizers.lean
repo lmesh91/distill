@@ -1,4 +1,5 @@
 import Distill.Informalizer.Extract.Goals
+import Lean.Elab.Util
 
 /-!
 # Recognizers
@@ -7,8 +8,9 @@ A recognizer fills in `TacticNode.detail` for one family of tactics. It only rep
 tactic did (the hypotheses it introduced, the term it elaborated, the goals it left); what that
 means mathematically is decided by translation.
 
-Recognizers are looked up by syntax kind in `recognizers`. They are not yet registered through
-an attribute, so a project that adds tactics currently has to extend this table.
+A library registers a recognizer for its tactic with `@[distill_recognizer kind]`, like an
+elaborator with `@[tactic kind]`. Those are tried first, the most recent first, then the built-in
+`recognizers`, which do not depend on what the elaborated file imports.
 -/
 
 namespace Distill.Informalizer.Extract
@@ -35,12 +37,13 @@ def newHyps (before after : GoalInfo) : Array FVarId :=
   after.context.filter (!before.context.contains ·)
 
 /-- The tactic's main goal and its proof, if the tactic itself (or a node nested in it)
-assigned it. The goal table records the final assignment, which a failed or later node may
-have made instead. -/
-def ownAssignment? (r : RecognizerInput) : MetaM (Option (GoalInfo × Expr)) := do
-  let some g := r.mainGoal? | return none
-  let some a := g.assignment? | return none
-  return if ← assignedBy r.info g.mvarId then some (g, a.proof) else none
+assigned it. The goal table records the final assignment, which a later node may have made
+instead. -/
+def ownAssignment? (r : RecognizerInput) : Option (GoalInfo × Expr) := do
+  let g ← r.mainGoal?
+  let a ← g.assignment?
+  guard (assignedIn r.info g.mvarId)
+  return (g, a.proof)
 
 /-- The goals the tactic created: those after it that were not there before. -/
 def newGoals (r : RecognizerInput) : List GoalInfo :=
@@ -62,7 +65,7 @@ def recognizeIntro : Recognizer := fun r => do
 `v` is `e`, or the goal `tac` proves.
 -/
 def recognizeHave : Recognizer := fun r => do
-  let some (before, proof) ← r.ownAssignment? | return none
+  let some (before, proof) := r.ownAssignment? | return none
   let [body] := r.newGoals | return none
   let #[hyp] := RecognizerInput.newHyps before body | return none
   let value? := match proof.consumeMData with
@@ -76,7 +79,7 @@ def recognizeHave : Recognizer := fun r => do
 
 /-- `exact e`, `apply e`, `refine e`: the elaborated term, as assigned to the goal. -/
 def recognizeTerm (mode : TermMode) : Recognizer := fun r => do
-  let some (_, proof) ← r.ownAssignment? | return none
+  let some (_, proof) := r.ownAssignment? | return none
   return some (.term mode proof)
 
 /--
@@ -86,7 +89,7 @@ hypotheses, which this does not describe yet.
 -/
 def recognizeExt : Recognizer := fun r => do
   if r.info.stx[1].getNumArgs != 0 then return none
-  let some (before, proof) ← r.ownAssignment? | return none
+  let some (before, proof) := r.ownAssignment? | return none
   if r.newGoals.any fun g => (RecognizerInput.newHyps before g).size > 0 then return none
   return some (.term .apply proof)
 
@@ -101,12 +104,23 @@ def recognizers : Std.HashMap SyntaxNodeKind Recognizer := .ofList [
   (``Lean.Elab.Tactic.Ext.ext, recognizeExt)
 ]
 
-/-- The detail of a node; `.unrecognized` if no recognizer applies or it fails. -/
+/-- `@[distill_recognizer kind] def r : Recognizer := …` makes `r` fill in the detail of the
+tactic `kind`. If it returns `none` or throws, the next recognizer for the kind is tried. -/
+unsafe initialize recognizerAttribute : KeyedDeclsAttribute Recognizer ←
+  KeyedDeclsAttribute.init {
+    builtinName := `builtin_distill_recognizer
+    name := `distill_recognizer
+    descr := "how Distill describes a tactic in the Proof IR"
+    valueTypeName := ``Recognizer
+    evalKey := fun _ stx => syntaxNodeKindOfAttrParam `Lean.Parser.Tactic stx }
+
+/-- The detail of a node; `.unrecognized` if no recognizer applies. -/
 def recognize (input : RecognizerInput) : MetaM TacticDetail := do
-  let some rec := recognizers[input.info.stx.getKind]? | return .unrecognized
-  try
-    return (← rec input).getD .unrecognized
-  catch _ =>
-    return .unrecognized
+  let kind := input.info.stx.getKind
+  for rec in recognizerAttribute.getValues (← getEnv) kind ++ recognizers[kind]?.toList do
+    try
+      if let some detail ← rec input then return detail
+    catch _ => pure ()
+  return .unrecognized
 
 end Distill.Informalizer.Extract

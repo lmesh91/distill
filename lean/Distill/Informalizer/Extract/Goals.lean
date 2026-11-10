@@ -1,4 +1,5 @@
 import Distill.Informalizer.IR.Proof
+import Lean.Util.CollectFVars
 
 /-!
 # Goals and hypotheses
@@ -86,23 +87,21 @@ def instantiateExceptGoals (goals : Std.HashSet MVarId) (scope : Array FVarId) (
 def goalContext (g : MVarId) : MetaM (Array FVarId) :=
   return (visibleHyps (← g.getDecl).lctx).map (·.fvarId)
 
-private def assignmentIn (mctx : MetavarContext) (g : MVarId) : Option Expr :=
+/-- What `g` is assigned in `mctx`; for a delayed assignment, the goal it waits for. -/
+def assignmentIn (mctx : MetavarContext) (g : MVarId) : Option Expr :=
   match mctx.eAssignment.find? g with
   | some v => some v
   | none => mctx.dAssignment.find? g |>.map (.mvar ·.mvarIdPending)
 
-/-- Whether a node assigned `g` in its own state, whether or not that survived. -/
+/-- Whether a node assigned `g`. Nodes that were undone are not looked at: `discardedNodes`. -/
 def assignedIn (ti : TacticInfo) (g : MVarId) : Bool :=
   (assignmentIn ti.mctxBefore g).isNone && (assignmentIn ti.mctxAfter g).isSome
 
 /--
-Whether a node assigned `g` and that assignment is the one in the current (final) metavariable
-context. A node in an alternative that failed and was backtracked over (`first`, `repeat`,
-`fail_if_success`, …) assigned `g` in its own state only. Assignments are compared after
-instantiation, because `instantiateMVars` stores instantiated versions of them.
+Whether a node's assignment of `g` is the one in the current (final) metavariable context. Compared
+after instantiation, because `instantiateMVars` stores instantiated versions of assignments.
 -/
-def assignedBy (ti : TacticInfo) (g : MVarId) : MetaM Bool := do
-  unless assignedIn ti g do return false
+def assignmentSurvives (ti : TacticInfo) (g : MVarId) : MetaM Bool := do
   let some final := assignmentIn (← getMCtx) g | return false
   let some own := assignmentIn ti.mctxAfter g | return false
   if own == final then return true
@@ -189,7 +188,7 @@ def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
     let context ← goalContext g
     let assignment? ← do
       -- The nodes that assign the same goal are nested in one another: take the innermost.
-      let some n ← nodes.reverse.findM? (assignedBy ·.info g) | pure none
+      let some n := nodes.reverse.find? (assignedIn ·.info g) | pure none
       -- The value as the node assigned it: later `instantiateMVars` calls store instantiated
       -- versions, in which the goal's subgoals are already replaced by their proofs.
       let some v := assignmentIn n.info.mctxAfter g | pure none
@@ -228,28 +227,37 @@ def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
       table := table.insert h { gi with parent? := some g }
   return table
 
-/-- Builds the hypothesis table from the goals' local contexts. -/
-def buildHyps (goals : Array MVarId) (aliases : Array FVarAliasInfo) :
+/-- Builds the hypothesis table from the goals' local contexts. The declaration being defined is
+in those contexts too, as an auxiliary declaration, and is added if a proof calls it. -/
+def buildHyps (goals : Std.HashMap MVarId GoalInfo) (aliases : Array FVarAliasInfo) :
     MetaM (Std.HashMap FVarId HypInfo) := do
-  let goalSet := Std.HashSet.ofArray goals
+  let goalSet := Std.HashSet.ofArray goals.keysArray
   let mut table : Std.HashMap FVarId HypInfo := {}
-  for g in goals do
-    let context ← goalContext g
+  for (g, gi) in goals do
     for d in visibleHyps (← g.getDecl).lctx do
       if table.contains d.fvarId then continue
       let value? ← match d with
         | .ldecl (value := v) (nondep := false) .. =>
-          some <$> instantiateExceptGoals goalSet context v
+          some <$> instantiateExceptGoals goalSet gi.context v
         | _ => pure none
       let replaces? := aliases.find? (·.id == d.fvarId) |>.map fun a =>
         { previous := a.baseId, fromAlias := true : HypLineage }
       table := table.insert d.fvarId {
         fvarId := d.fvarId
         userName := d.userName
-        type := ← instantiateExceptGoals goalSet context d.type
+        type := ← instantiateExceptGoals goalSet gi.context d.type
         value?
         binderInfo := d.binderInfo
         replaces? }
+  let exprs := goals.values.flatMap (fun gi => gi.assignment?.map (·.proof) |>.toList) ++
+    table.values.flatMap (·.value?.toList)
+  let used := exprs.foldl collectFVars {}
+  for (g, gi) in goals do
+    for d in (← g.getDecl).lctx do
+      if d.isAuxDecl && !table.contains d.fvarId && used.fvarSet.contains d.fvarId then
+        table := table.insert d.fvarId {
+          fvarId := d.fvarId, userName := d.userName, isRecursive := true
+          type := ← instantiateExceptGoals goalSet gi.context d.type }
   return table
 
 /-- Whether a tactic's `at` clause names a hypothesis called `n`, or is `at *`. -/

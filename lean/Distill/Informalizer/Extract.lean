@@ -5,8 +5,8 @@ import Distill.Informalizer.Extract.Recognizers
 /-!
 # Extraction: InfoTree ⟶ Proof IR
 
-`extractProofs` turns the InfoTree of an elaborated command into one `ProofIR` per tactic proof
-(outermost `by` block) in it. Parts of the tree that asynchronous elaboration left as holes
+`extractProofs` turns the InfoTree of an elaborated command into one `ProofIR` per proof in it: a
+declaration body that proves a proposition, or a `by` block elsewhere. Parts of the tree that asynchronous elaboration left as holes
 must be substituted first (`InfoState.substituteLazy`, which the language server's snapshots
 already do). It works from InfoTrees alone, so it can run wherever they are
 available: in the language server on a document's snapshots, or after elaborating a source
@@ -21,25 +21,6 @@ namespace Distill.Informalizer.Extract
 
 open Lean Meta Elab
 open Distill.Informalizer.IR
-
-/-- Syntax kinds that only pass goals to their children. -/
-def structuralKinds : Std.HashSet SyntaxNodeKind := .ofList [
-  ``Lean.Parser.Term.byTactic,
-  `by,
-  ``Lean.Parser.Tactic.tacticSeq,
-  ``Lean.Parser.Tactic.tacticSeq1Indented,
-  ``Lean.Parser.Tactic.tacticSeqBracketed,
-  ``Lean.cdot,
-  ``Lean.cdotTk,
-  ``Lean.Parser.Tactic.paren,
-  ``Lean.Parser.Tactic.focus,
-  ``Lean.Parser.Tactic.case,
-  ``Lean.Parser.Tactic.«tacticNext_=>_»,
-  ``Lean.Parser.Tactic.«tactic_<;>_»,
-  ``Lean.Parser.Tactic.allGoals,
-  ``Lean.Parser.Tactic.anyGoals,
-  ``Lean.Parser.Tactic.withAnnotateState
-]
 
 /-- The syntax kinds of the `tactic` category, i.e. things a user can write as a tactic. -/
 def tacticKinds (env : Environment) : Parser.SyntaxNodeKindSet :=
@@ -56,47 +37,97 @@ def SyntaxOrigin.ofSyntax (fileMap : FileMap) (stx : Syntax) : SyntaxOrigin :=
   | _, _ => .none
 
 /--
-The role of a node, given the roles of its ancestors.
+Which nodes left nothing in the proof. Lean records the nodes of a tactic that failed or was
+backtracked over, so whatever combinator caused that, the signs are in the node's states:
+
+* it, or a `by` block in it, assigned a goal that is unassigned in the state execution continued
+  from, which is the next sibling's or else the parent's final state, or that has another
+  assignment in the end (a tactic can redo a goal after undoing what this node did);
+* it is a tactic that changed nothing, which is also how a tactic that failed before changing
+  anything looks (`skip`, `done`, … are no loss);
+* it is nested in such a node.
+
+A `by` block is not in sequence with its siblings: terms choose when to run them.
+-/
+private def discardedNodes (raw : RawProof) (tactics : Parser.SyntaxNodeKindSet) :
+    MetaM (Array Bool) := do
+  let next : Std.HashMap Nat Nat := raw.nodes.foldl (init := {}) fun m n =>
+    (n.children.zip (n.children.extract 1)).foldl (init := m) fun m (c, s) => m.insert c s
+  let isBlock (n : RawNode) := n.info.stx.isOfKind ``Lean.Parser.Term.byTactic
+  -- Whether a node and the nodes in it changed nothing, and the goals of the `by` blocks in it.
+  let mut quiet := Array.replicate raw.nodes.size false
+  let mut blocks : Array (Array MVarId) := Array.replicate raw.nodes.size #[]
+  for i in (List.range raw.nodes.size).reverse do
+    let some n := raw.nodes[i]? | continue
+    blocks := blocks.set! i (n.children.flatMap (blocks[·]!) ++
+      if isBlock n then n.info.goalsBefore.toArray else #[])
+    quiet := quiet.set! i (n.info.goalsAfter == n.info.goalsBefore &&
+      !n.info.goalsBefore.any (assignedIn n.info) && n.children.all (quiet[·]!))
+  let mut out : Array Bool := #[]
+  for (n, i) in raw.nodes.zipIdx do
+    let some parent := n.parent? >>= (raw.nodes[·]?)
+      | out := out.push false; continue
+    let sibling? := if isBlock n then none else next[i]? >>= (raw.nodes[·]?)
+    let continued := (sibling?.map (·.info.mctxBefore)).getD parent.info.mctxAfter
+    let undone ← (n.info.goalsBefore.toArray ++ blocks[i]!).anyM fun g => do
+      if !assignedIn n.info g then return false
+      return (assignmentIn continued g).isNone || !(← assignmentSurvives n.info g)
+    -- Not tokens (`;`), which are nodes too, or `by` blocks, whose goals nothing else reports.
+    let inert := quiet[i]! && !isBlock n && (tactics.contains n.info.stx.getKind || !n.children.isEmpty)
+    out := out.push (n.parent?.any (out[·]!) || undone || inert)
+  return out
+
+/-- Syntax a user wrote as a tactic. -/
+private def isUserTactic (tactics : Parser.SyntaxNodeKindSet) (stx : Syntax) : Bool :=
+  stx.getHeadInfo matches .original .. && tactics.contains stx.getKind
+
+/-- An assignment that only passes the goal on: `case` renaming hypotheses, or error recovery
+closing a goal whose tactic failed. -/
+private def passesGoalOn (v : Expr) : Bool :=
+  v.consumeMData.isMVar || v.isSyntheticSorry
+
+/--
+Which nodes only pass goals to user-written tactics nested in them: sequences, `·`, `case`,
+`t <;> s`, `first`, `try`, …, whether built in or from a library. Going by the InfoTree, such a
+node does no work itself, its nodes that do are all user-written, and it has at least one. What
+sets `· intro x` apart from the macro `intro x hx` is that the nodes doing the work in the macro
+are its expansion, which the user did not write.
+-/
+private def delegatingNodes (raw : RawProof) (tactics : Parser.SyntaxNodeKindSet)
+    (discarded : Array Bool) : Array Bool := Id.run do
+  let mut out := Array.replicate raw.nodes.size false
+  for i in (List.range raw.nodes.size).reverse do
+    let some n := raw.nodes[i]? | continue
+    let kids := n.children.filterMap fun c => raw.nodes[c]?.map fun k =>
+      (k, isUserTactic tactics k.info.stx || out[c]!, discarded[c]!)
+    let live := kids.filter (!·.2.2)
+    let ownWork := !n.terms.isEmpty || n.info.goalsBefore.any fun g =>
+      assignedIn n.info g && !live.any (assignedIn ·.1.info g) &&
+        !(assignmentIn n.info.mctxAfter g).any passesGoalOn
+    let kidsWork := live.any fun (k, written, _) =>
+      !written && k.info.goalsBefore.any (assignedIn k.info)
+    -- A user-written tactic that failed still counts: `· exact wrong` is a `·` like any other.
+    out := out.set! i (!ownWork && !kidsWork && kids.any (·.2.1))
+  return out
+
+/--
+The role of a node. `delegates` is `delegatingNodes`'s answer for it and `insideSurface` is
+whether some ancestor is a surface node.
 
 * User-written tactics are surface nodes, also when nested in another tactic (the tactics of a
-  `have h : t := by …` block, the right side of `t <;> s`).
-* Sequences, focusing and similar syntax are structural when the user wrote them, or when no
-  surface node encloses them.
+  `have h : t := by …` block, the right side of `t <;> s`), unless they only delegate.
+* Nodes that only delegate are structural when the user wrote them, or when no surface node
+  encloses them.
 * Everything else inside a surface node ran on its behalf (macro expansions, the parts of
   `intro x y` that introduce one name each) and is inner.
 -/
-def classify (tactics : Parser.SyntaxNodeKindSet) (stx : Syntax) (insideSurface : Bool) : NodeRole :=
-  let kind := stx.getKind
+def classify (tactics : Parser.SyntaxNodeKindSet) (stx : Syntax) (delegates insideSurface : Bool) :
+    NodeRole :=
   let original := stx.getHeadInfo matches .original ..
-  if original && tactics.contains kind && !structuralKinds.contains kind then .surface
-  else if structuralKinds.contains kind && (original || !insideSurface) then .structural
+  if isUserTactic tactics stx && !delegates then .surface
+  else if delegates && (original || !insideSurface) then .structural
   else if insideSurface then .inner
   else .structural
-
-/--
-Which nodes ran in a tactic whose effects were undone (`first`, `try`, `repeat`,
-`fail_if_success`, `any_goals`, …), so that they are not in the final state. A node is discarded
-if it is nested in a discarded node, if it made an assignment that the final state does not
-have, or by the combinator's rule: every alternative of `first | t₁ | t₂ | …` but the last, the
-last iteration of `repeat`, and everything in `fail_if_success`. The rules also catch failed
-tactics that assigned nothing; elsewhere (a failed iteration of `any_goals`) those stay as nodes
-that changed nothing. Runs in the final metavariable context.
--/
-private def discardedNodes (raw : RawProof) : MetaM (Array Bool) := do
-  let mut out : Array Bool := #[]
-  for n in raw.nodes do
-    let inherited := n.parent?.any fun p =>
-      out[p]! || raw.nodes[p]?.any fun pn =>
-        let last := pn.children.back? == some out.size
-        (pn.info.stx.isOfKind ``Lean.Parser.Tactic.first && !last) ||
-        -- `repeat t` runs `t` until it fails.
-        (pn.info.stx.isOfKind ``Lean.Parser.Tactic.tacticRepeat_ && last) ||
-        -- `fail_if_success t` always undoes `t`.
-        pn.info.stx.isOfKind ``Lean.Parser.Tactic.failIfSuccess
-    let undone ← n.info.goalsBefore.anyM fun g => do
-      return assignedIn n.info g && !(← assignedBy n.info g)
-    out := out.push (inherited || undone)
-  return out
 
 /-- The goals the live nodes report, in order of first appearance. -/
 private def reportedGoals (raw : RawProof) (discarded : Array Bool) : Array MVarId := Id.run do
@@ -110,16 +141,18 @@ private def reportedGoals (raw : RawProof) (discarded : Array Bool) : Array MVar
         out := out.push g
   return out
 
-/-- Builds the Proof IR of one tactic proof. -/
+/-- Builds the Proof IR of one proof. -/
 def extractProof (raw : RawProof) : IO ProofIR := do
-  let some root := raw.nodes[0]? | throw <| .userError "empty tactic proof"
+  let some root := raw.nodes[0]? | throw <| .userError "empty proof"
   let some rootGoal := root.info.goalsBefore.head?
     | throw <| .userError "`by` block without a goal"
-  -- Assignments only accumulate, so the context after the outermost `by` block has them all
-  -- (except those of failed alternatives, which were backtracked).
+  -- Assignments only accumulate, so the context after the root has them all (except those of
+  -- failed alternatives, which were backtracked).
   let ctx := { root.ctx with mctx := root.info.mctxAfter }
   ctx.runMetaM {} do
-    let discarded ← discardedNodes raw
+    let tactics := tacticKinds (← getEnv)
+    let discarded ← discardedNodes raw tactics
+    let delegates := delegatingNodes raw tactics discarded
     -- A goal of a backtracked alternative is not in the final metavariable context.
     let goalIds := (reportedGoals raw discarded).filter (root.info.mctxAfter.decls.contains ·)
     -- The last node nested in each node: nodes are in pre-order.
@@ -132,18 +165,27 @@ def extractProof (raw : RawProof) : IO ProofIR := do
     let live := (raw.nodes.zipIdx.filter (!discarded[·.2]!)).map fun (n, id) =>
       { id, last := last[id]!, info := n.info, terms := n.terms : NodeFacts }
     let goals ← buildGoals live goalIds
-    let hyps := inferLineage live goals (← buildHyps goalIds raw.aliases)
-    let tactics := tacticKinds (← getEnv)
+    let hyps := inferLineage live goals (← buildHyps goals raw.aliases)
     let mut nodes : Array TacticNode := #[]
     -- Whether some ancestor of the node is a surface node; parents come before children.
     let mut insideSurfaceOf : Array Bool := #[]
     for h : i in [0:raw.nodes.size] do
       let n := raw.nodes[i]
-      let insideSurface := n.parent?.any fun p => nodes[p]!.role == .surface || insideSurfaceOf[p]!
+      -- A term proof's node stands for no tactic: the blocks in it are like any other `by`.
+      let insideSurface := n.parent?.any fun p =>
+        (nodes[p]!.role == .surface && !(raw.isTermProof && p == 0)) || insideSurfaceOf[p]!
       insideSurfaceOf := insideSurfaceOf.push insideSurface
       -- A failed alternative is inner, and says nothing about the goals of the final proof.
-      let role := if discarded[i]! then .inner else classify tactics n.info.stx insideSurface
-      let detail ← if discarded[i]! then pure .unrecognized else recognize { info := n.info, goals }
+      let isTermRoot := i == 0 && raw.isTermProof
+      let role := if isTermRoot then .surface else if discarded[i]! then .inner
+        else classify tactics n.info.stx delegates[i]! insideSurface
+      let input := { info := n.info, goals : RecognizerInput }
+      let detail ← if discarded[i]! then pure .unrecognized
+        -- A term proof reads as `exact`, or as `refine` when `by` blocks fill in parts of it.
+        else if isTermRoot then
+          let mode := if n.info.goalsAfter.isEmpty then .exact else .refine
+          pure ((← recognizeTerm mode input).getD .unrecognized)
+        else recognize input
       nodes := nodes.push {
         id := i
         stx := n.info.stx
@@ -162,7 +204,7 @@ def extractProof (raw : RawProof) : IO ProofIR := do
       statement := { binders := rootInfo.context, conclusion := rootInfo.target }
       rootGoal, nodes, goals, hyps }
 
-/-- The Proof IR of every tactic proof in an InfoTree, in source order. -/
+/-- The Proof IR of every proof in an InfoTree. -/
 def extractProofs (tree : InfoTree) : IO (Array ProofIR) := do
   (← collectProofs tree).mapM extractProof
 

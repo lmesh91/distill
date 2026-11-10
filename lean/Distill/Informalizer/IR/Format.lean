@@ -141,7 +141,8 @@ def format (ir : ProofIR) (lineOffset : Nat := 0) : MetaM String := do
       let lineage := match hi.replaces? with
         | some l => s!"   replaces {hypLabel ir l.previous}{if l.fromAlias then "" else " (inferred)"}"
         | none => ""
-      out := out ++ s!"    {hypLabel ir h} : {← pp g? hi.type}{value}{bi}{lineage}\n"
+      let recursive := if hi.isRecursive then "   [recursive]" else ""
+      out := out ++ s!"    {hypLabel ir h} : {← pp g? hi.type}{value}{bi}{lineage}{recursive}\n"
     return out
 
 end Distill.Informalizer.IR.ProofIR
