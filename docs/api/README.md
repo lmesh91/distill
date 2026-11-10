@@ -1,5 +1,34 @@
 # API
 
+## Administrator access
+
+Administrator pages belong under `/admin` and administrator endpoints under
+`/api/admin`. The server hook checks every request to these routes after Clerk
+authenticates the session and before connecting to MongoDB or running page loads,
+form actions, or endpoint handlers. This includes nested routes and client-side
+page-data requests. Administrator features have not been built yet; these route
+namespaces are reserved for them. Do not prerender administrator routes.
+
+Page requests without a signed-in session redirect to `/sign-in?redirect_url=...`
+with HTTP 303, preserving the requested page path and query string for returning
+after sign-in. Signed-in users without the exact `metadata.role: "admin"` session
+claim receive HTTP 403. API requests return JSON errors with HTTP 401 when signed
+out or HTTP 403 when signed in without the administrator claim. Only verified
+Clerk session claims grant access; request bodies, query parameters, and user
+profile fields do not. Public and learner routes keep their existing access rules.
+
+Set an administrator's Clerk **public metadata** to `{ "role": "admin" }` through
+the Clerk dashboard or a trusted backend. In Clerk's session token customization,
+include `{ "metadata": "{{user.public_metadata}}" }`. Missing role claims deny
+access. Role changes take effect when the session token refreshes.
+
+For administrator operations outside these namespaces, call
+`requireAdmin(locals)` from `$lib/server/roles` before reading protected data or
+performing any operation. It returns the authenticated administrator's user ID
+or throws HTTP 401/403 errors without redirecting. A layout check or hidden link alone does not
+protect page actions and endpoints.
+
+Run `npm run test:admin` to check the access rules without Clerk or MongoDB.
 ## Route protection
 
 The server hook checks Clerk sessions before database access or route execution.
@@ -66,9 +95,26 @@ HTTP 200 returns a verification result for both accepted and rejected submission
 		"dependencies": ["hello", "Eq.refl", "Eq", "String"],
 		"axioms": [],
 		"introducedAxioms": []
+	},
+	"progress": {
+		"status": "completed",
+		"attemptCount": 3,
+		"completedAt": "2026-11-09T19:30:00.000Z"
 	}
 }
 ```
+
+Every graded check is recorded before the response is sent, in one transaction (so
+MongoDB must be a replica set, as Atlas is). The source, verdict, reason, diagnostics,
+and any comparator message are appended to the `levelAttempts` collection, and the
+user's `userLevelProgress` record for the level is updated: `currentCode` becomes the
+graded source, `attemptCount` is incremented, and `lastAttemptedAt` set. Only an accepted result sets `status` to `completed`; the first
+`completedAt` is kept on later attempts, and a rejection never downgrades a completed
+level. A rejection stores its first error (or warning, comparator message, or reason)
+in `currentError`. `progress` in the response is the updated record. Busy, unavailable,
+or failed checks are not recorded. If recording fails the route returns 503
+`{ "error": "Could not record submission" }` and nothing is stored, so a retry is
+recorded as a single new attempt.
 
 The dependency list is illustrative; its contents depend on the elaborated proof.
 `accepted` is the authoritative verdict. `compiled` only means the compiler exited

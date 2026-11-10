@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { test } from 'node:test';
+import { ObjectId } from 'mongodb';
 import { createAdmissionGate, LeanBusyError, runLeanJob } from './leanJobs.ts';
 import { leanLimits } from './leanLimits.ts';
 import { compileLean } from './lean.ts';
@@ -35,7 +36,10 @@ test('the API returns Retry-After when all submission slots are occupied', async
 		)
 	);
 	try {
-		const handler = createSubmissionHandler(async () => ({ verification: target }));
+		const handler = createSubmissionHandler(
+			async () => ({ _id: new ObjectId(), verification: target }),
+			async () => assert.fail('failed checks must not be recorded')
+		);
 		const response = await handler({
 			request: new Request('http://localhost/api/submissions', {
 				method: 'POST',
@@ -147,7 +151,10 @@ test('an unavailable user manager fails closed through the API', async (t) => {
 	process.env.DBUS_SESSION_BUS_ADDRESS = 'unix:path=/nonexistent-distill-bus';
 	t.mock.method(console, 'error', () => {});
 	try {
-		const handler = createSubmissionHandler(async () => ({ verification: target }));
+		const handler = createSubmissionHandler(
+			async () => ({ _id: new ObjectId(), verification: target }),
+			async () => assert.fail('failed checks must not be recorded')
+		);
 		const response = await handler({
 			request: new Request('http://localhost/api/submissions', {
 				method: 'POST',
