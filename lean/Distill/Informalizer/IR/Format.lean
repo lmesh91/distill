@@ -32,17 +32,8 @@ private def originStr (lineOffset : Nat) : IR.SyntaxOrigin → String
 
 /-- The first line of a node's syntax, shortened. -/
 private def syntaxStr (stx : Syntax) : String :=
-  -- Hygienic names in macro expansions (`h._@.Module._hyg.3`) depend on the module.
-  let stx := stx.rewriteBottomUp fun
-    -- Only hygienic ones: `hygieneInfo` nodes are identifiers with no source text.
-    | .ident info raw n pre =>
-      if n.hasMacroScopes then
-        let n := n.eraseMacroScopes
-        .ident info (toString n).toRawSubstring n pre
-      else .ident info raw n pre
-    | s => s
-  let text := (stx.reprint.getD (toString stx)).trimAscii.toString
-  let line := (text.splitOn "\n").head!.trimAscii.toString
+  let line := syntaxFirstLine stx
+  let line := if line.endsWith " …" then (line.dropEnd 2).toString else line
   if line.length > 40 then (line.take 39).toString ++ "…" else line
 
 private def roleStr : NodeRole → String

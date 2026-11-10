@@ -4,8 +4,8 @@ import Distill.Informalizer.IR.Format
 /-!
 # Running extraction outside the language server
 
-* `extractSource` elaborates a whole Lean file given as a string and extracts its proofs. The
-  file's imports must already be built.
+* `elabSource` elaborates a whole Lean file given as a string, and `extractSource` also extracts
+  its proofs. The file's imports must already be built.
 * `#proof_ir cmd` elaborates `cmd` and logs the Proof IR of its proofs, for debugging in
   the editor and for tests. Its source positions are relative to the start of `cmd`.
 -/
@@ -14,7 +14,7 @@ namespace Distill.Informalizer.Extract
 
 open Lean Meta Elab Command
 
-/-- Elaborates `input` as a Lean file and returns the Proof IR of every proof, with the
+/-- Elaborates `input` as a Lean file and returns the InfoTree of every command, with the
 messages Lean produced and the final environment.
 
 With `async`, proofs are elaborated in parallel as in the language server, and their InfoTrees
@@ -22,8 +22,8 @@ are only substituted into the command's tree once they finish.
 
 Unsafe because importing the file's dependencies has to run their initializers, which register
 their syntax. -/
-unsafe def extractSource (input : String) (fileName : String := "<input>") (async := false) :
-    IO (Array IR.ProofIR × MessageLog × Environment) := do
+unsafe def elabSource (input : String) (fileName : String := "<input>") (async := false) :
+    IO (Array InfoTree × MessageLog × Environment) := do
   enableInitializersExecution
   let inputCtx := Parser.mkInputContext input fileName
   let (header, parserState, messages) ← Parser.parseHeader inputCtx
@@ -32,8 +32,14 @@ unsafe def extractSource (input : String) (fileName : String := "<input>") (asyn
   let cmdState := { Command.mkState env messages opts with infoState := { enabled := true } }
   let s ← IO.processCommands inputCtx parserState cmdState
   let infoState ← IO.wait s.commandState.infoState.substituteLazy
-  let proofs ← infoState.trees.toArray.flatMapM extractProofs
-  return (proofs, s.commandState.messages, s.commandState.env)
+  return (infoState.trees.toArray, s.commandState.messages, s.commandState.env)
+
+/-- Elaborates `input` as a Lean file (see `elabSource`) and returns the Proof IR of every
+proof. -/
+unsafe def extractSource (input : String) (fileName : String := "<input>") (async := false) :
+    IO (Array IR.ProofIR × MessageLog × Environment) := do
+  let (trees, messages, env) ← elabSource input fileName async
+  return (← trees.flatMapM extractProofs, messages, env)
 
 /-- Formats a Proof IR. `env` must contain the constants it mentions; `openDecls` and
 `currNamespace` decide how their names are shortened, and `options` sets pretty-printer options. -/
