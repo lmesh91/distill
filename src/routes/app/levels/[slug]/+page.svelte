@@ -176,7 +176,7 @@
 					<span class="line-number">{line + 1}</span
 					>{#each english as part, partIndex (partIndex)}{#if part.kind === 'code'}<code
 								>{part.text}</code
-							>{:else if part.kind === 'math'}<span class="math">{part.text}</span
+							>{:else if part.kind === 'math'}<span class="math">${part.text}$</span
 							>{:else}{part.text}{/if}{/each}
 				</li>
 			{/each}
