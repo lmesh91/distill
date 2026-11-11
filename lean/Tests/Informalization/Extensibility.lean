@@ -126,6 +126,22 @@ info: Theorem. Let $A$ and $B$ be small tidy sets and let $C$ be a set with corn
 theorem described (A B C : Set α) (hA : Small A) (hA' : Tidy A) (hB : Small B) (hB' : Tidy B)
     (hC : HasCorners C) (h : A ⊆ B) : A ⊆ C := sorry
 
+/-! A translator that does not look at who the property is about cannot describe another
+object: the presentation makes `h` a property of `B` here, because `w` needs it. -/
+
+structure Witness {P : Prop} (_ : P) : Type
+
+@[local distill_translator Small] def adjectiveSmallCareless : Translator := .adjective fun _ _ =>
+  return some { text := "small" }
+
+/--
+info: Theorem. Let $\alpha$ be a type, let $A$ be a set of elements of $\alpha$, let $B$ be a set of elements of $\alpha$ such that `Small A`, and let $w$ be a term of type `Witness h`. Then $A \subseteq B$.
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+theorem careless (A B : Set α) (h : Small A) (w : Witness h) : A ⊆ B := sorry
+
 /-! A hypothesis that is not a property of one object is stated as before, and a property
 without words follows "such that". -/
 
@@ -356,6 +372,93 @@ Verification
 theorem unsupported (A B : Set α) : A ∩ B ⊆ A := by
   intro x hx
   exact hx.left
+end
+
+section
+/-- "Proves" a wrong restatement with `sorry`. -/
+@[local distill_normalizer] def swapBySorry : Pass where
+  name := `Tests.swapBySorry
+  run d := do
+    let e := d.conclusion.prop.expr
+    unless e.isAppOfArity ``HasSubset.Subset 4 do return d
+    let new ← mkAppM ``HasSubset.Subset #[e.getArg! 3, e.getArg! 2]
+    let proof ← mkSorry (mkIff e new) (synthetic := false)
+    return { d with conclusion.prop := restate d.conclusion.prop `Tests.swapBySorry new proof }
+
+/--
+info: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
+  statement: identical to the original statement
+  skipped Tests.swapBySorry: Tests.swapBySorry restated A ∩ B ⊆ A as A ⊆ A ∩ B, but its proof is not finished
+-/
+#guard_msgs in
+#informalize_statement
+theorem swapped_by_sorry (A B : Set α) : A ∩ B ⊆ A := sorry
+end
+
+section
+/-- Replaces the evidence of every finished step by something that proves nothing. -/
+@[local distill_normalizer] def fakeEvidence : Pass where
+  name := `Tests.fakeEvidence
+  run d := do
+    let steps := d.proof.steps.map fun s => { s with
+      evidence := s.evidence.map fun e =>
+        if e.proof.hasSorry || e.proof.hasExprMVar then e else { e with proof := mkNatLit 37 } }
+    return { d with proof.steps := steps }
+
+/-! Even in an unfinished proof, what the steps do prove is checked. -/
+/--
+info: Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
+  statement: identical to the original statement
+  skipped Tests.fakeEvidence: Application type mismatch: The argument
+  fun x hx => 37
+has type
+  (x : α) → x ∈ A ∩ B → Nat
+of sort `Type u_1` but is expected to have type
+  A ∩ B ⊆ B ∩ A
+of sort `Prop` in the application
+  Distill.Set.ext fun x hx => 37
+-/
+#guard_msgs in
+#informalize_statement
+theorem fake_evidence (A B : Set α) : A ∩ B = B ∩ A := by
+  apply Set.ext
+  · intro x hx
+    exact ⟨hx.right, hx.left⟩
+  · sorry
+end
+
+section
+/-- Introduces all objects as if they were described the same way. -/
+@[local distill_normalizer] def oneGroup : Pass where
+  name := `Tests.oneGroup
+  order := 950
+  run d := return { d with objects := #[{ objects := d.objects.flatMap (·.objects) }] }
+
+/--
+info: Theorem. Let $A$ be a set and let $x \in A$. Then $x \in A$.
+  statement: identical to the original statement
+  skipped Tests.oneGroup: A is grouped with α, which is described differently
+-/
+#guard_msgs in
+#informalize_statement
+theorem one_group (A : Set α) (x : α) (h : x ∈ A) : x ∈ A := sorry
+end
+
+section
+/-- Presents every object under another name. -/
+@[local distill_normalizer] def rename : Pass where
+  name := `Tests.rename
+  run d := return { d with objects := d.objects.map fun g =>
+    { g with objects := g.objects.map ({ · with name := `Z }) } }
+
+/--
+info: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
+  statement: identical to the original statement
+  skipped Tests.rename: α is presented under the name Z
+-/
+#guard_msgs in
+#informalize_statement
+theorem renamed (A B : Set α) : A ∩ B ⊆ A := sorry
 end
 
 /-! ## Names in LaTeX -/

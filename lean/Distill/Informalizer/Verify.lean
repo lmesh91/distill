@@ -1,5 +1,6 @@
 import Distill.Informalizer.IR.Context
 import Distill.Informalizer.IR.Presentation
+import Distill.Informalizer.Present
 
 /-!
 # Verifying a presentation
@@ -12,8 +13,11 @@ Presenting and normalizing a proof must not change what it says. `verify` checks
   term, definitionally equal, or equivalent by a proof of `original ↔ presented` that `verify`
   builds and checks. The proof reorders the binders, and uses the proofs recorded in
   `MathExpr.history` where a hypothesis or the conclusion was restated.
-* **Proof.** The `Evidence` of the steps adds up to a term without holes, and that term proves
-  the presented statement. Only the sum is checked: which step carries which piece is not.
+* **Proof.** The `Evidence` of the steps adds up to a term that proves the presented statement.
+  Only the sum is checked: which step carries which piece is not, and neither is that every
+  tactic of the proof has a step.
+* **Structure.** What rendering reads besides expressions is right: objects in a group are
+  described the same way, and objects and the declaration have their own names and label.
 
 This is to the Presentation IR what `checkProofTerm` is to the Proof IR. The pipeline runs it on
 every presentation before rendering it (`Distill.Informalizer.informalize`), so that the English
@@ -150,8 +154,12 @@ private def checkHistory (m : MathExpr) : MetaM Unit := do
         throwError "{r.rule} restated {r.before} as {after}, which is not definitionally equal, without a proof"
     | some p =>
       check p
+      let p ← instantiateMVars p
+      if p.hasSorry || p.hasExprMVar then
+        throwError "{r.rule} restated {r.before} as {after}, but its proof is not finished"
       let type ← inferType p
-      let proves ← isDefEq type (mkIff r.before after) <||> isDefEq type (← mkEq r.before after)
+      let proves ← withNewMCtxDepth <|
+        isDefEq type (mkIff r.before after) <||> isDefEq type (← mkEq r.before after)
       unless proves do
         throwError "{r.rule} restated {r.before} as {after}, but its proof is of {type}"
 
@@ -229,8 +237,33 @@ private def checkStatement (ir : ProofIR) (d : PresentedDecl) (bs : Array Binder
     for b in bs do checkHistory b.type
     checkHistory d.conclusion.prop
     if ← withNewMCtxDepth (isDefEq original presented) then return .defEq
-    return .equivalent (← equivalenceProof ir d bs original presented)
+    let proof ← instantiateMVars (← equivalenceProof ir d bs original presented)
+    if proof.hasSorry || proof.hasExprMVar then
+      return .failed "the proof of the equivalence is not finished"
+    return .equivalent proof
   catch e => return .failed (← e.toMessageData.toString)
+
+/-- What `render` reads that the statement's term does not show: `none` if the groups, names
+and labels of `d` are right. -/
+private def structureProblem? (ir : ProofIR) (d : PresentedDecl) : MetaM (Option String) := do
+  if d.decl != ir.decl || d.role != declRole ir.decl then
+    return some "the presentation is labelled as another declaration"
+  for g in d.objects do
+    let some first := g.objects[0]? | return some "a group has no objects"
+    -- An object's description with the object itself abstracted.
+    let key (o : MathObject) : MetaM (Expr × Array Expr) := do
+      return (← instantiateMVars o.type.expr, ← o.properties.mapM fun p =>
+        return (← instantiateMVars p.prop.expr).abstract #[.fvar o.fvar])
+    for o in g.objects do
+      if let some decl := (← getLCtx).find? o.fvar then
+        unless decl.userName == o.name do
+          return some s!"{decl.userName} is presented under the name {o.name}"
+      if g.objects.size > 1 then
+        if o.value?.isSome || o.binderInfo.isInstImplicit then
+          return some s!"{o.name} cannot be introduced in a group"
+        unless (← key o) == (← key first) do
+          return some s!"{o.name} is grouped with {first.name}, which is described differently"
+  return none
 
 private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : Expr)
     (statement : StatementCheck) : MetaM ProofCheck := do
@@ -240,32 +273,54 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
       return .failed s!"two steps prove ?{ir.goalNumbering e.goal}"
     evidence := evidence.insert e.goal e.proof
   -- What the Lean proof itself leaves open, which the steps may leave open too.
-  let lean? ← (ir.fillGoal (fun g => (ir.goal? g >>= (·.assignment?)).map (·.proof))
-    (strict := false) d.rootGoal).mapM (instantiateMVars ·)
+  let leanProof (g : MVarId) := (ir.goal? g >>= (·.assignment?)).map (·.proof)
+  let leanFrom (g : MVarId) : MetaM (Option Expr) :=
+    (ir.fillGoal leanProof (strict := false) g).mapM (instantiateMVars ·)
+  let lean? ← leanFrom d.rootGoal
   let openGoals (e : Expr) := (e.collectMVars {}).result.filter ir.goals.contains
+  -- A goal Lean gave up on (a tactic failed, and elaboration went on with `sorry`) is open too.
+  let givenUp (g : MVarId) := (leanProof g).any fun p =>
+    (p.consumeMData.getLambdaBody.consumeMData.getAppFn).isConstOf ``sorryAx
+  -- A step may use `sorry` only where the Lean proof does.
+  for (g, e) in evidence do
+    if e.hasSorry && !(← leanFrom g).any (·.hasSorry) then
+      return .failed s!"the step for ?{ir.goalNumbering g} uses `sorry`, which the Lean proof does not"
   let some term := ir.fillGoal (evidence[·]?) (strict := false) d.rootGoal
     | return if lean?.isNone then .incomplete "no step proves the statement"
         else .failed "no step proves the statement, which the Lean proof does"
   let term ← instantiateMVars term
   let unproved := openGoals term
-  unless unproved.isEmpty do
+  let mut incomplete? : Option String := none
+  if !unproved.isEmpty then
     let names (gs : Array MVarId) := ", ".intercalate (gs.toList.map (s!"?{ir.goalNumbering ·}"))
     let leanOpen := (lean?.map openGoals).getD #[]
-    let lost := unproved.filter (!leanOpen.contains ·)
-    return if lost.isEmpty then .incomplete s!"no step proves {names unproved}"
-      else .failed s!"no step proves {names lost}, which the Lean proof does"
-  if term.hasMVar then
-    return if lean?.any (·.hasMVar) then .incomplete "a hole is unfilled"
-      else .failed "the steps leave a hole that the Lean proof fills"
-  if term.hasSorry then
-    return if lean?.any (·.hasSorry) then .incomplete "the proof uses `sorry`"
-      else .failed "the steps use `sorry`, which the Lean proof does not"
+    let lost := unproved.filter fun g => !leanOpen.contains g && !givenUp g
+    unless lost.isEmpty do
+      return .failed s!"no step proves {names lost}, which the Lean proof does"
+    incomplete? := some s!"no step proves {names unproved}"
+  else if term.hasMVar then
+    unless lean?.any (·.hasMVar) do
+      return .failed "the steps leave a hole that the Lean proof fills"
+    incomplete? := some "a hole is unfilled"
+  else if term.hasSorry then
+    incomplete? := some "the proof uses `sorry`"
   let binders := ir.statement.binders
+  -- What there is of an unfinished proof is type-checked like a finished one, with each hole
+  -- as a `sorry` of its type, where it has one.
+  let mut term := term
+  if let some reason := incomplete? then
+    try
+      term ← Meta.transform term (pre := fun e => do
+        if e.getAppFn.isMVar then return .done (← mkSorry (← inferType e) (synthetic := true))
+        return .continue)
+    catch _ =>
+      -- A goal that a failed tactic left behind may not have a type that fits its place.
+      return .incomplete reason
   try
     -- Lean compiles recursive calls away, so there is no closed term to compare.
     if term.hasAnyFVar (ir.recursiveHyps.contains ·) then
       check (← mkLambdaFVars ((binders ++ ir.recursiveHyps).map .fvar) term)
-      return .recursive
+      return (incomplete?.map .incomplete).getD .recursive
     let closed ← mkLambdaFVars (binders.map .fvar) term
     let (proof, statement) ← match statement with
       | .equivalent iff => pure (transport true original presented iff closed, presented)
@@ -276,7 +331,7 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
       return .failed "the steps prove a different statement"
     if statement == original && !(statement == presented) then
       return .failed "the steps prove the original statement, which the presented one was not shown to match"
-    return .complete proof
+    return (incomplete?.map .incomplete).getD (.complete proof)
   catch e => return .failed (← e.toMessageData.toString)
 
 /-- Checks `d`, the presentation of `ir`, against `ir`. Runs inside `ir.withContext`. -/
@@ -295,6 +350,8 @@ def verify (ir : ProofIR) (d : PresentedDecl) : MetaM Verification := do
   let presented ← withBinders bs fun olds news locals => do
     instantiateMVars (← mkForallFVars locals (d.conclusion.prop.expr.replaceFVars olds news))
   let mut statement ← checkStatement ir d bs original presented
+  if let some problem ← structureProblem? ir d then
+    statement := .failed problem
   -- The Proof IR's statement is what the checks above compare with, so it has to be the
   -- declaration's.
   if ir.isDeclBody then

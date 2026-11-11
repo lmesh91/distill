@@ -104,7 +104,7 @@ The ontology of a statement is that of Kyle Miller's informalizer ([talk](https:
 | `Accessory` | a property of an object | what the object comes with | `DecidableEq α` ⟶ "a type *with decidable equality*" |
 | `Prose` | a proposition | a clause | `p ∧ q` ⟶ "$p$ and $q$" |
 
-There are built-in translators for math, nouns and prose only: the demo levels have no adjectives or accessories, so those two kinds have a place in the grammar and no vocabulary yet. A translator for either must return `none` unless the proposition is about `RenderContext.subject?`, the object being described.
+There are built-in translators for math, nouns and prose only: the demo levels have no adjectives or accessories, so those two kinds have a place in the grammar and no vocabulary yet. A translator for either must return `none` unless the proposition is about `RenderContext.subject?`, the object being described; the renderer itself only rules out a property that does not mention the object at all.
 
 The kinds are not a fixed list: a kind is any type with a `TypeName`. English that needs more (a verb, a relation between objects, the vocabulary of proof steps) gets a new type, translators made with `Translator.of`, and callers that ask for it with `Renderer.phrase?`. Nothing about the existing kinds or translators changes. `Tests/Informalization/Extensibility.lean` uses adjectives and accessories and adds a kind of its own.
 
@@ -152,15 +152,20 @@ Proof steps are still rendered by the fallback, which shows the Lean:
 `verify` checks a `PresentedDecl` against the Proof IR it came from, with Lean's type checker. It is to the Presentation IR what the proof term check of `#proof_ir` is to the Proof IR.
 
 - **Statement.** The presented statement is `∀ objects and their properties, hypotheses → conclusion`, in the order the presentation introduces them. It has to be the original statement: the same term, definitionally equal, or equivalent by a proof of `original ↔ presented` that `verify` builds and type-checks. That proof reorders the binders, and uses the proofs recorded in `MathExpr.history` where a hypothesis or the conclusion was restated.
-- **Proof.** The `evidence` of the steps has to add up to a term without holes, and that term, carried over the equivalence, has to prove the presented statement. Only the sum is checked, not which step carries which piece.
+- **Proof.** The `evidence` of the steps has to add up to a term that, carried over the equivalence, proves the presented statement. Only the sum is checked: not which step carries which piece, and not that every tactic of the proof has a step. So `verify` vouches for the statement, and for the steps only that together they are a proof.
+- **Structure.** What rendering reads besides expressions has to be right: the objects of a group are described the same way, and objects and the declaration appear under their own names and label.
 
-A presentation that drops a hypothesis, restates something as a statement that is not equivalent, or loses the evidence of a step does not verify. An unfinished proof is not a wrong presentation: the steps may leave open exactly what the Lean proof leaves open, and the proof is then reported as incomplete.
+A presentation that drops a hypothesis, restates something as a statement that is not equivalent, or loses the evidence of a step does not verify. A restatement whose proof contains `sorry` does not verify either.
+
+An unfinished proof is not a wrong presentation: the steps may leave open what the Lean proof leaves open (a goal nothing closes, a goal a failed tactic left to `sorry`, a `sorry` the user wrote), and the proof is then reported as incomplete. What the steps do prove is still type-checked, with each hole as a `sorry`.
 
 `informalize` verifies every presentation before rendering it:
 
 1. The normalized presentation is verified. Normally it passes, and is rendered.
 2. If it fails, the presentation from `present` is verified, and the passes are run again with a check after each one. A pass whose result does not verify is left out (`Informalized.skipped`), and the rest is rendered.
-3. If the presentation from `present` fails too, nothing is translated: `renderQuoted` shows the declaration's statement and each step as the Lean they are.
+3. If the presentation from `present` fails too, what failed is not translated: the steps are shown as the Lean they are, and so is the statement unless the statement check passed.
+
+If verification itself does not finish (it runs out of heartbeats, say), everything is shown as Lean.
 
 `Informalized.verification?` holds what `verify` found for the presentation that was used.
 

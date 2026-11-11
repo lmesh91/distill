@@ -245,6 +245,46 @@ Verification
 theorem with_passes {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) (_hAB : A ⊆ B) : C ⊆ A ∩ B := by
   exact subset_inter hCA hCB
 
+/-! A tactic that fails alone in a bullet leaves its goal to Lean's `sorry`. The proof is
+unfinished, not wrongly presented. -/
+/--
+error: Type mismatch
+  hq
+has type
+  q
+but is expected to have type
+  p
+---
+info: PresentedDecl failing_bullet   role theorem
+  objects
+    p, q : Prop
+  hypotheses
+    f1: q   hyp hq
+    f0: p   hyp hp
+  conclusion
+    f2: p ∧ q
+  proof of ?g0
+    s3 untranslated `constructor`   origin direct [#4]
+      proves ?g0: ⟨?g1, ?g2⟩
+    s4 untranslated `exact hq`   origin direct [#14]
+      proves ?g2: hq
+English
+  Theorem. Let $p$ and $q$ be propositions. If $q$ and $p$, then $p$ and $q$.
+  2: Apply `constructor`.
+  4: Apply `exact hq`.
+Verification
+  statement: equivalent to the original statement (proof checked)
+  proof: incomplete (no step proves ?g1)
+  skipped Tests.failingPass: not applicable
+  skipped Tests.dropLastHypothesis: hq is missing from the presented statement
+-/
+#guard_msgs in
+#informalize
+theorem failing_bullet (p q : Prop) (hp : p) (hq : q) : p ∧ q := by
+  constructor
+  · exact hq
+  · exact hq
+
 /-! ## A presentation that does not verify
 
 Only a presentation that `verify` accepts is rendered. If even the direct presentation is not

@@ -63,12 +63,16 @@ private def describe (o : MathObject) (words : Bool) : RenderM Described :=
     let mut d : Described := {}
     for p in o.properties do
       let prop ← instantiateMVars p.prop.expr
-      if words then
+      -- A property that does not mention the object is not a word for it, whatever a translator
+      -- says.
+      if words && prop.containsFVar o.fvar then
         if let some a ← Render.renderer.phrase? Adjective prop then
-          d := { d with adjectives := d.adjectives.push a }
+          unless d.adjectives.contains a do
+            d := { d with adjectives := d.adjectives.push a }
           continue
         if let some a ← Render.renderer.phrase? Accessory prop then
-          d := { d with accessories := d.accessories.push a }
+          unless d.accessories.contains a do
+            d := { d with accessories := d.accessories.push a }
           continue
       d := { d with clauses := d.clauses.push (← Render.prose prop).text }
     return d
@@ -95,7 +99,7 @@ private def groupClause (g : ObjectGroup) : RenderM (Option Text) := do
   -- "let $x, y \in A$": the set says what the objects are, so their type is left out.
   if let #[property] := first.properties then
     if let some (set, .fvar x) := membership? (← instantiateMVars property.prop.expr) then
-      if x == first.fvar then
+      if x == first.fvar && !set.containsFVar x then
         if let some m ← Render.math set then
           return some <|
             "let " ++ Text.math s!"{", ".intercalate (objects.toList.map name)} \\in {m.at 51}"
@@ -201,6 +205,14 @@ def renderQuoted (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
     statement?
     steps := d.proof.steps.map fun s =>
       { step := s.id, nodes := s.origin.nodes, text := renderUntranslated ir s.origin.nodes } }
+
+/-- The English of `d`, the presentation of `ir`, when only its statement verifies: the
+statement in English, and the steps as their source. Runs inside `ir.withContext`. -/
+def renderStatementOnly (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
+  let statement? ← ir.withGoalContext ir.rootGoal do
+    if ir.isDeclBody && (← isProp d.conclusion.prop.expr) then some <$> renderStatement d
+    else pure none
+  return { (← renderQuoted ir d) with statement? }
 
 /-- The English of `d`, the presentation of `ir`. Runs inside `ir.withContext`. -/
 def render (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
