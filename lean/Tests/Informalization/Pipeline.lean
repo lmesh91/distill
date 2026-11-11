@@ -189,12 +189,12 @@ info: no proofs
 #informalize
 def notAProof : Nat := 1
 
-/-! ## Code in rich text
+/-! ## Code in text as markup
 
 The fence is longer than any run of backticks in the code. -/
-#guard code "exact hx" == "`exact hx`"
-#guard code "exact `a" == "``exact `a``"
-#guard code "``a" == "``` ``a ```"
+#guard (Text.code "exact hx").toMarkup == "`exact hx`"
+#guard (Text.code "exact `a").toMarkup == "``exact `a``"
+#guard (Text.code "``a").toMarkup == "``` ``a ```"
 
 /-! ## Passes from a library
 

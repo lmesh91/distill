@@ -72,7 +72,7 @@ A pass must not change what the presentation says. It may:
 
 ## Render
 
-`render` writes the Presentation IR as English: a few sentences for the statement and one piece of text per step. The text is the rich text the web app displays, in which `$…$` is LaTeX and `` `…` `` is Lean code.
+`render` writes the Presentation IR as English: a few sentences for the statement and one piece of text per step. The text is a `Text` (`lean/Distill/Informalizer/Text.lean`), not a string: a tree whose leaves are words, LaTeX formulas and Lean code. Whoever shows it decides how to lay those out, and the tree leaves room for nodes that carry data about a part of a sentence, which interactive output will need. Over RPC it is a list of `{kind, text}` parts; `Text.toMarkup` flattens it to a string with `$…$` and `` `…` `` for tests and logs.
 
 Rendering only decides wording. What is said, and in which order, was decided by the Presentation IR.
 

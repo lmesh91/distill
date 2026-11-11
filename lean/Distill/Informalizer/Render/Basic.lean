@@ -1,11 +1,12 @@
 import Distill.Informalizer.IR.Context
 import Distill.Informalizer.IR.Presentation
+import Distill.Informalizer.Text
 
 /-!
 # Rendering expressions: the pieces
 
-English is rich text: `$…$` is LaTeX and `` `…` `` is Lean code. An expression can be written
-three ways, and a *translator* says how for the expressions headed by one constant:
+English is a `Text`, in which formulas and Lean code are kept apart from the words. An
+expression can be written three ways, and a *translator* says how for the expressions headed by one constant:
 
 * as **math** (`Math`): a LaTeX formula, `A \cap B`;
 * as a **noun** (`Noun`), for a type: what its elements are called, "a set";
@@ -24,31 +25,10 @@ open Lean Meta
 
 /-! ## Text -/
 
-/-- `s` as inline code. The fence is longer than any run of backticks in `s`, as in Markdown. -/
-def code (s : String) : String :=
-  let (longest, _) := s.foldl (init := (0, 0)) fun (longest, run) c =>
-    if c == '`' then (max longest (run + 1), run + 1) else (longest, 0)
-  let fence := "".pushn '`' (longest + 1)
-  let pad := if s.startsWith "`" || s.endsWith "`" then " " else ""
-  s!"{fence}{pad}{s}{pad}{fence}"
-
-/-- "a", "a and b", "a, b and c". -/
-def joinAnd : List String → String
-  | [] => ""
-  | [a] => a
-  | [a, b] => s!"{a} and {b}"
-  | a :: rest => s!"{a}, {joinAnd rest}"
-
 /-- `e` as Lean code on one line. -/
-def exprCode (e : Expr) : MetaM String := do
+def exprCode (e : Expr) : MetaM Text := do
   let s := (← ppExpr e).pretty (width := 10000)
-  return code (" ".intercalate ((s.splitOn "\n").map (·.trimAscii.toString)))
-
-/-- `s` with its first letter in upper case. Text that starts with math or code is unchanged. -/
-def capitalize (s : String) : String :=
-  match s.toList with
-  | c :: rest => String.ofList (c.toUpper :: rest)
-  | [] => s
+  return .code (" ".intercalate ((s.splitOn "\n").map (·.trimAscii.toString)))
 
 private def greek : List (Char × String) := [
   ('α', "alpha"), ('β', "beta"), ('γ', "gamma"), ('δ', "delta"), ('ε', "varepsilon"),
@@ -89,7 +69,7 @@ def nameTex (n : Name) : String :=
 
 /-! ## Math, nouns and prose -/
 
-/-- A LaTeX formula, without the `$`. -/
+/-- A LaTeX formula, without delimiters. -/
 structure Math where
   tex : String
   /-- The binding strength of the outermost operator, on the scale of Lean's notations: `50`
@@ -101,6 +81,9 @@ structure Math where
 def Math.at (m : Math) (prec : Nat) : String :=
   if m.prec < prec then s!"({m.tex})" else m.tex
 
+/-- The formula as part of a sentence. -/
+def Math.text (m : Math) : Text := .math m.tex
+
 /-- What the elements of a type are called: "let $A$ be `article` `singular``qualifier`", "let
 $A$ and $B$ be `plural``qualifier`", "for every `singular` $A$`qualifier`". -/
 structure Noun where
@@ -109,12 +92,12 @@ structure Noun where
   singular : String
   plural : String
   /-- What follows the noun, starting with a space if not empty: " of elements of $\alpha$". -/
-  qualifier : String := ""
+  qualifier : Text := .empty
   deriving Inhabited, Repr
 
 /-- A proposition as part of a sentence. It does not start with a capital or end with a period. -/
 structure Prose where
-  text : String
+  text : Text
   /-- Whether the text can be joined to others with "and", or put after "if", without becoming
   hard to read. A formula is; a clause with "if" or "for every" in it is not. -/
   simple : Bool := true

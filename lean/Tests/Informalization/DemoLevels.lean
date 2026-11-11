@@ -145,7 +145,16 @@ Verification
 unsafe def printTranslation (path : System.FilePath) : IO Unit := do
   let (trees, _, _) ← Distill.Informalizer.Extract.elabSource (← IO.FS.readFile path) path.toString
   for l in ← Distill.translateTrees trees do
-    IO.println s!"{l.line + 1}: {l.english}"
+    IO.println s!"{l.line + 1}: {l.english.toMarkup}"
+
+/-! Over RPC the text is a list of parts, so that the page can lay out formulas and code. -/
+/--
+info: [{"text": "Apply ", "kind": "text"},
+ {"text": "intro x hx", "kind": "code"},
+ {"text": ".", "kind": "text"}]
+-/
+#guard_msgs in
+#eval Lean.toJson ("Apply " ++ Distill.Informalizer.Text.code "intro x hx" ++ "." : Distill.Informalizer.Text)
 
 /-! The level page shows this next to the editor. -/
 /--

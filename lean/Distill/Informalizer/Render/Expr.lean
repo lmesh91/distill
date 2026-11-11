@@ -73,7 +73,7 @@ private def nounSet : NounTranslator := fun r t => do
   if let .fvar f := t.appArg!.consumeMData then
     if (← read).omitted.contains f then return some set
   let elem ← r.noun t.appArg!
-  return some { set with qualifier := s!" of {elem.plural}{elem.qualifier}" }
+  return some { set with qualifier := s!" of {elem.plural}" ++ elem.qualifier }
 
 /-- The built-in nouns, by head constant of the type. -/
 def nounTranslators : Std.HashMap Name NounTranslator := .ofList [
@@ -95,8 +95,8 @@ private def connective (c : Name) (word : String) : Name × ProseTranslator :=
     let parts ← parts.mapM r.prose
     unless parts.all (·.simple) do return none
     let text := match parts.toList.map (·.text) with
-      | [a, b] => s!"{a} {word} {b}"
-      | texts => s!"{", ".intercalate texts.dropLast} {word} {texts.getLast!}"
+      | [a, b] => a ++ s!" {word} " ++ b
+      | texts => Text.intercalate ", " texts.dropLast ++ s!" {word} " ++ texts.getLast!
     return some { text, disjunction := c == ``Or })
 
 /-- The built-in clauses, by head constant of the proposition. -/
@@ -161,10 +161,10 @@ partial def noun (t : Expr) : RenderM Noun := do
       catch _ => pure ()
   match ← math t with
   | some m =>
-    return { article := "an", singular := "element", plural := "elements", qualifier := s!" of ${m.tex}$" }
+    return { article := "an", singular := "element", plural := "elements", qualifier := " of " ++ m.text }
   | none =>
     mention t
-    return { singular := "term", plural := "terms", qualifier := s!" of type {← exprCode t}" }
+    return { singular := "term", plural := "terms", qualifier := " of type " ++ (← exprCode t) }
 
 /-- The proposition `e` as a clause: in words if a translator has them, else as a formula, else
 as Lean code. -/
@@ -178,7 +178,7 @@ partial def prose (e : Expr) : RenderM Prose := do
   if e.isForall then
     if let some p ← proseForall e then return p
   match ← math e with
-  | some m => return { text := s!"${m.tex}$" }
+  | some m => return { text := m.text }
   | none =>
     mention e
     return { text := ← exprCode e }
@@ -190,7 +190,7 @@ private partial def proseForall (e : Expr) : RenderM (Option Prose) := do
     let ps ← ps.mapM prose
     unless Prose.joinable ps.toList do return none
     return some {
-      text := s!"if {joinAnd (ps.toList.map (·.text))}, then {(← prose conclusion).text}"
+      text := "if " ++ Text.joinAnd (ps.toList.map (·.text)) ++ ", then " ++ (← prose conclusion).text
       simple := false }
   let .forallE _ a _ _ := e | return none
   -- `∀ h : p, q h` has no reading as a sentence.
@@ -203,19 +203,21 @@ private partial def quantified (a : Expr) (xs : Array Expr) (body : Expr) : Rend
   if let .forallE n a' b bi := body.consumeMData then
     if a' == a && (xs.isEmpty || b.hasLooseBVars) then
       return ← withLocalDecl n bi a fun x => quantified a (xs.push x) (b.instantiate1 x)
-  let names ← xs.toList.mapM fun x => return s!"${nameTex (← x.fvarId!.getUserName)}$"
+  let names ← xs.toList.mapM fun x => return Text.math (nameTex (← x.fvarId!.getUserName))
   -- `∀ x, x ∈ S → p x` is "for every $x \in S$, …".
   if let (#[x], .forallE _ p q _) := (xs, body.consumeMData) then
     if let some (set, elem) := membership? p then
       if elem == x && !q.hasLooseBVars && !set.containsFVar x.fvarId! then
         if let some m ← math set then
           let name := nameTex (← x.fvarId!.getUserName)
-          return { text := s!"for every ${name} \\in {m.at 51}$, {(← prose q).text}", simple := false }
+          return {
+            text := "for every " ++ Text.math s!"{name} \\in {m.at 51}" ++ ", " ++ (← prose q).text
+            simple := false }
   let n ← noun a
   let subject := match names with
-    | [name] => s!"for every {n.singular} {name}{n.qualifier}"
-    | _ => s!"for all {n.plural} {joinAnd names}{n.qualifier}"
-  return { text := s!"{subject}, {(← prose body).text}", simple := false }
+    | [name] => s!"for every {n.singular} " ++ name ++ n.qualifier
+    | _ => s!"for all {n.plural} " ++ Text.joinAnd names ++ n.qualifier
+  return { text := subject ++ ", " ++ (← prose body).text, simple := false }
 
 private partial def mkRenderer (_ : Unit) : Renderer := { math, noun, prose }
 

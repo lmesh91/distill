@@ -5,8 +5,8 @@ import Distill.Informalizer.Render.Expr
 # Rendering: Presentation IR ⟶ English
 
 `render` writes a `PresentedDecl` as English: one sentence or two for the statement, and one
-piece of text per proof step. The text is the rich text the web app displays: `$…$` is LaTeX
-and `` `…` `` is Lean code.
+piece of text per proof step. The text is a `Text`, which keeps formulas and Lean code apart from
+the words, so that the web app, or anything else that shows it, can lay them out its own way.
 
 Rendering decides wording only. What is said, and in which order, is the Presentation IR's
 business: the statement introduces the object groups in order, each with its properties, then
@@ -29,14 +29,14 @@ structure RenderedStep where
   /-- The Proof IR nodes the step came from (`StepOrigin.nodes`), which locate it in the
   source. -/
   nodes : Array Nat
-  text : String
+  text : Text
   deriving Inhabited, Repr
 
 /-- The English of one declaration. -/
 structure Rendered where
   /-- `none` if there is no theorem to state: the proof is a `by` block inside a declaration, or
   what it builds is not a proof of a proposition (`def n : Nat := by exact 1`). -/
-  statement? : Option String
+  statement? : Option Text
   /-- In presentation order. -/
   steps : Array RenderedStep
   deriving Inhabited, Repr
@@ -50,68 +50,70 @@ def roleLabel : DeclRole → String
 
 /-- The clause that introduces the objects of a group: "let $A$ and $B$ be sets", "let
 $x \in A$". `none` if the text introduces none of them. -/
-private def groupClause (g : ObjectGroup) : RenderM (Option String) := do
+private def groupClause (g : ObjectGroup) : RenderM (Option Text) := do
   let omitted := (← read).omitted
   let objects := g.objects.filter (!omitted.contains ·.fvar)
   let some first := objects[0]? | return none
   let type ← instantiateMVars first.type.expr
   if first.binderInfo.isInstImplicit then
     mention type
-    return some s!"fix an instance of {← exprCode type}"
+    return some ("fix an instance of " ++ (← exprCode type))
   let name (o : MathObject) := nameTex o.name
   if let some value := first.value? then
     let value ← instantiateMVars value.expr
     match ← Render.math value with
-    | some m => return some s!"let ${name first} = {m.tex}$"
+    | some m => return some ("let " ++ Text.math s!"{name first} = {m.tex}")
     | none =>
       mention value
-      return some s!"let ${name first}$ be {← exprCode value}"
+      return some ("let " ++ Text.math (name first) ++ " be " ++ (← exprCode value))
   -- "let $x, y \in A$": the set says what the objects are, so their type is left out.
   if let #[property] := first.properties then
     if let some (set, .fvar x) := membership? (← instantiateMVars property.prop.expr) then
       if x == first.fvar then
         if let some m ← Render.math set then
-          return some s!"let ${", ".intercalate (objects.toList.map name)} \\in {m.at 51}$"
+          return some <|
+            "let " ++ Text.math s!"{", ".intercalate (objects.toList.map name)} \\in {m.at 51}"
   let noun ← Render.noun type
-  let names := objects.toList.map fun o => s!"${name o}$"
+  let names := objects.toList.map fun o => Text.math (name o)
   let head := match names with
-    | [n] => s!"let {n} be {noun.article} {noun.singular}{noun.qualifier}"
-    | _ => s!"let {joinAnd names} be {noun.plural}{noun.qualifier}"
+    | [n] => "let " ++ n ++ s!" be {noun.article} {noun.singular}" ++ noun.qualifier
+    | _ => "let " ++ Text.joinAnd names ++ s!" be {noun.plural}" ++ noun.qualifier
   let properties ← objects.flatMapM fun o => o.properties.mapM fun p => do
     return (← Render.prose (← instantiateMVars p.prop.expr)).text
   if properties.isEmpty then return some head
-  return some s!"{head} such that {joinAnd properties.toList}"
+  return some (head ++ " such that " ++ Text.joinAnd properties.toList)
 
 /-- "a", "a and b", "a, b, and c", for clauses that may contain "and" themselves. -/
-private def joinClauses : List String → String
+private def joinClauses : List Text → Text
   | [a] => a
-  | [a, b] => s!"{a} and {b}"
+  | [a, b] => a ++ " and " ++ b
   | clauses => match clauses.getLast? with
-    | some last => ", ".intercalate (clauses.dropLast ++ [s!"and {last}"])
-    | none => ""
+    | some last => Text.intercalate ", " (clauses.dropLast ++ ["and " ++ last])
+    | none => .empty
 
 /-- The statement with its label, given which objects not to introduce. -/
-private def statementText (d : PresentedDecl) : RenderM String := do
+private def statementText (d : PresentedDecl) : RenderM Text := do
   let clauses ← d.objects.toList.filterMapM groupClause
   let hypotheses ← d.hypotheses.toList.mapM fun h => do
     Render.prose (← instantiateMVars h.prop.expr)
   let conclusion ← Render.prose (← instantiateMVars d.conclusion.prop.expr)
   -- "Then if …" would stack two connectives.
   let conditional := conclusion.text.startsWith "if "
-  let mut sentences := [s!"{roleLabel d.role}."]
+  let sentence (t : Text) : Text := t.capitalize ++ "."
+  let mut sentences : List Text := [s!"{roleLabel d.role}."]
   unless clauses.isEmpty do
-    sentences := sentences ++ [s!"{capitalize (joinClauses clauses)}."]
+    sentences := sentences ++ [sentence (joinClauses clauses)]
   if hypotheses.isEmpty then
     let then_ := if clauses.isEmpty || conditional then "" else "then "
-    sentences := sentences ++ [s!"{capitalize (then_ ++ conclusion.text)}."]
+    sentences := sentences ++ [sentence (then_ ++ conclusion.text)]
   else if conclusion.simple && Prose.joinable hypotheses then
-    sentences := sentences ++
-      [s!"If {joinAnd (hypotheses.map (·.text))}, then {conclusion.text}."]
+    sentences := sentences ++ [sentence <|
+      "if " ++ Text.joinAnd (hypotheses.map (·.text)) ++ ", then " ++ conclusion.text]
   else
     sentences := sentences ++ [
-      s!"Suppose {joinAnd (hypotheses.map (s!"that {·.text}"))}.",
-      s!"{capitalize ((if conditional then "" else "then ") ++ conclusion.text)}."]
-  return " ".intercalate sentences
+      sentence ("suppose " ++ Text.joinAnd (hypotheses.map ("that " ++ ·.text))),
+      sentence ((if conditional then "" else "then ") ++ conclusion.text)]
+  return Text.intercalate " " sentences
 
 /--
 The statement: "Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$,
@@ -122,7 +124,7 @@ has properties, which are stated where it is introduced. Which
 objects that leaves out is not known before the text is written, so the text is written again
 until none of the objects it leaves out is named.
 -/
-def renderStatement (d : PresentedDecl) : MetaM String := do
+def renderStatement (d : PresentedDecl) : MetaM Text := do
   let implicit := d.objects.flatMap fun g => g.objects.filterMap fun o =>
     if (o.binderInfo == .implicit || o.binderInfo == .strictImplicit) && o.properties.isEmpty
     then some o.fvar else none
@@ -138,10 +140,11 @@ def renderStatement (d : PresentedDecl) : MetaM String := do
 /-! ## Proof steps -/
 
 /-- The Lean a step came from, for steps that have no English yet. -/
-def renderUntranslated (ir : ProofIR) (nodes : Array Nat) : String :=
-  let sources := nodes.toList.filterMap fun n => (ir.node? n).map (code <| syntaxFirstLine ·.stx)
+def renderUntranslated (ir : ProofIR) (nodes : Array Nat) : Text :=
+  let sources := nodes.toList.filterMap fun n =>
+    (ir.node? n).map (Text.code <| syntaxFirstLine ·.stx)
   if sources.isEmpty then "A step that Distill cannot describe yet."
-  else s!"Apply {joinAnd sources}."
+  else "Apply " ++ Text.joinAnd sources ++ "."
 
 def renderStep (ir : ProofIR) (s : ProofStep) : MetaM RenderedStep := do
   let text ← match s.kind with
