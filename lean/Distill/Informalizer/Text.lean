@@ -10,7 +10,8 @@ debugging.
 
 It is a tree, not a list, so that a part of a sentence can later carry data about what it stands
 for (the hypothesis a formula restates, the theorem a phrase cites, the detail a step hides) as
-a node around that part. A consumer that does not know a node shows what is inside it.
+a node around that part. There is no such node yet, and the JSON below is still a flat list of
+leaves: the first kind of node that wraps others has to extend it (and its readers) to nest.
 -/
 
 namespace Distill.Informalizer
@@ -65,10 +66,17 @@ def startsWith (t : Text) (s : String) : Bool :=
 
 /-- The text with its first letter in upper case. Text that begins with a formula or with code is
 unchanged. -/
-def capitalize (t : Text) : Text :=
-  match t.leaves.toList with
-  | .plain s :: rest => .seq ((Text.plain s.capitalize :: rest).toArray)
-  | _ => t
+partial def capitalize (t : Text) : Text :=
+  (go t).getD t
+where
+  /-- `none` if `t` is empty, so that the first letter is to be looked for after it. -/
+  go : Text → Option Text
+    | .plain "" => none
+    | .plain s => some (.plain s.capitalize)
+    | .seq parts => do
+      let i ← parts.findIdx? (!·.isEmpty)
+      return .seq (parts.set! i (← go parts[i]!))
+    | t => some t
 
 /-- The parts with `separator` between them. -/
 def intercalate (separator : Text) (parts : List Text) : Text :=
