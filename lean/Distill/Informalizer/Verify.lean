@@ -283,8 +283,10 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
     (p.consumeMData.getLambdaBody.consumeMData.getAppFn).isConstOf ``sorryAx
   -- A step may use `sorry` only where the Lean proof does.
   for (g, e) in evidence do
-    if e.hasSorry && !(← leanFrom g).any (·.hasSorry) then
-      return .failed s!"the step for ?{ir.goalNumbering g} uses `sorry`, which the Lean proof does not"
+    -- Nested, so that the Lean proof of `g` is only put together for a step that uses `sorry`.
+    if e.hasSorry then
+      unless (← leanFrom g).any (·.hasSorry) do
+        return .failed s!"the step for ?{ir.goalNumbering g} uses `sorry`, which the Lean proof does not"
   let some term := ir.fillGoal (evidence[·]?) (strict := false) d.rootGoal
     | return if lean?.isNone then .incomplete "no step proves the statement"
         else .failed "no step proves the statement, which the Lean proof does"
