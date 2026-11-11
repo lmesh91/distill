@@ -15,8 +15,12 @@ Presenting and normalizing a proof must not change what it says. `verify` checks
 * **Proof.** The `Evidence` of the steps adds up to a term without holes, and that term proves
   the presented statement. Only the sum is checked: which step carries which piece is not.
 
-This is to the Presentation IR what `checkProofTerm` is to the Proof IR. It is meant for tests
-and debugging (`#informalize` prints the result), not for every translation.
+This is to the Presentation IR what `checkProofTerm` is to the Proof IR. The pipeline runs it on
+every presentation before rendering it (`Distill.Informalizer.informalize`), so that the English
+a reader sees was written from a presentation that says what the Lean says.
+
+An unfinished proof is not a wrong presentation: `verify` accepts a presentation that leaves
+open what the Lean proof leaves open, and nothing else.
 
 What is not supported: restating the *type* of an object other than definitionally.
 -/
@@ -43,7 +47,7 @@ inductive ProofCheck where
   /-- The proof type-checks but cannot be closed into a term of the statement, because it calls
   itself. -/
   | recursive
-  /-- Some goal is not proved by any step, as in an unfinished proof. -/
+  /-- Some goal is not proved by any step, because the Lean proof does not prove it either. -/
   | incomplete (reason : String)
   | failed (reason : String)
   deriving Inhabited
@@ -55,6 +59,16 @@ structure Verification where
   statement : StatementCheck
   proof : ProofCheck
   deriving Inhabited
+
+/-- Why the presentation is not one to show, if it is not. -/
+def Verification.failure? (v : Verification) : Option String :=
+  match v.statement, v.proof with
+  | .failed reason, _ => some reason
+  | _, .failed reason => some reason
+  | _, _ => none
+
+/-- Whether the presentation says what the proof says. -/
+def Verification.ok (v : Verification) : Bool := v.failure?.isNone
 
 def StatementCheck.describe : StatementCheck → String
   | .identical => "identical to the original statement"
@@ -223,17 +237,29 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
   let mut evidence : Std.HashMap MVarId Expr := {}
   for e in blockEvidence d.proof do
     if evidence.contains e.goal then
-      return .failed s!"two steps prove {← ppExpr (.mvar e.goal)}"
+      return .failed s!"two steps prove ?{ir.goalNumbering e.goal}"
     evidence := evidence.insert e.goal e.proof
+  -- What the Lean proof itself leaves open, which the steps may leave open too.
+  let lean? ← (ir.fillGoal (fun g => (ir.goal? g >>= (·.assignment?)).map (·.proof))
+    (strict := false) d.rootGoal).mapM (instantiateMVars ·)
+  let openGoals (e : Expr) := (e.collectMVars {}).result.filter ir.goals.contains
   let some term := ir.fillGoal (evidence[·]?) (strict := false) d.rootGoal
-    | return .incomplete "no step proves the statement"
+    | return if lean?.isNone then .incomplete "no step proves the statement"
+        else .failed "no step proves the statement, which the Lean proof does"
   let term ← instantiateMVars term
-  let unproved := (term.collectMVars {}).result.filter ir.goals.contains
+  let unproved := openGoals term
   unless unproved.isEmpty do
-    let goals ← unproved.toList.mapM fun g => return toString (← ppExpr (.mvar g))
-    return .incomplete s!"no step proves {", ".intercalate goals}"
-  if term.hasMVar then return .incomplete "a hole is unfilled"
-  if term.hasSorry then return .incomplete "the proof uses `sorry`"
+    let names (gs : Array MVarId) := ", ".intercalate (gs.toList.map (s!"?{ir.goalNumbering ·}"))
+    let leanOpen := (lean?.map openGoals).getD #[]
+    let lost := unproved.filter (!leanOpen.contains ·)
+    return if lost.isEmpty then .incomplete s!"no step proves {names unproved}"
+      else .failed s!"no step proves {names lost}, which the Lean proof does"
+  if term.hasMVar then
+    return if lean?.any (·.hasMVar) then .incomplete "a hole is unfilled"
+      else .failed "the steps leave a hole that the Lean proof fills"
+  if term.hasSorry then
+    return if lean?.any (·.hasSorry) then .incomplete "the proof uses `sorry`"
+      else .failed "the steps use `sorry`, which the Lean proof does not"
   let binders := ir.statement.binders
   try
     -- Lean compiles recursive calls away, so there is no closed term to compare.

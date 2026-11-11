@@ -6,9 +6,9 @@ import Distill.Informalizer.IR.PresentationFormat
 /-!
 # Running the pipeline outside the language server
 
-`#informalize cmd` elaborates `cmd` and logs, for each of its proofs, the Presentation IR after
-normalization, the English rendered from it, and whether the presentation verifies
-(`Distill.Informalizer.verify`). It is for debugging in the editor and for tests,
+`#informalize cmd` elaborates `cmd` and logs, for each of its proofs, what the pipeline made of
+it: the Presentation IR after normalization, the English, what `verify` found, and the
+normalization passes that were skipped. It is for debugging in the editor and for tests,
 like `#proof_ir` for extraction. Source lines are relative to the start of `cmd`.
 
 `printFile` does the same for every proof of a Lean file, with absolute lines.
@@ -32,8 +32,10 @@ def report (ir : ProofIR) (lineOffset : Nat := 0) : MetaM String := do
       | some l => toString (l - lineOffset)
       | none => "?"
     out := out ++ s!"  {line}: {s.text.toMarkup}\n"
-  let v ← ir.withContext (verify ir r.presented) (goalName := ir.goalNumbering)
-  out := out ++ s!"Verification\n  statement: {v.statement.describe}\n  proof: {v.proof.describe}\n"
+  if let some v := r.verification? then
+    out := out ++ s!"Verification\n  statement: {v.statement.describe}\n  proof: {v.proof.describe}\n"
+  for s in r.skipped do
+    out := out ++ s!"  skipped {s.pass}: {s.reason}\n"
   return out
 
 /-- Elaborates `cmd` and logs `describe ir lineOffset` for each of its proofs, where
@@ -66,8 +68,12 @@ and how `verify` relates the presented statement to the original. -/
 elab "#informalize_statement " cmd:command : command =>
   elabAndDescribe cmd fun ir _ => do
     let r ← informalize ir
-    let v ← ir.withContext (verify ir r.presented)
-    return s!"{(r.english.statement?.map (·.toMarkup)).getD "(no statement)"}\n  statement: {v.statement.describe}"
+    let mut out := (r.english.statement?.map (·.toMarkup)).getD "(no statement)"
+    if let some v := r.verification? then
+      out := out ++ s!"\n  statement: {v.statement.describe}"
+    for s in r.skipped do
+      out := out ++ s!"\n  skipped {s.pass}: {s.reason}"
+    return out
 
 /-- Informalizes every proof in a Lean file and prints its Presentation IR and English, for
 tests. -/

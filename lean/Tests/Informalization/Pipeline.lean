@@ -223,6 +223,7 @@ info: PresentedDecl with_passes   role theorem
     {α} : Type u_1
     {A}, {B}, {C} : Set α
   hypotheses
+    f2: A ⊆ B   hyp _hAB
     f1: C ⊆ B   hyp hCB
     f0: C ⊆ A   hyp hCA
   conclusion
@@ -231,13 +232,54 @@ info: PresentedDecl with_passes   role theorem
     s4 untranslated `exact subset_inter hCA hCB`   origin direct [#4]
       proves ?g0: subset_inter hCA hCB
 English
-  Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq B$ and $C \subseteq A$, then $C \subseteq A \cap B$.
+  Theorem. Let $A$, $B$ and $C$ be sets. If $A \subseteq B$, $C \subseteq B$ and $C \subseteq A$, then $C \subseteq A \cap B$.
   2: Apply `exact subset_inter hCA hCB`.
 Verification
-  statement: NOT VERIFIED: _hAB is missing from the presented statement
-  proof: NOT VERIFIED: the steps prove the original statement, which the presented one was not shown to match
+  statement: equivalent to the original statement (proof checked)
+  proof: the steps rebuild a proof of the presented statement
+  skipped Tests.failingPass: not applicable
+  skipped Tests.dropLastHypothesis: _hAB is missing from the presented statement
 -/
 #guard_msgs in
 #informalize
 theorem with_passes {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) (_hAB : A ⊆ B) : C ⊆ A ∩ B := by
   exact subset_inter hCA hCB
+
+/-! ## A presentation that does not verify
+
+Only a presentation that `verify` accepts is rendered. If even the direct presentation is not
+one, as for this Proof IR whose statement is not the theorem's, the proof is shown as the Lean it
+is. -/
+
+/-- `#informalize` for a Proof IR that claims to prove `True`. -/
+elab "#informalize_wrong_ir " cmd:command : command =>
+  elabAndDescribe cmd fun ir lineOffset =>
+    report { ir with statement.conclusion := Lean.mkConst ``True } lineOffset
+
+/--
+info: PresentedDecl quoted   role theorem
+  objects
+    {α} : Type u_1
+    A : Set α
+    B : Set α
+  hypotheses
+  conclusion
+    f0: True
+  proof of ?g0
+    s1 untranslated `intro x hx`   origin direct [#4]
+      proves ?g0: fun x hx => @?g2 x hx
+    s2 untranslated `exact hx.left`   origin direct [#7]
+      proves ?g2: hx.left
+English
+  Theorem. `∀ {α : Type u_1} (A B : Set α), A ∩ B ⊆ A`.
+  2: Apply `intro x hx`.
+  3: Apply `exact hx.left`.
+Verification
+  statement: NOT VERIFIED: the Proof IR does not have the statement of the declaration
+  proof: NOT VERIFIED: the steps prove a different statement
+-/
+#guard_msgs in
+#informalize_wrong_ir
+theorem quoted (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  exact hx.left

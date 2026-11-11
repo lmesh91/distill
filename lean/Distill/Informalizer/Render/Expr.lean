@@ -5,8 +5,8 @@ import Distill.Informalizer.Render.Basic
 # Rendering expressions
 
 `math`, `noun` and `prose` write an expression as a formula, as the name of a type's elements, or
-as a clause. Each asks the translators registered for the expression's head constant, then the
-built-in ones below, which cover the constructs of the demo levels: sets, `∈`, `⊆`, `∩`, `∪`,
+as a clause. Each asks the translators of its kind registered for the expression's head constant,
+then the built-in ones below, which cover the constructs of the demo levels: sets, `∈`, `⊆`, `∩`, `∪`,
 `{x | p x}`, `=`, `∧`, `∨`, `→` and `∀`.
 
 A formula is all or nothing: if one part of an expression has no LaTeX, the whole expression is
@@ -27,15 +27,15 @@ def infixMath (r : Renderer) (op : String) (prec lhs rhs : Nat) (a b : Expr) :
 
 /-- A translator for the binary operator `c`, whose operands are its last two arguments. -/
 private def binary (c : Name) (arity : Nat) (op : String) (prec lhs rhs : Nat) :
-    Name × MathTranslator :=
-  (c, fun r e => do
+    Name × Translator :=
+  (c, .math fun r e => do
     unless e.isAppOfArity c arity do return none
     infixMath r op prec lhs rhs (e.getArg! (arity - 2)) (e.getArg! (arity - 1)))
 
 /-- `∩` or `∪`. A chain of one operator needs no parentheses, but there is no convention for
 which of the two binds tighter, so an operand made with the other one gets them. -/
-private def setOperator (c : Name) (op : String) (prec : Nat) : Name × MathTranslator :=
-  (c, fun r e => do
+private def setOperator (c : Name) (op : String) (prec : Nat) : Name × Translator :=
+  (c, .math fun r e => do
     unless e.isAppOfArity c 4 do return none
     let a := e.getArg! 2
     infixMath r op prec (if a.consumeMData.isAppOf c then prec else 71) 71 a (e.getArg! 3))
@@ -53,18 +53,6 @@ private def mathSetOf : MathTranslator := fun r e => do
     let some body ← r.math (b.instantiate1 x) | return none
     return some { tex := s!"\\\{{nameTex n} \\mid {body.tex}\\}" }
 
-/-- The built-in formulas, by head constant. Precedences are those of Lean's notations. -/
-def mathTranslators : Std.HashMap Name MathTranslator := .ofList [
-  (``Membership.mem, mathMem),
-  (``Distill.Set.mk, mathSetOf),
-  binary ``HasSubset.Subset 4 "\\subseteq" 50 51 51,
-  setOperator ``Inter.inter "\\cap" 70,
-  setOperator ``Union.union "\\cup" 65,
-  binary ``Eq 3 "=" 50 51 51,
-  binary ``And 2 "\\land" 35 36 35,
-  binary ``Or 2 "\\lor" 30 31 30
-]
-
 /-- "a set of sets", or just "a set" when the elements are those of a type the text does not
 introduce. -/
 private def nounSet : NounTranslator := fun r t => do
@@ -75,11 +63,6 @@ private def nounSet : NounTranslator := fun r t => do
   let elem ← r.noun t.appArg!
   return some { set with qualifier := s!" of {elem.plural}" ++ elem.qualifier }
 
-/-- The built-in nouns, by head constant of the type. -/
-def nounTranslators : Std.HashMap Name NounTranslator := .ofList [
-  (``Distill.Set, nounSet)
-]
-
 /-- `a ∧ (b ∧ c)` as `#[a, b, c]`, and the same for any other connective `c`. -/
 private partial def operands (c : Name) (e : Expr) : Array Expr :=
   let e := e.consumeMData
@@ -87,8 +70,8 @@ private partial def operands (c : Name) (e : Expr) : Array Expr :=
 
 /-- "P, Q and R" for `∧` and "P, Q or R" for `∨`. Only for operands that are plain formulas:
 mixing the two in words would not say which binds tighter. -/
-private def connective (c : Name) (word : String) : Name × ProseTranslator :=
-  (c, fun r e => do
+private def connective (c : Name) (word : String) : Name × Translator :=
+  (c, .prose fun r e => do
     let parts := operands c e
     if parts.size < 2 || parts.any (fun p => p.isAppOf ``And || p.isAppOf ``Or || p.isForall) then
       return none
@@ -99,11 +82,23 @@ private def connective (c : Name) (word : String) : Name × ProseTranslator :=
       | texts => Text.intercalate ", " texts.dropLast ++ s!" {word} " ++ texts.getLast!
     return some { text, disjunction := c == ``Or })
 
-/-- The built-in clauses, by head constant of the proposition. -/
-def proseTranslators : Std.HashMap Name ProseTranslator := .ofList [
+/-- The built-in translators, by head constant. Precedences are those of Lean's notations. -/
+def translators : List (Name × Translator) := [
+  (``Membership.mem, .math mathMem),
+  (``Distill.Set.mk, .math mathSetOf),
+  binary ``HasSubset.Subset 4 "\\subseteq" 50 51 51,
+  setOperator ``Inter.inter "\\cap" 70,
+  setOperator ``Union.union "\\cup" 65,
+  binary ``Eq 3 "=" 50 51 51,
+  binary ``And 2 "\\land" 35 36 35,
+  binary ``Or 2 "\\lor" 30 31 30,
+  (``Distill.Set, .noun nounSet),
   connective ``And "and",
   connective ``Or "or"
 ]
+
+private def translatorsFor : Std.HashMap Name (List Translator) :=
+  translators.foldl (init := {}) fun m (c, t) => m.insert c (m.getD c [] ++ [t])
 
 /-- `p₁ → … → pₙ → q` as `(#[p₁, …, pₙ], q)`, for as long as the `pᵢ` are propositions. -/
 private partial def premises (e : Expr) (acc : Array Expr := #[]) : MetaM (Array Expr × Expr) := do
@@ -113,6 +108,17 @@ private partial def premises (e : Expr) (acc : Array Expr := #[]) : MetaM (Array
   | _ => return (acc, e)
 
 mutual
+
+/-- `e` as a phrase of the kind named `kind`, from the first translator of that kind for its head
+constant that handles it: the registered ones, most recent first, then the built-in ones. -/
+partial def translate? (kind : Name) (e : Expr) : RenderM (Option Dynamic) := do
+  let .const c _ := e.consumeMData.getAppFn | return none
+  for t in translatorAttribute.getValues (← getEnv) c ++ translatorsFor.getD c [] do
+    if t.kind == kind then
+      try
+        if let some phrase ← t.run (mkRenderer ()) e then return some phrase
+      catch _ => pure ()
+  return none
 
 /-- `e` as a LaTeX formula, if every part of it has one. -/
 partial def math (e : Expr) : RenderM (Option Math) := do
@@ -139,13 +145,7 @@ partial def math (e : Expr) : RenderM (Option Math) := do
             return some { tex := s!"\\forall {name} \\in {s.at 51},\\ {q.tex}", prec := 0 }
       let some body ← math body | return none
       return some { tex := s!"\\forall {name},\\ {body.tex}", prec := 0 }
-  | _ =>
-    let .const c _ := e.getAppFn | return none
-    for t in mathAttribute.getValues (← getEnv) c ++ mathTranslators[c]?.toList do
-      try
-        if let some m ← t (mkRenderer ()) e then return some m
-      catch _ => pure ()
-    return none
+  | _ => (mkRenderer ()).phrase? Math e
 
 /-- What the elements of the type `t` are called. Without a translator they are "elements of
 $t$", or "terms of type `t`" if `t` has no formula either. -/
@@ -154,11 +154,7 @@ partial def noun (t : Expr) : RenderM Noun := do
   if let .sort u := t then
     if u.isZero then return { singular := "proposition", plural := "propositions" }
     if u.dec.isSome then return { singular := "type", plural := "types" }
-  if let .const c _ := t.getAppFn then
-    for tr in nounAttribute.getValues (← getEnv) c ++ nounTranslators[c]?.toList do
-      try
-        if let some n ← tr (mkRenderer ()) t then return n
-      catch _ => pure ()
+  if let some n ← (mkRenderer ()).phrase? Noun t then return n
   match ← math t with
   | some m =>
     return { article := "an", singular := "element", plural := "elements", qualifier := " of " ++ m.text }
@@ -170,11 +166,7 @@ partial def noun (t : Expr) : RenderM Noun := do
 as Lean code. -/
 partial def prose (e : Expr) : RenderM Prose := do
   let e := e.consumeMData
-  if let .const c _ := e.getAppFn then
-    for t in proseAttribute.getValues (← getEnv) c ++ proseTranslators[c]?.toList do
-      try
-        if let some p ← t (mkRenderer ()) e then return p
-      catch _ => pure ()
+  if let some p ← (mkRenderer ()).phrase? Prose e then return p
   if e.isForall then
     if let some p ← proseForall e then return p
   match ← math e with
@@ -219,7 +211,7 @@ private partial def quantified (a : Expr) (xs : Array Expr) (body : Expr) : Rend
     | _ => s!"for all {n.plural} " ++ Text.joinAnd names ++ n.qualifier
   return { text := subject ++ ", " ++ (← prose body).text, simple := false }
 
-private partial def mkRenderer (_ : Unit) : Renderer := { math, noun, prose }
+private partial def mkRenderer (_ : Unit) : Renderer := { math, noun, prose, translate? }
 
 end
 

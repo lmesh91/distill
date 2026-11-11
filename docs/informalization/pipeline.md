@@ -7,7 +7,8 @@ flowchart LR
     T[InfoTree] -- extract --> P[Proof IR]
     P -- present --> R1[Presentation IR]
     R1 -- normalize --> R2[Presentation IR]
-    R2 -- render --> E[English]
+    R2 -- verify --> R3[verified Presentation IR]
+    R3 -- render --> E[English]
 ```
 
 | Stage | Function | Module |
@@ -15,13 +16,14 @@ flowchart LR
 | Extract | `extractProofs` | `Distill.Informalizer.Extract` (see [extraction.md](extraction.md)) |
 | Present | `present` | `Distill.Informalizer.Present` |
 | Normalize | `normalize` | `Distill.Informalizer.Normalize` |
+| Verify | `verify` | `Distill.Informalizer.Verify` |
 | Render | `render` | `Distill.Informalizer.Render` |
 
-A fifth function, `verify` (`Distill.Informalizer.Verify`), is not a stage: it checks the Presentation IR against the Proof IR, for tests and debugging.
-
-`informalize` in `Distill.Informalizer.Pipeline` runs the last three on one Proof IR, and `informalizeTree` runs all four on the InfoTree of an elaborated command. Like extraction, the later stages work from InfoTrees alone and do not fail because of the proof they are given.
+`informalize` in `Distill.Informalizer.Pipeline` runs the stages after extraction on one Proof IR, and `informalizeTree` runs all of them on the InfoTree of an elaborated command. Like extraction, the later stages work from InfoTrees alone and do not fail because of the proof they are given.
 
 Every stage has a fallback, so the pipeline produces output for any proof. Supporting a construct means replacing a fallback with something better in the stage it belongs to.
+
+Only a presentation that [`verify`](#verify) accepts is rendered, so the English a reader sees was written from a presentation that says what the Lean says. A presentation that does not verify is never shown; [Verify](#verify) says what is shown instead.
 
 ## Present
 
@@ -53,7 +55,7 @@ Passes run in ascending `order`. Built-in passes are listed in `Distill.Informal
   run d := …
 ```
 
-A pass that throws is skipped, so a pass only has to handle the proofs it was written for.
+A pass that throws is skipped, so a pass only has to handle the proofs it was written for. A pass whose result does not verify is skipped too.
 
 A pass must not change what the presentation says. It may:
 
@@ -61,7 +63,7 @@ A pass must not change what the presentation says. It may:
 - **Restate an expression** as one that reads better, recording the old expression in `MathExpr.history` (a `Restatement`). Without a proof the two must be definitionally equal; otherwise the pass gives a proof of `before = after` or `before ↔ after`.
 - **Change steps**, taking their `evidence` along.
 
-[`verify`](#verify) checks all of this, so a test of a pass should show that its output verifies.
+[`verify`](#verify) checks all of this. `#informalize` lists the passes that were skipped and why, so a test of a pass should show that it is not among them.
 
 ### Built-in passes
 
@@ -89,13 +91,15 @@ The statement introduces the object groups in order, then states the hypotheses 
 
 ### Expressions
 
-An expression can be written three ways, and a *translator* says how for the expressions headed by one constant:
+An expression can be written as more than one *kind of phrase*, and a *translator* says how to write the expressions headed by one constant as one kind. The built-in renderer asks for three kinds:
 
-| | For | Result | Example |
+| Kind | For | Result | Example |
 |---|---|---|---|
-| Math | any expression | a LaTeX formula with its precedence | `A ∩ B` ⟶ `A \cap B` |
-| Noun | a type | what its elements are called | `Set α` ⟶ "a set", "sets" |
-| Prose | a proposition | a clause | `p ∧ q` ⟶ "$p$ and $q$" |
+| `Math` | any expression | a LaTeX formula with its precedence | `A ∩ B` ⟶ `A \cap B` |
+| `Noun` | a type | what its elements are called | `Set α` ⟶ "a set", "sets" |
+| `Prose` | a proposition | a clause | `p ∧ q` ⟶ "$p$ and $q$" |
+
+The kinds are not a fixed list: a kind is any type with a `TypeName`. English that needs more than these three (an adjective for "$A$ is finite", a verb, a name for a cited theorem) gets a new type, translators made with `Translator.of`, and callers that ask for it with `Renderer.phrase?`. Nothing about the existing kinds or translators changes. `Tests/Informalization/Extensibility.lean` adds an `Adjective` kind this way.
 
 A proposition is written by its prose translator if it has one, else as a formula, else as Lean code. A formula is all or nothing: if any part of an expression has no LaTeX, the whole expression is shown as code.
 
@@ -113,20 +117,20 @@ The built-in translators (`Distill.Informalizer.Render.Expr`) cover the construc
 | `∀ x, p x` | "for every set $S$, …", "for all sets $S$ and $T$, …", and "for every $x \in A$, …" for `∀ x, x ∈ A → …`; `\forall x \in A,\ …` inside a formula |
 | a variable | its name: `α` ⟶ `\alpha`, `h₁` ⟶ `h_{1}`, `hAB` ⟶ `\mathit{hAB}` |
 
-A library adds translators for its own definitions without changing Distill. Each is handed a `Renderer` to write subexpressions with, and returns `none` for an expression it does not handle, in which case the next translator for the constant is tried. `r.math` records which variables the text names; a translator that writes a variable's name itself calls `mention`, or an implicit object it names is not introduced.
+A library adds translators for its own definitions without changing Distill. Each is handed a `Renderer` to write subexpressions with, and returns `none` for an expression it does not handle, in which case the next translator of that kind for the constant is tried. `r.math` records which variables the text names; a translator that writes a variable's name itself calls `mention`, or an implicit object it names is not introduced.
 
 ```lean
-@[distill_math Set.compl] def mathCompl : MathTranslator := fun r e => do
+@[distill_translator Set.compl] def mathCompl : Translator := .math fun r e => do
   unless e.isAppOfArity ``Set.compl 2 do return none
   let some a ← r.math e.appArg! | return none
   return some { tex := s!"{a.at 1024}^c", prec := 1023 }
 
-@[distill_prose Disjoint] def proseDisjoint : ProseTranslator := fun r e => do
+@[distill_translator Disjoint] def proseDisjoint : Translator := .prose fun r e => do
   let some a ← r.math (e.getArg! 1) | return none
   let some b ← r.math (e.getArg! 2) | return none
-  return some { text := s!"${a.tex}$ and ${b.tex}$ are disjoint" }
+  return some { text := a.text ++ " and " ++ b.text ++ " are disjoint" }
 
-@[distill_noun Nat] def nounNat : NounTranslator := fun _ _ =>
+@[distill_translator Nat] def nounNat : Translator := .noun fun _ _ =>
   return some { singular := "natural number", plural := "natural numbers" }
 ```
 
@@ -143,17 +147,27 @@ Proof steps are still rendered by the fallback, which shows the Lean:
 - **Statement.** The presented statement is `∀ objects and their properties, hypotheses → conclusion`, in the order the presentation introduces them. It has to be the original statement: the same term, definitionally equal, or equivalent by a proof of `original ↔ presented` that `verify` builds and type-checks. That proof reorders the binders, and uses the proofs recorded in `MathExpr.history` where a hypothesis or the conclusion was restated.
 - **Proof.** The `evidence` of the steps has to add up to a term without holes, and that term, carried over the equivalence, has to prove the presented statement. Only the sum is checked, not which step carries which piece.
 
-A presentation that drops a hypothesis, restates something as a statement that is not equivalent, or loses the evidence of a step does not verify. An unfinished proof is reported as incomplete.
+A presentation that drops a hypothesis, restates something as a statement that is not equivalent, or loses the evidence of a step does not verify. An unfinished proof is not a wrong presentation: the steps may leave open exactly what the Lean proof leaves open, and the proof is then reported as incomplete.
 
-`verify` type-checks whole proof terms, so it is run by `#informalize` and the tests, not by the web app. It does not support restating the *type* of an object other than definitionally.
+`informalize` verifies every presentation before rendering it:
+
+1. The normalized presentation is verified. Normally it passes, and is rendered.
+2. If it fails, the presentation from `present` is verified, and the passes are run again with a check after each one. A pass whose result does not verify is left out (`Informalized.skipped`), and the rest is rendered.
+3. If the presentation from `present` fails too, nothing is translated: `renderQuoted` shows the declaration's statement and each step as the Lean they are.
+
+`Informalized.verification?` holds what `verify` found for the presentation that was used.
+
+`verify` type-checks whole proof terms. On the demo levels and on a file of 402 theorems like them, this roughly doubles the time of the stages after extraction, which stays under a tenth of what Lean takes to elaborate the file. `Config.verify := false` turns it off, for measuring the other stages.
+
+It does not support restating the *type* of an object other than definitionally.
 
 ## The web app
 
-The level page calls the RPC method `Distill.translate` (`lean/Distill/Translate.lean`) through the editor's language server connection once Lean has checked the document. It runs the pipeline on the InfoTree of every command and returns the English line by line: a theorem's statement at the line of its name, and each step at the line its tactic starts on.
+The level page calls the RPC method `Distill.translate` (`lean/Distill/Translate.lean`) through the editor's language server connection once Lean has checked the document. It runs the pipeline on the InfoTree of every command and returns the English line by line: a theorem's statement at the line of its name, and each step at the line its tactic starts on. Each line's English is a list of `{kind, text}` parts, which the page lays out.
 
 ## Inspecting and testing
 
-`#informalize` before a command prints the Presentation IR (after normalization), the English of its proofs, and what `verify` finds, with lines relative to the command. `#informalize_statement` prints only the English statement and how the presented statement relates to the original.
+`#informalize` before a command prints what the pipeline made of its proofs: the Presentation IR (after normalization), the English, what `verify` found, and the passes that were skipped, with lines relative to the command. `#informalize_statement` prints only the English statement and how the presented statement relates to the original.
 
 ```lean
 import Distill.Informalizer.Frontend

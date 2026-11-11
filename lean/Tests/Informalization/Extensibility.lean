@@ -28,18 +28,18 @@ theorem before (A B : Set Nat) (n : Nat) (h : Disjoint A B.compl) (hn : n ∈ A)
 
 section
 /-- `A.compl` is `A^c`. -/
-@[local distill_math Distill.Set.compl] def mathCompl : MathTranslator := fun r e => do
+@[local distill_translator Distill.Set.compl] def mathCompl : Translator := .math fun r e => do
   unless e.isAppOfArity ``Set.compl 2 do return none
   let some a ← r.math e.appArg! | return none
   return some { tex := s!"{a.at 1024}^c", prec := 1023 }
 
-@[local distill_prose Disjoint] def proseDisjoint : ProseTranslator := fun r e => do
+@[local distill_translator Disjoint] def proseDisjoint : Translator := .prose fun r e => do
   unless e.isAppOfArity ``Disjoint 3 do return none
   let some a ← r.math (e.getArg! 1) | return none
   let some b ← r.math (e.getArg! 2) | return none
-  return some { text := s!"${a.tex}$ and ${b.tex}$ are disjoint" }
+  return some { text := a.text ++ " and " ++ b.text ++ " are disjoint" }
 
-@[local distill_noun Nat] def nounNat : NounTranslator := fun _ _ =>
+@[local distill_translator Nat] def nounNat : Translator := .noun fun _ _ =>
   return some { singular := "natural number", plural := "natural numbers" }
 
 /--
@@ -63,10 +63,10 @@ theorem composed (A B : Set Nat) : ∀ n : Nat, n ∈ (A ∩ B).compl.compl → 
 
 /-! A translator that throws or returns `none` leaves the expression to the next one. -/
 
-@[local distill_math Inter.inter] def mathInterNever : MathTranslator := fun _ _ =>
+@[local distill_translator Inter.inter] def mathInterNever : Translator := .math fun _ _ =>
   throwError "not applicable"
 
-@[local distill_prose HasSubset.Subset] def proseSubsetNever : ProseTranslator := fun _ _ =>
+@[local distill_translator HasSubset.Subset] def proseSubsetNever : Translator := .prose fun _ _ =>
   return none
 
 /--
@@ -77,6 +77,45 @@ info: Theorem. Let $A$ and $B$ be sets of natural numbers. Then $A \cap B \subse
 #informalize_statement
 theorem next_translator (A B : Set Nat) : A ∩ B ⊆ A := sorry
 
+end
+
+/-! ## New kinds of phrases
+
+Formulas, nouns and prose are the kinds the built-in renderer asks for, not the only ones there
+can be. A library defines a kind as a type, registers translators for it like any other, and
+asks for such phrases where it writes prose. -/
+
+/-- "small", in "$A$ is small". -/
+structure Adjective where
+  word : String
+  deriving TypeName
+
+def Small (_ : Set α) : Prop := True
+def Tidy (_ : Set α) : Prop := True
+
+section
+@[local distill_translator Small] def adjectiveSmall : Translator := .of fun _ _ =>
+  return some ({ word := "small" } : Adjective)
+
+@[local distill_translator Tidy] def adjectiveTidy : Translator := .of fun _ _ =>
+  return some ({ word := "tidy" } : Adjective)
+
+/-- "$A$ is small and tidy", for two adjectives about the same thing. -/
+@[local distill_translator And] def proseAdjectives : Translator := .prose fun r e => do
+  let #[p, q] := e.getAppArgs | return none
+  unless p.isApp && q.isApp && p.appArg! == q.appArg! do return none
+  let some a ← r.phrase? Adjective p | return none
+  let some b ← r.phrase? Adjective q | return none
+  let some subject ← r.math p.appArg! | return none
+  return some { text := subject.text ++ s!" is {a.word} and {b.word}" }
+
+/--
+info: Theorem. Let $A$ be a set. If $A$ is small and tidy, then $A \subseteq A$.
+  statement: identical to the original statement
+-/
+#guard_msgs in
+#informalize_statement
+theorem adjectives (A : Set α) (h : Small A ∧ Tidy A) : A ⊆ A := sorry
 end
 
 /-! ## Passes that restate
@@ -174,7 +213,8 @@ end
 
 /-! ## Passes that are wrong
 
-`verify` does not accept a presentation that says something else than the proof. -/
+`verify` does not accept a presentation that says something else than the proof, so the pipeline
+leaves out the pass that made it. -/
 
 section
 /-- Claims that `A ⊆ B` can be read as `B ⊆ A`. -/
@@ -193,19 +233,20 @@ info: PresentedDecl swapped   role theorem
     A, B : Set α
   hypotheses
   conclusion
-    f0: A ⊆ A ∩ B  ⟸ A ∩ B ⊆ A  [Tests.swapSubset, defeq]
+    f0: A ∩ B ⊆ A
   proof of ?g0
     s1 untranslated `intro x hx`   origin direct [#4]
       proves ?g0: fun x hx => @?g2 x hx
     s2 untranslated `exact hx.left`   origin direct [#7]
       proves ?g2: hx.left
 English
-  Theorem. Let $A$ and $B$ be sets. Then $A \subseteq A \cap B$.
+  Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
   2: Apply `intro x hx`.
   3: Apply `exact hx.left`.
 Verification
-  statement: NOT VERIFIED: Tests.swapSubset restated A ∩ B ⊆ A as A ⊆ A ∩ B, which is not definitionally equal, without a proof
-  proof: NOT VERIFIED: the steps prove the original statement, which the presented one was not shown to match
+  statement: identical to the original statement
+  proof: the steps rebuild a proof of the presented statement
+  skipped Tests.swapSubset: Tests.swapSubset restated A ∩ B ⊆ A as A ⊆ A ∩ B, which is not definitionally equal, without a proof
 -/
 #guard_msgs in
 #informalize
@@ -220,8 +261,9 @@ section
   run d := return { d with hypotheses := #[] }
 
 /--
-info: Theorem. Let $A$ and $B$ be sets. Then $A \cap B = A$.
-  statement: NOT VERIFIED: h is missing from the presented statement
+info: Theorem. Let $A$ and $B$ be sets. If $A \subseteq B$, then $A \cap B = A$.
+  statement: identical to the original statement
+  skipped Tests.dropHypotheses: h is missing from the presented statement
 -/
 #guard_msgs in
 #informalize_statement
@@ -248,13 +290,15 @@ info: PresentedDecl unsupported   role theorem
     s1 untranslated `intro x hx`   origin direct [#4]
       proves ?g0: fun x hx => @?g2 x hx
     s2 untranslated `exact hx.left`   origin direct [#7]
+      proves ?g2: hx.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
   2: Apply `intro x hx`.
   3: Apply `exact hx.left`.
 Verification
   statement: identical to the original statement
-  proof: incomplete (no step proves ?g2)
+  proof: the steps rebuild a proof of the presented statement
+  skipped Tests.dropEvidence: no step proves ?g2, which the Lean proof does
 -/
 #guard_msgs in
 #informalize

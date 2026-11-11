@@ -152,6 +152,19 @@ def renderStep (ir : ProofIR) (s : ProofStep) : MetaM RenderedStep := do
     | _ => pure (renderUntranslated ir s.origin.nodes)
   return { step := s.id, nodes := s.origin.nodes, text }
 
+/-- `ir` as the Lean it is, for a proof whose presentation `d` does not verify: the statement of
+the declaration as Lean code, and each step as its source. Nothing here was translated, so
+nothing can say something else than the Lean does. Runs inside `ir.withContext`. -/
+def renderQuoted (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
+  let env ← getEnv
+  let statement? ← match if ir.isDeclBody then env.find? ir.decl else none with
+    | some info => pure (some ((s!"{roleLabel d.role}. " : Text) ++ (← exprCode info.type) ++ "."))
+    | none => pure none
+  return {
+    statement?
+    steps := d.proof.steps.map fun s =>
+      { step := s.id, nodes := s.origin.nodes, text := renderUntranslated ir s.origin.nodes } }
+
 /-- The English of `d`, the presentation of `ir`. Runs inside `ir.withContext`. -/
 def render (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
   let statement? ← ir.withGoalContext ir.rootGoal do
