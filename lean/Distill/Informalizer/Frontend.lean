@@ -24,12 +24,12 @@ def report (ir : ProofIR) (lineOffset : Nat := 0) : MetaM String := do
   let mut out ← ir.withContext (r.presented.format ir)
   out := out ++ "English\n"
   if ir.isDeclBody then
-    out := out ++ s!"  {r.english.statement}\n"
+    out := out ++ s!"  {r.english.statement.toMarkup}\n"
   for s in r.english.steps do
     let line := match stepLine? ir s with
       | some l => toString (l - lineOffset)
       | none => "?"
-    out := out ++ s!"  {line}: {s.text}\n"
+    out := out ++ s!"  {line}: {s.text.toMarkup}\n"
   return out
 
 /-- `#informalize cmd` elaborates `cmd` and shows the Presentation IR and English of its

@@ -1,12 +1,13 @@
 import Distill.Informalizer.IR.Context
 import Distill.Informalizer.IR.Presentation
+import Distill.Informalizer.Text
 
 /-!
 # Rendering: Presentation IR ⟶ English
 
 `render` writes a `PresentedDecl` as English: one sentence or two for the statement, and one
-piece of text per proof step. The text is the rich text the web app displays: `$…$` is LaTeX
-and `` `…` `` is Lean code.
+piece of text per proof step. The text is a `Text`, which keeps formulas and Lean code apart from
+the words, so that the web app, or anything else that shows it, can lay them out its own way.
 
 Whatever has no English yet is shown as the Lean it came from, so no part of a proof is ever
 left out.
@@ -24,35 +25,20 @@ structure RenderedStep where
   /-- The Proof IR nodes the step came from (`StepOrigin.nodes`), which locate it in the
   source. -/
   nodes : Array Nat
-  text : String
+  text : Text
   deriving Inhabited, Repr
 
 /-- The English of one declaration. -/
 structure Rendered where
-  statement : String
+  statement : Text
   /-- In presentation order. -/
   steps : Array RenderedStep
   deriving Inhabited, Repr
 
-/-- `s` as inline code. The fence is longer than any run of backticks in `s`, as in Markdown. -/
-def code (s : String) : String :=
-  let (longest, _) := s.foldl (init := (0, 0)) fun (longest, run) c =>
-    if c == '`' then (max longest (run + 1), run + 1) else (longest, 0)
-  let fence := "".pushn '`' (longest + 1)
-  let pad := if s.startsWith "`" || s.endsWith "`" then " " else ""
-  s!"{fence}{pad}{s}{pad}{fence}"
-
-/-- "a", "a and b", "a, b and c". -/
-def joinAnd : List String → String
-  | [] => ""
-  | [a] => a
-  | [a, b] => s!"{a} and {b}"
-  | a :: rest => s!"{a}, {joinAnd rest}"
-
 /-- `e` as Lean code on one line. -/
-def exprCode (e : Expr) : MetaM String := do
+def exprCode (e : Expr) : MetaM Text := do
   let s := (← ppExpr e).pretty (width := 10000)
-  return code (" ".intercalate ((s.splitOn "\n").map (·.trimAscii.toString)))
+  return .code (" ".intercalate ((s.splitOn "\n").map (·.trimAscii.toString)))
 
 def roleLabel : DeclRole → String
   | .theorem => "Theorem"
@@ -63,23 +49,24 @@ private def displayName (n : Name) : String :=
   if n.hasMacroScopes then s!"{n.eraseMacroScopes}✝" else toString n
 
 /-- The statement: "Theorem. Let …. Assume …. Then …." -/
-def renderStatement (d : PresentedDecl) : MetaM String := do
+def renderStatement (d : PresentedDecl) : MetaM Text := do
   let objects ← d.objects.toList.mapM fun o => do
     let type := (← ppExpr o.type.expr).pretty (width := 10000)
-    return code s!"{displayName o.name} : {type}"
+    return Text.code s!"{displayName o.name} : {type}"
   let hypotheses ← d.hypotheses.toList.mapM (exprCode ·.prop.expr)
   let conclusion ← exprCode d.conclusion.prop.expr
-  let mut out := s!"{roleLabel d.role}."
-  unless objects.isEmpty do out := out ++ s!" Let {joinAnd objects}."
-  unless hypotheses.isEmpty do out := out ++ s!" Assume {joinAnd hypotheses}."
+  let mut out : Text := s!"{roleLabel d.role}."
+  unless objects.isEmpty do out := out ++ " Let " ++ Text.joinAnd objects ++ "."
+  unless hypotheses.isEmpty do out := out ++ " Assume " ++ Text.joinAnd hypotheses ++ "."
   let then_ := if objects.isEmpty && hypotheses.isEmpty then "" else "Then "
-  return out ++ s!" {then_}{conclusion}."
+  return out ++ s!" {then_}" ++ conclusion ++ "."
 
 /-- The Lean a step came from, for steps that have no English yet. -/
-def renderUntranslated (ir : ProofIR) (nodes : Array Nat) : String :=
-  let sources := nodes.toList.filterMap fun n => (ir.node? n).map (code <| syntaxFirstLine ·.stx)
+def renderUntranslated (ir : ProofIR) (nodes : Array Nat) : Text :=
+  let sources := nodes.toList.filterMap fun n =>
+    (ir.node? n).map (Text.code <| syntaxFirstLine ·.stx)
   if sources.isEmpty then "A step that Distill cannot describe yet."
-  else s!"Apply {joinAnd sources}."
+  else "Apply " ++ Text.joinAnd sources ++ "."
 
 def renderStep (ir : ProofIR) (s : ProofStep) : MetaM RenderedStep := do
   let text ← match s.kind with

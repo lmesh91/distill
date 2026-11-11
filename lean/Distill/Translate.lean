@@ -19,8 +19,8 @@ open Distill.Informalizer Distill.Informalizer.IR
 structure LineTranslation where
   /-- zero-based line in the document -/
   line : Nat
-  /-- Rich text: `$…$` is LaTeX and `` `…` `` is Lean code. -/
-  english : String
+  /-- As JSON, a list of `{"kind": "text" | "math" | "code", "text": …}`. -/
+  english : Text
   deriving FromJson, ToJson, Repr, BEq
 
 structure TranslateParams where
