@@ -79,43 +79,94 @@ theorem next_translator (A B : Set Nat) : A ∩ B ⊆ A := sorry
 
 end
 
-/-! ## New kinds of phrases
+/-! ## Adjectives and accessories
 
-Formulas, nouns and prose are the kinds the built-in renderer asks for, not the only ones there
-can be. A library defines a kind as a type, registers translators for it like any other, and
-asks for such phrases where it writes prose. -/
-
-/-- "small", in "$A$ is small". -/
-structure Adjective where
-  word : String
-  deriving TypeName
+A property of an object can be said where the object is introduced. A pass says which
+hypotheses are properties of which object, and translators say them as adjectives or
+accessories. -/
 
 def Small (_ : Set α) : Prop := True
 def Tidy (_ : Set α) : Prop := True
+def HasCorners (_ : Set α) : Prop := True
+def Odd (_ : Set α) : Prop := True
+
+/-- The object a predicate of one argument is about. -/
+def predicateSubject? (e : Expr) : Option FVarId :=
+  if [``Small, ``Tidy, ``HasCorners, ``Odd].any (e.isAppOfArity · 2) then e.appArg!.fvarId?
+  else none
+
+/-- The translators below must only speak about the object being described. -/
+def aboutSubject (e : Expr) : RenderM Bool :=
+  return predicateSubject? e == (← read).subject? && (← read).subject?.isSome
 
 section
-@[local distill_translator Small] def adjectiveSmall : Translator := .of fun _ _ =>
-  return some ({ word := "small" } : Adjective)
+@[local distill_normalizer] def predicatesAsProperties : Pass where
+  name := `Tests.predicatesAsProperties
+  order := 200
+  run d := Normalize.hypothesesAsProperties d predicateSubject?
 
-@[local distill_translator Tidy] def adjectiveTidy : Translator := .of fun _ _ =>
-  return some ({ word := "tidy" } : Adjective)
+@[local distill_translator Small] def adjectiveSmall : Translator := .adjective fun _ e => do
+  unless ← aboutSubject e do return none
+  return some { text := "small" }
 
-/-- "$A$ is small and tidy", for two adjectives about the same thing. -/
-@[local distill_translator And] def proseAdjectives : Translator := .prose fun r e => do
-  let #[p, q] := e.getAppArgs | return none
-  unless p.isApp && q.isApp && p.appArg! == q.appArg! do return none
-  let some a ← r.phrase? Adjective p | return none
-  let some b ← r.phrase? Adjective q | return none
-  let some subject ← r.math p.appArg! | return none
-  return some { text := subject.text ++ s!" is {a.word} and {b.word}" }
+@[local distill_translator Tidy] def adjectiveTidy : Translator := .adjective fun _ e => do
+  unless ← aboutSubject e do return none
+  return some { text := "tidy" }
+
+@[local distill_translator HasCorners] def accessoryCorners : Translator := .accessory fun _ e => do
+  unless ← aboutSubject e do return none
+  return some { text := "corners" }
 
 /--
-info: Theorem. Let $A$ be a set. If $A$ is small and tidy, then $A \subseteq A$.
+info: Theorem. Let $A$ and $B$ be small tidy sets and let $C$ be a set with corners. If $A \subseteq B$, then $A \subseteq C$.
+  statement: equivalent to the original statement (proof checked)
+-/
+#guard_msgs in
+#informalize_statement
+theorem described (A B C : Set α) (hA : Small A) (hA' : Tidy A) (hB : Small B) (hB' : Tidy B)
+    (hC : HasCorners C) (h : A ⊆ B) : A ⊆ C := sorry
+
+/-! A hypothesis that is not a property of one object is stated as before, and a property
+without words follows "such that". -/
+
+/--
+info: Theorem. Let $\alpha$ be a type, let $A$ be a small set of elements of $\alpha$, and let $B$ be a set of elements of $\alpha$ such that `Odd B`. If `Small (A ∩ B)`, then $A \subseteq B$.
+  statement: equivalent to the original statement (proof checked)
+-/
+#guard_msgs in
+#informalize_statement
+theorem undescribed (A B : Set α) (hA : Small A) (hB : Small (A ∩ B)) (hB' : Odd B) : A ⊆ B := sorry
+end
+
+/-! ## New kinds of phrases
+
+The kinds above are the ones the built-in renderer asks for, not the only ones there can be. A
+library defines a kind as a type, registers translators for it like any other, and asks for
+such phrases where it writes prose. -/
+
+/-- "do not meet", in "$A$ and $B$ do not meet". -/
+structure Verb where
+  plural : String
+  deriving TypeName
+
+section
+@[local distill_translator Disjoint] def verbDisjoint : Translator := .of fun _ _ =>
+  return some ({ plural := "do not meet" } : Verb)
+
+/-- "$A$ and $B$ `verb`", for a relation between two things that has a verb. -/
+@[local distill_translator Disjoint] def proseVerb : Translator := .prose fun r e => do
+  let some verb ← r.phrase? Verb e | return none
+  let some a ← r.math (e.getArg! 1) | return none
+  let some b ← r.math (e.getArg! 2) | return none
+  return some { text := a.text ++ " and " ++ b.text ++ s!" {verb.plural}" }
+
+/--
+info: Theorem. Let $A$ and $B$ be sets. If $A$ and $B$ do not meet, then $A \subseteq A$.
   statement: identical to the original statement
 -/
 #guard_msgs in
 #informalize_statement
-theorem adjectives (A : Set α) (h : Small A ∧ Tidy A) : A ⊆ A := sorry
+theorem verbs (A B : Set α) (h : Disjoint A B) : A ⊆ A := sorry
 end
 
 /-! ## Passes that restate

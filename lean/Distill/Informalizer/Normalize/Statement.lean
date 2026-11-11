@@ -34,49 +34,62 @@ private def groupMentions (g : ObjectGroup) (x : FVarId) : Bool :=
       (·.containsFVar x)
 
 /--
-A hypothesis `x ∈ S` about an object `x` becomes a property of `x`, so that the two are
-introduced together: "let `x ∈ S`". Only the first such hypothesis of an object is moved.
+Makes each hypothesis that is about one object a property of that object, so that the two are
+introduced together: "let `x ∈ S`", "let `f` be an injective function". `subject?` says which
+object a proposition is about, if any, and `accepts` whether that object can take the property.
 
-`S` has to be introduced before `x`. If it is not, as in `(x : α) (A : Set α) (hx : x ∈ A)`, `x`
-is moved to after the objects `S` is made of, unless one of the objects it would move past
-mentions it.
+This is how a library says which hypotheses describe which objects, for its own predicates: a
+pass that calls this with its `subject?`.
+
+Everything else the hypothesis mentions has to be introduced before the object. If it is not,
+as in `(x : α) (A : Set α) (hx : x ∈ A)`, the object is moved to after the objects the
+hypothesis mentions, unless one of the objects it would move past mentions it.
+-/
+def hypothesesAsProperties (d : PresentedDecl) (subject? : Expr → Option FVarId)
+    (accepts : MathObject → Bool := fun _ => true) : MetaM PresentedDecl := do
+  let mut groups := d.objects
+  let mut hypotheses := #[]
+  for h in d.hypotheses do
+    let prop ← instantiateMVars h.prop.expr
+    let moved? : Option (Array ObjectGroup) := do
+      let x ← subject? prop
+      let gi ← groups.findIdx? (·.objects.any (·.fvar == x))
+      let oi ← groups[gi]!.objects.findIdx? (·.fvar == x)
+      let o := groups[gi]!.objects[oi]!
+      guard (accepts o && o.value?.isNone && !o.binderInfo.isInstImplicit)
+      -- Something defined with a hypothesis can only be named after the hypotheses.
+      guard !(prop.hasAnyFVar fun f => !groups.any (·.objects.any (·.fvar == f)))
+      let o := { o with properties := o.properties.push h }
+      -- The last group that the property needs.
+      let last? := (List.range groups.size).reverse.find? fun i =>
+        groups[i]!.objects.any fun o' => o'.fvar != x && prop.containsFVar o'.fvar
+      match last? with
+      | some last =>
+        if last < gi then
+          return groups.modify gi fun g => { g with objects := g.objects.set! oi o }
+        guard (((List.range (last + 1)).drop gi).all fun i =>
+          !groupMentions { objects := groups[i]!.objects.filter (·.fvar != x) } x)
+        let rest := groups[gi]!.objects.eraseIdx! oi
+        let before := groups.extract 0 gi ++ (if rest.isEmpty then #[] else #[{ objects := rest }])
+        return before ++ groups.extract (gi + 1) (last + 1) ++ #[{ objects := #[o] }] ++
+          groups.extract (last + 1) groups.size
+      | none => return groups.modify gi fun g => { g with objects := g.objects.set! oi o }
+    match moved? with
+    | some moved => groups := moved
+    | none => hypotheses := hypotheses.push h
+  return { d with objects := groups, hypotheses }
+
+/--
+A hypothesis `x ∈ S` about an object `x` becomes a property of `x`: "let `x ∈ S`". Only the
+first such hypothesis of an object is moved, and only if `S` does not mention `x`.
 -/
 def membershipAsProperty : Pass where
   name := `Distill.Normalize.membershipAsProperty
   order := 100
-  run d := do
-    let mut groups := d.objects
-    let mut hypotheses := #[]
-    for h in d.hypotheses do
-      let prop ← instantiateMVars h.prop.expr
-      let moved? : Option (Array ObjectGroup) := do
-        let (set, .fvar x) ← membership? prop | none
-        let gi ← groups.findIdx? (·.objects.any (·.fvar == x))
-        let oi ← groups[gi]!.objects.findIdx? (·.fvar == x)
-        let o := groups[gi]!.objects[oi]!
-        guard (o.properties.isEmpty && o.value?.isNone && !o.binderInfo.isInstImplicit)
-        guard !(set.containsFVar x)
-        -- A set defined with a hypothesis can only be named after the hypotheses.
-        guard !(set.hasAnyFVar fun f => !groups.any (·.objects.any (·.fvar == f)))
-        let o := { o with properties := #[h] }
-        -- The last group that `S` needs.
-        let last? := (List.range groups.size).reverse.find? fun i =>
-          groups[i]!.objects.any fun o' => o'.fvar != x && set.containsFVar o'.fvar
-        match last? with
-        | some last =>
-          if last < gi then
-            return groups.modify gi fun g => { g with objects := g.objects.set! oi o }
-          guard (((List.range (last + 1)).drop gi).all fun i =>
-            !groupMentions { objects := groups[i]!.objects.filter (·.fvar != x) } x)
-          let rest := groups[gi]!.objects.eraseIdx! oi
-          let before := groups.extract 0 gi ++ (if rest.isEmpty then #[] else #[{ objects := rest }])
-          return before ++ groups.extract (gi + 1) (last + 1) ++ #[{ objects := #[o] }] ++
-            groups.extract (last + 1) groups.size
-        | none => return groups.modify gi fun g => { g with objects := g.objects.set! oi o }
-      match moved? with
-      | some moved => groups := moved
-      | none => hypotheses := hypotheses.push h
-    return { d with objects := groups, hypotheses }
+  run d := hypothesesAsProperties d (accepts := (·.properties.isEmpty)) fun prop => do
+    let (set, .fvar x) ← membership? prop | none
+    guard !(set.containsFVar x)
+    return x
 
 /-- What two objects must have in common to be introduced together: their type, and their
 properties with the object itself abstracted (`x ∈ A` and `y ∈ A` are the same property). -/

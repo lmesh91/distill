@@ -69,7 +69,7 @@ A pass must not change what the presentation says. It may:
 
 | Pass | Order | What it does |
 |---|---|---|
-| `membershipAsProperty` | 100 | A hypothesis `x ∈ S` about an object `x` becomes a property of `x`, so the two are introduced together ("let $x \in S$"). If `x` is bound before `S`, it is moved after it. |
+| `membershipAsProperty` | 100 | (An instance of `hypothesesAsProperties`.) A hypothesis `x ∈ S` about an object `x` becomes a property of `x`, so the two are introduced together ("let $x \in S$"). If `x` is bound before `S`, it is moved after it. |
 | `groupObjects` | 900 | Objects with the same type and the same properties are put in one group ("let $A$, $B$ and $C$ be sets", "let $x, y \in A$"), even when other binders separate them. |
 
 ## Render
@@ -84,22 +84,29 @@ The statement introduces the object groups in order, then states the hypotheses 
 
 > Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
 
-- A group is introduced by its noun ("let $A$ and $B$ be sets"), or by its membership property alone ("let $x, y \in A$"). Other properties follow with "such that".
+- A group is introduced by its noun ("let $A$ and $B$ be sets"), or by its membership property alone ("let $x, y \in A$"). In general the clause is "let *names* be *article* *adjectives* *noun* with *accessories* such that *clauses*": a property of the objects is an adjective or an accessory if a translator says it as one, and a clause after "such that" otherwise.
 - An implicit object (`{α : Type}`) is introduced only if the rest of the text names it or it has properties. A set is then "a set of elements of $\alpha$" instead of "a set".
 - Hypotheses that are plain formulas are joined into "If … and …, then …". Otherwise they are stated as "Suppose that … and that …. Then …".
 - Only a proof of a proposition has a statement: `def n : Nat := by …` has steps and nothing else.
 
 ### Expressions
 
-An expression can be written as more than one *kind of phrase*, and a *translator* says how to write the expressions headed by one constant as one kind. The built-in renderer asks for three kinds:
+The ontology of a statement is that of Kyle Miller's informalizer ([talk](https://kmill.github.io/informalization/ucsc_cse_talk.pdf)): *entities*, each described by a *noun*, *adjectives* and *accessories*. It is split over two stages:
+
+- The entities are the Presentation IR's: a `MathObject`, with the hypotheses that are about it as its `properties`. Which hypotheses those are is decided in normalization. `Normalize.hypothesesAsProperties` does the moving for a pass that says which object a proposition is about; the built-in `membershipAsProperty` is one such pass, and a library writes another for its own predicates.
+- The words are rendering's. An expression can be written as more than one *kind of phrase*, and a *translator* says how to write the expressions headed by one constant as one kind. The built-in renderer asks for these kinds:
 
 | Kind | For | Result | Example |
 |---|---|---|---|
 | `Math` | any expression | a LaTeX formula with its precedence | `A ∩ B` ⟶ `A \cap B` |
 | `Noun` | a type | what its elements are called | `Set α` ⟶ "a set", "sets" |
+| `Adjective` | a property of an object | a word before the noun | `Injective f` ⟶ "an *injective* function" |
+| `Accessory` | a property of an object | what the object comes with | `DecidableEq α` ⟶ "a type *with decidable equality*" |
 | `Prose` | a proposition | a clause | `p ∧ q` ⟶ "$p$ and $q$" |
 
-The kinds are not a fixed list: a kind is any type with a `TypeName`. English that needs more than these three (an adjective for "$A$ is finite", a verb, a name for a cited theorem) gets a new type, translators made with `Translator.of`, and callers that ask for it with `Renderer.phrase?`. Nothing about the existing kinds or translators changes. `Tests/Informalization/Extensibility.lean` adds an `Adjective` kind this way.
+There are built-in translators for math, nouns and prose only: the demo levels have no adjectives or accessories, so those two kinds have a place in the grammar and no vocabulary yet. A translator for either must return `none` unless the proposition is about `RenderContext.subject?`, the object being described.
+
+The kinds are not a fixed list: a kind is any type with a `TypeName`. English that needs more (a verb, a relation between objects, the vocabulary of proof steps) gets a new type, translators made with `Translator.of`, and callers that ask for it with `Renderer.phrase?`. Nothing about the existing kinds or translators changes. `Tests/Informalization/Extensibility.lean` uses adjectives and accessories and adds a kind of its own.
 
 A proposition is written by its prose translator if it has one, else as a formula, else as Lean code. A formula is all or nothing: if any part of an expression has no LaTeX, the whole expression is shown as code.
 

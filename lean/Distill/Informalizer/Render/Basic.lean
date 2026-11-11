@@ -7,19 +7,28 @@ import Distill.Informalizer.Text
 
 English is a `Text`, in which formulas and Lean code are kept apart from the words. An
 expression can be written as more than one *kind of phrase*, and a *translator* says how to write
-the expressions headed by one constant as one kind. The built-in renderer asks for three kinds:
+the expressions headed by one constant as one kind. The built-in renderer asks for these kinds:
 
 * **math** (`Math`): a LaTeX formula, `A \cap B`;
 * a **noun** (`Noun`), for a type: what its elements are called, "a set";
+* an **adjective** (`Adjective`) or an **accessory** (`Accessory`), for a property of an object:
+  what is said of it where it is introduced, "an *injective* function", "a type *with decidable
+  equality*";
 * **prose** (`Prose`), for a proposition: a clause of a sentence, "if $x \in A$, then
   $x \in B$".
+
+Objects with a noun, adjectives and accessories are the ontology of theorem statements in Kyle
+Miller's informalizer: "let `name` be `article` `adjectives` `noun` with `accessories`". The
+objects themselves, and which hypotheses are properties of which object, are the Presentation
+IR's (`MathObject.properties`); the words are chosen here.
 
 A library registers translators for its own definitions with `@[distill_translator c]`, like a
 recognizer with `@[distill_recognizer]`. The built-in ones are in
 `Distill.Informalizer.Render.Expr`. An expression nothing translates is shown as Lean code.
 
-The kinds are open: a kind is a type with a `TypeName`, so what English needs beyond these three
-(adjectives, verbs, …) is added as new types and translators, without changing the ones here.
+The kinds are open: a kind is a type with a `TypeName`, so what English needs beyond these
+(verbs, relations between objects, the vocabulary of proofs, …) is added as new types and
+translators, without changing the ones here.
 -/
 
 namespace Distill.Informalizer
@@ -98,6 +107,19 @@ structure Noun where
   qualifier : Text := .empty
   deriving Inhabited, Repr, TypeName
 
+/-- A property of an object as a word before its noun: "an *injective* function". -/
+structure Adjective where
+  /-- "a" or "an"; the first adjective's replaces the noun's. -/
+  article : String := "a"
+  text : String
+  deriving Inhabited, Repr, BEq, TypeName
+
+/-- A property of an object as what it comes with, after "with": "a type with *decidable
+equality*". -/
+structure Accessory where
+  text : Text
+  deriving Inhabited, Repr, BEq, TypeName
+
 /-- A proposition as part of a sentence. It does not start with a capital or end with a period. -/
 structure Prose where
   text : Text
@@ -120,6 +142,10 @@ structure RenderContext where
   anything optional that would mention one: a set is "a set", not "a set of elements of
   $\alpha$", when `α` is implicit. -/
   omitted : FVarIdSet := {}
+  /-- The object whose property is being written, when a property is. A translator for
+  adjectives or accessories has to return `none` unless the proposition is about this object:
+  `Injective f` makes `f` "injective", and nothing else. -/
+  subject? : Option FVarId := none
 
 structure RenderState where
   /-- The local variables the text written so far names. -/
@@ -186,6 +212,12 @@ def noun (f : NounTranslator) : Translator := .of f
 
 /-- Writes a proposition in words. -/
 def prose (f : ProseTranslator) : Translator := .of f
+
+/-- Writes a property of `RenderContext.subject?` as an adjective. -/
+def adjective (f : Renderer → Expr → RenderM (Option Adjective)) : Translator := .of f
+
+/-- Writes a property of `RenderContext.subject?` as an accessory. -/
+def accessory (f : Renderer → Expr → RenderM (Option Accessory)) : Translator := .of f
 
 end Translator
 

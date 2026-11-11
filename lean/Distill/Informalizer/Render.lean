@@ -48,8 +48,34 @@ def roleLabel : DeclRole → String
 
 /-! ## Statements -/
 
+/-- How the properties of one object are said where it is introduced. -/
+private structure Described where
+  adjectives : Array Adjective := #[]
+  accessories : Array Accessory := #[]
+  /-- The properties that are neither, after "such that". -/
+  clauses : Array Text := #[]
+  deriving Inhabited
+
+/-- Sorts the properties of `o` into adjectives, accessories and clauses; all into clauses if
+not `words`. -/
+private def describe (o : MathObject) (words : Bool) : RenderM Described :=
+  withReader ({ · with subject? := some o.fvar }) do
+    let mut d : Described := {}
+    for p in o.properties do
+      let prop ← instantiateMVars p.prop.expr
+      if words then
+        if let some a ← Render.renderer.phrase? Adjective prop then
+          d := { d with adjectives := d.adjectives.push a }
+          continue
+        if let some a ← Render.renderer.phrase? Accessory prop then
+          d := { d with accessories := d.accessories.push a }
+          continue
+      d := { d with clauses := d.clauses.push (← Render.prose prop).text }
+    return d
+
 /-- The clause that introduces the objects of a group: "let $A$ and $B$ be sets", "let
-$x \in A$". `none` if the text introduces none of them. -/
+$x \in A$", and in general "let `names` be `article` `adjectives` `noun` with `accessories` such
+that `clauses`". `none` if the text introduces none of them. -/
 private def groupClause (g : ObjectGroup) : RenderM (Option Text) := do
   let omitted := (← read).omitted
   let objects := g.objects.filter (!omitted.contains ·.fvar)
@@ -75,13 +101,24 @@ private def groupClause (g : ObjectGroup) : RenderM (Option Text) := do
             "let " ++ Text.math s!"{", ".intercalate (objects.toList.map name)} \\in {m.at 51}"
   let noun ← Render.noun type
   let names := objects.toList.map fun o => Text.math (name o)
-  let head := match names with
-    | [n] => "let " ++ n ++ s!" be {noun.article} {noun.singular}" ++ noun.qualifier
-    | _ => "let " ++ Text.joinAnd names ++ s!" be {noun.plural}" ++ noun.qualifier
-  let properties ← objects.flatMapM fun o => o.properties.mapM fun p => do
-    return (← Render.prose (← instantiateMVars p.prop.expr)).text
-  if properties.isEmpty then return some head
-  return some (head ++ " such that " ++ Text.joinAnd properties.toList)
+  -- One noun phrase describes the whole group, so its words have to fit every object in it.
+  let mut described ← objects.mapM (describe · (words := true))
+  let shared := described[0]!
+  unless described.all fun d =>
+      d.adjectives == shared.adjectives && d.accessories == shared.accessories do
+    described ← objects.mapM (describe · (words := false))
+  let { adjectives, accessories, .. } := described[0]!
+  let article := (adjectives[0]?.map (·.article)).getD noun.article
+  let adjectives := String.join (adjectives.toList.map (s!"{·.text} "))
+  let mut clause := match names with
+    | [n] => "let " ++ n ++ s!" be {article} {adjectives}{noun.singular}" ++ noun.qualifier
+    | _ => "let " ++ Text.joinAnd names ++ s!" be {adjectives}{noun.plural}" ++ noun.qualifier
+  unless accessories.isEmpty do
+    clause := clause ++ " with " ++ Text.joinAnd (accessories.toList.map (·.text))
+  let clauses := described.flatMap (·.clauses)
+  unless clauses.isEmpty do
+    clause := clause ++ " such that " ++ Text.joinAnd clauses.toList
+  return some clause
 
 /-- "a", "a and b", "a, b, and c", for clauses that may contain "and" themselves. -/
 private def joinClauses : List Text → Text
