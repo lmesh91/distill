@@ -5,3 +5,5 @@ import Distill.Translate
 import Distill.Informalizer.IR
 import Distill.Informalizer.Extract
 import Distill.Informalizer.Extract.Frontend
+import Distill.Informalizer.Pipeline
+import Distill.Informalizer.Frontend

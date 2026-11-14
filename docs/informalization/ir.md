@@ -250,6 +250,7 @@ Similarly to the `detail` information for tactics, there are many kinds of steps
 | `split` | Divide the proof into branches: the two directions of an iff, the parts of an "and", cases, or induction | "(⇒) … (⇐) …" | `split iff [Branch mp …, Branch mpr …]` | `constructor`, `cases`, `rcases … with h \| h`, `induction` |
 | `contradiction` | Derive a contradiction from the cited facts | "Then $y \in E$, but also $y \notin E$, a contradiction." | `contradiction  because fact f9, fact f10` | `exact absurd …`, `contradiction`, `omega` on a `False` goal |
 | `conclude` | State that the current goal has been reached | "Hence $A \cap C \subseteq B \cap C$." | `conclude f1` | usually added for readability; Lean has no matching step |
+| `untranslated` | A tactic that has no presentation yet, shown as the Lean the user wrote | "Apply `intro x hx`." | `untranslated #1` | any surface node; see [pipeline.md](pipeline.md) |
 
 
 ## Full Example

@@ -3,6 +3,7 @@ import Distill.Informalizer.IR.Proof
 import Distill.Informalizer.IR.Presentation
 import Distill.Informalizer.IR.Context
 import Distill.Informalizer.IR.Format
+import Distill.Informalizer.IR.PresentationFormat
 
 /-!
 # Informalizer intermediate representations

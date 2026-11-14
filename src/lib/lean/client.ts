@@ -4,7 +4,9 @@ export type Diagnostic = {
 	range: { start: { line: number; character: number } };
 };
 
-export type LineTranslation = { line: number; english: string };
+/** A piece of translated text: words, a LaTeX formula (without delimiters) or Lean code. */
+export type TextPart = { kind: 'text' | 'math' | 'code'; text: string };
+export type LineTranslation = { line: number; english: TextPart[] };
 
 type Callbacks = {
 	onstatus: (status: string) => void;
