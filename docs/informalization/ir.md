@@ -117,6 +117,7 @@ structure HypInfo where
   value? : Option Expr := none
   binderInfo : BinderInfo := .default
   replaces? : Option HypLineage := none
+  isRecursive : Bool := false
 ```
 
 It includes the ID (`fvarId`) and name (`userName`) of the hypotheses as well as its `type` and `value?` (when assigned to a specific value via `let` or `set`).
@@ -155,6 +156,20 @@ Most tactics will have their own information defined in the `detail` field. As a
 `.intro [x, hx]`
 `.have hBx (some (hAB x hx.1)) none`
 `.term .exact ⟨hBx, hx.2⟩`
+
+#### Inspecting and testing
+
+`#proof_ir` before a command prints the Proof IR of its proofs, with positions relative to the command, and checks that the assignments rebuild the declaration's proof term (exactly, up to β-reduction, or else type-checked and definitionally equal without proof irrelevance, which would make any two proofs of a theorem equal):
+
+```lean
+import Distill.Informalizer.Extract.Frontend
+
+#proof_ir
+theorem t (p q : Prop) (hp : p) (hq : q) : p ∧ q := by
+  exact ⟨hp, hq⟩
+```
+
+The golden tests in `lean/Tests/Extraction` use it on the demo levels, alternate proofs of them, other proof shapes, and proofs that fail. Run them with `lake test` in `lean/`. When the output changes on purpose, update the docstring above the affected `#guard_msgs`.
 
 ## Presentation IR
 
@@ -268,11 +283,11 @@ ProofIR intersection_subset
 
   goals
     ?g0 ⊢ ∀ x, A x ∧ C x → B x ∧ C x   ctx [α A B C hAB]
-         assigned by #2   fun x => ?g1
+         assigned by #2   fun x => ?g1 x
     ?g1 ⊢ A x ∧ C x → B x ∧ C x         parent ?g0   new: x
-         assigned by #3   fun hx => ?g2
+         assigned by #3   fun hx => ?g2 hx
     ?g2 ⊢ B x ∧ C x                     parent ?g1   new: hx
-         assigned by #5   let hBx := hAB x hx.1; ?g3
+         assigned by #5   let hBx := hAB x hx.1; ?g3 hBx
     ?g3 ⊢ B x ∧ C x                     parent ?g2   new: hBx
          assigned by #6   ⟨hBx, hx.2⟩
 

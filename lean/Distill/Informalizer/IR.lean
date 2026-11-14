@@ -1,6 +1,8 @@
 import Distill.Informalizer.IR.Common
 import Distill.Informalizer.IR.Proof
 import Distill.Informalizer.IR.Presentation
+import Distill.Informalizer.IR.Context
+import Distill.Informalizer.IR.Format
 
 /-!
 # Informalizer intermediate representations

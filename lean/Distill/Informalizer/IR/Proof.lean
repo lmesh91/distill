@@ -4,7 +4,7 @@ import Distill.Informalizer.IR.Common
 # Proof IR
 
 The Proof IR records how a Lean proof was constructed. One `ProofIR` describes one
-declaration. It keeps only what translation needs and cannot cheaply recompute; everything
+proof, usually the whole body of a declaration. It keeps only what translation needs and cannot cheaply recompute; everything
 else (parent links, context differences, the hypotheses and constants a proof uses) is
 derived on demand by the helpers at the end of this file.
 
@@ -48,9 +48,8 @@ A project that defines new tactics has these routes, from least to most work:
    `TypeName` instance, stored as a `Dynamic`, as Lean's own `CustomInfo` does), together
    with a translation handler that reads it.
 
-Recognizers and handlers are to be registered by syntax kind, through an attribute in the
-style of `@[tactic]` and `@[delab]`, so extensions live in the project that defines the
-tactic. The registry itself is not implemented yet.
+Recognizers are registered by syntax kind with `@[distill_recognizer kind]`, in the style of
+`@[tactic]`, so extensions live in the project that defines the tactic. Handlers will be too.
 -/
 
 namespace Distill.Informalizer.IR
@@ -59,7 +58,7 @@ open Lean
 
 /-! ## Statement and hypotheses -/
 
-/-- The statement of the declaration being proved. -/
+/-- What the proof proves: the declaration's statement when the proof is its body. -/
 structure Statement where
   /-- The binders before the colon, in order. Their names, types and binder info are in the
   hypothesis table. -/
@@ -89,6 +88,10 @@ structure HypInfo where
   /-- Only meaningful for statement binders. -/
   binderInfo : BinderInfo := .default
   replaces? : Option HypLineage := none
+  /-- A reference to the declaration being defined, which a recursive proof calls, or to a
+  `where`/`let rec` helper, whose proof is a `ProofIR` of its own. Not in any goal's context.
+  `userName` is its name. -/
+  isRecursive : Bool := false
   deriving Inhabited, Repr
 
 /-! ## Goals -/
@@ -98,9 +101,9 @@ structure Assignment where
   /-- The innermost node that made the assignment, e.g. the `refine` inside a `have`. -/
   node : Nat
   /-- The term assigned to the goal, one level deep: goals in it are left as metavariables
-  (they are the goal's subgoals) rather than replaced by their own assignments. Delayed-
-  assignment placeholders (created by `intro` and `have`) are replaced by the goals they
-  stand for, and metavariables that are not goals (e.g. implicit arguments solved by
+  (they are the goal's subgoals) rather than replaced by their own assignments. A subgoal
+  occurs applied to the terms its new hypotheses (`ProofIR.newHyps`) stand for, in order
+  (`fun x => ?g1 x`). Metavariables that are not goals (e.g. implicit arguments solved by
   unification) are instantiated. -/
   proof : Expr
   deriving Inhabited, Repr
@@ -108,12 +111,13 @@ structure Assignment where
 /-- A proof obligation. In Lean, a goal is a metavariable whose type and local context never
 change; a tactic "changes the goal" by assigning it and creating new goals.
 
-The table holds every goal some node reported, plus intermediate goals needed to connect
-them (e.g. the ones `use` creates and closes internally). Implicit arguments solved by
-unification are not goals. -/
+The table holds every goal some node reported. Goals a tactic creates and closes internally are
+not in it: their proofs are part of the assignment of the reported goal they belong to.
+Implicit arguments solved by unification are not goals. -/
 structure GoalInfo where
   mvarId : MVarId
-  /-- Case tag, e.g. `mp`, `mpr`, `left`, `h`. Often hygienic (`body._@…`) for internal goals. -/
+  /-- Case tag where the goal first appears, e.g. `mp`, `mpr`, `left`, `h`. Often hygienic
+  (`body._@…`) for internal goals. -/
   tag : Name
   target : Expr
   /-- Visible hypotheses in the goal's local context, in order. -/
@@ -218,15 +222,15 @@ inductive TacticDetail where
 /-- Distill's classification of a node, from the InfoTree's shape and the syntax origin. It
 decides which nodes translation starts from. -/
 inductive NodeRole where
-  /-- Written by the user. Under a combinator (`t <;> s`, `all_goals s`) each run of `s` on
+  /-- Written by the user (also a term proof's first node). Under a combinator (`t <;> s`, `all_goals s`) each run of `s` on
   a goal is its own surface node, with the same syntax. -/
   | surface
   /-- Run on behalf of its parent: a macro expansion (`have` ⇒ `refine_lift` ⇒ `refine`),
-  automation internals (`ring1` inside `linarith`), a discharger, a failed `try`
-  alternative. The parent's recognizer decides what, if anything, to use. -/
+  automation internals (`ring1` inside `linarith`), a discharger, or a tactic that left
+  nothing in the proof (a failed `try` alternative, `skip`). The parent's recognizer decides what, if anything, to use. -/
   | inner
-  /-- Bookkeeping that only passes goals to its children: tactic sequences, `·`, `case`,
-  `focus`, combinators. Translation looks through it. -/
+  /-- Only passes goals to user-written tactics nested in it: tactic sequences, `·`, `case`,
+  `focus`, `first`, `try` and other combinators. Translation looks through it. -/
   | structural
   deriving Inhabited, Repr, BEq
 
@@ -251,15 +255,22 @@ structure TacticNode where
 
 /-! ## Declaration -/
 
-/-- The Proof IR of one declaration. -/
+/-- The Proof IR of one proof: a declaration body that proves a proposition, or an outermost `by`
+block elsewhere. A body that is a term has a first node like a top-level `exact` or `refine`, with
+its `by` blocks as the goals it leaves. -/
 structure ProofIR where
+  /-- The declaration the proof is part of. -/
   decl : Name
+  /-- Whether the proof is the declaration's whole body, so that `statement` is the declaration's
+  statement. Otherwise (a `by` in a signature or in a term that is not a proof) `statement` is
+  only the goal of the block, and its binders include whatever the surrounding term bound. -/
+  isDeclBody : Bool
   statement : Statement
-  /-- The goal of the outermost `by` block; its context is the statement binders. -/
+  /-- The goal the whole proof proves; its context is the statement binders. -/
   rootGoal : MVarId
   /-- All tactic nodes in execution order. `nodes[i].id = i`. -/
   nodes : Array TacticNode
-  /-- Every goal some node reported, plus the intermediate goals that connect them. -/
+  /-- Every goal some node reported (see `GoalInfo`). -/
   goals : Std.HashMap MVarId GoalInfo
   /-- Every hypothesis and variable of the statement and the proof. -/
   hyps : Std.HashMap FVarId HypInfo
@@ -280,6 +291,16 @@ def hyp? (ir : ProofIR) (h : FVarId) : Option HypInfo :=
 def surfaceNodes (ir : ProofIR) : Array TacticNode :=
   ir.nodes.filter (·.role == .surface)
 
+/-- The surface nodes nested in node `id` without another surface node in between, looking
+through inner and structural nodes: the tactics of a `have h : t := by …` block, the
+alternative of `first | … | …` that succeeded, the tactics under `·`. -/
+partial def nestedSurface (ir : ProofIR) (id : Nat) : Array TacticNode :=
+  let children := (ir.node? id).map (·.children) |>.getD #[]
+  children.foldl (init := #[]) fun acc c =>
+    match ir.node? c with
+    | some n => if n.role == .surface then acc.push n else acc ++ ir.nestedSurface c
+    | none => acc
+
 /-- The node `id` is nested in. -/
 def parent? (ir : ProofIR) (id : Nat) : Option TacticNode :=
   ir.nodes.find? (·.children.contains id)
@@ -295,7 +316,7 @@ def newHyps (ir : ProofIR) (g : MVarId) : Array FVarId :=
   match ir.goal? g with
   | none => #[]
   | some gi =>
-    let parentCtx := (gi.parent? >>= ir.goal?).map (·.context) |>.getD #[]
+    let parentCtx := Std.HashSet.ofArray ((gi.parent? >>= ir.goal?).map (·.context) |>.getD #[])
     gi.context.filter (!parentCtx.contains ·)
 
 end ProofIR

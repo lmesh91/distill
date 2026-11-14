@@ -65,5 +65,7 @@ Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PA
 - `npm run test:auth`: checks protected pages and APIs, sign-in redirects, public routes, and authentication checks during client navigation.
 - `npm run test:admin`: checks administrator access rules for pages, form actions, and APIs, including rejection of unauthenticated and non-administrator users. Runs without Clerk or MongoDB.
 
+The Lean side has its own tests: run `lake test` in `lean/`.
+
 Submissions use Lean 4.35.0’s `lake comparator` to check the required theorem against a trusted level challenge. Level authors must configure the `verification` field described in the API documentation; existing levels without it return 503 when submitted. Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
 for setup, request and response formats, limits, and testing.
