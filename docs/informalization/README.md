@@ -20,3 +20,4 @@ We then perform a series of transformations to simplify the Presentation IR whil
 
 More details about these steps are available in the rest of the documentation:
 - How the Proof IR and Presentation IR work: [ir.md](ir.md)
+- What the informalizer must support for the demo levels: [demo-coverage.md](demo-coverage.md)
