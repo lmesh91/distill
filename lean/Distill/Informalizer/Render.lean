@@ -1,6 +1,5 @@
-import Distill.Informalizer.IR.Context
-import Distill.Informalizer.IR.Presentation
-import Distill.Informalizer.Text
+import Distill.Informalizer.Render.Basic
+import Distill.Informalizer.Render.Expr
 
 /-!
 # Rendering: Presentation IR ⟶ English
@@ -8,6 +7,11 @@ import Distill.Informalizer.Text
 `render` writes a `PresentedDecl` as English: one sentence or two for the statement, and one
 piece of text per proof step. The text is a `Text`, which keeps formulas and Lean code apart from
 the words, so that the web app, or anything else that shows it, can lay them out its own way.
+
+Rendering decides wording only. What is said, and in which order, is the Presentation IR's
+business: the statement introduces the object groups in order, each with its properties, then
+states the hypotheses and the conclusion. How an expression is written is up to the translators
+of `Distill.Informalizer.Render.Expr`.
 
 Whatever has no English yet is shown as the Lean it came from, so no part of a proof is ever
 left out.
@@ -30,36 +34,151 @@ structure RenderedStep where
 
 /-- The English of one declaration. -/
 structure Rendered where
-  statement : Text
+  /-- `none` if there is no theorem to state: the proof is a `by` block inside a declaration, or
+  what it builds is not a proof of a proposition (`def n : Nat := by exact 1`). -/
+  statement? : Option Text
   /-- In presentation order. -/
   steps : Array RenderedStep
   deriving Inhabited, Repr
-
-/-- `e` as Lean code on one line. -/
-def exprCode (e : Expr) : MetaM Text := do
-  let s := (← ppExpr e).pretty (width := 10000)
-  return .code (" ".intercalate ((s.splitOn "\n").map (·.trimAscii.toString)))
 
 def roleLabel : DeclRole → String
   | .theorem => "Theorem"
   | .lemma => "Lemma"
   | .example => "Example"
 
-private def displayName (n : Name) : String :=
-  if n.hasMacroScopes then s!"{n.eraseMacroScopes}✝" else toString n
+/-! ## Statements -/
 
-/-- The statement: "Theorem. Let …. Assume …. Then …." -/
+/-- How the properties of one object are said where it is introduced. -/
+private structure Described where
+  adjectives : Array Adjective := #[]
+  accessories : Array Accessory := #[]
+  /-- The properties that are neither, after "such that". -/
+  clauses : Array Text := #[]
+  deriving Inhabited
+
+/-- Sorts the properties of `o` into adjectives, accessories and clauses; all into clauses if
+not `words`. -/
+private def describe (o : MathObject) (words : Bool) : RenderM Described :=
+  withReader ({ · with subject? := some o.fvar }) do
+    let mut d : Described := {}
+    for p in o.properties do
+      let prop ← instantiateMVars p.prop.expr
+      -- A property that does not mention the object is not a word for it, whatever a translator
+      -- says.
+      if words && prop.containsFVar o.fvar then
+        if let some a ← Render.renderer.phrase? Adjective prop then
+          unless d.adjectives.contains a do
+            d := { d with adjectives := d.adjectives.push a }
+          continue
+        if let some a ← Render.renderer.phrase? Accessory prop then
+          unless d.accessories.contains a do
+            d := { d with accessories := d.accessories.push a }
+          continue
+      d := { d with clauses := d.clauses.push (← Render.prose prop).text }
+    return d
+
+/-- The clause that introduces the objects of a group: "let $A$ and $B$ be sets", "let
+$x \in A$", and in general "let `names` be `article` `adjectives` `noun` with `accessories` such
+that `clauses`". `none` if the text introduces none of them. -/
+private def groupClause (g : ObjectGroup) : RenderM (Option Text) := do
+  let omitted := (← read).omitted
+  let objects := g.objects.filter (!omitted.contains ·.fvar)
+  let some first := objects[0]? | return none
+  let type ← instantiateMVars first.type.expr
+  if first.binderInfo.isInstImplicit then
+    mention type
+    return some ("fix an instance of " ++ (← exprCode type))
+  let name (o : MathObject) := nameTex o.name
+  if let some value := first.value? then
+    let value ← instantiateMVars value.expr
+    match ← Render.math value with
+    | some m => return some ("let " ++ Text.math s!"{name first} = {m.tex}")
+    | none =>
+      mention value
+      return some ("let " ++ Text.math (name first) ++ " be " ++ (← exprCode value))
+  -- "let $x, y \in A$": the set says what the objects are, so their type is left out.
+  if let #[property] := first.properties then
+    if let some (set, .fvar x) := membership? (← instantiateMVars property.prop.expr) then
+      if x == first.fvar && !set.containsFVar x then
+        if let some m ← Render.math set then
+          return some <|
+            "let " ++ Text.math s!"{", ".intercalate (objects.toList.map name)} \\in {m.at 51}"
+  let noun ← Render.noun type
+  let names := objects.toList.map fun o => Text.math (name o)
+  -- One noun phrase describes the whole group, so its words have to fit every object in it.
+  let mut described ← objects.mapM (describe · (words := true))
+  let shared := described[0]!
+  unless described.all fun d =>
+      d.adjectives == shared.adjectives && d.accessories == shared.accessories do
+    described ← objects.mapM (describe · (words := false))
+  let { adjectives, accessories, .. } := described[0]!
+  let article := (adjectives[0]?.map (·.article)).getD noun.article
+  let adjectives := String.join (adjectives.toList.map (s!"{·.text} "))
+  let mut clause := match names with
+    | [n] => "let " ++ n ++ s!" be {article} {adjectives}{noun.singular}" ++ noun.qualifier
+    | _ => "let " ++ Text.joinAnd names ++ s!" be {adjectives}{noun.plural}" ++ noun.qualifier
+  unless accessories.isEmpty do
+    clause := clause ++ " with " ++ Text.joinAnd (accessories.toList.map (·.text))
+  let clauses := described.flatMap (·.clauses)
+  unless clauses.isEmpty do
+    clause := clause ++ " such that " ++ Text.joinAnd clauses.toList
+  return some clause
+
+/-- "a", "a and b", "a, b, and c", for clauses that may contain "and" themselves. -/
+private def joinClauses : List Text → Text
+  | [a] => a
+  | [a, b] => a ++ " and " ++ b
+  | clauses => match clauses.getLast? with
+    | some last => Text.intercalate ", " (clauses.dropLast ++ ["and " ++ last])
+    | none => .empty
+
+/-- The statement with its label, given which objects not to introduce. -/
+private def statementText (d : PresentedDecl) : RenderM Text := do
+  let clauses ← d.objects.toList.filterMapM groupClause
+  let hypotheses ← d.hypotheses.toList.mapM fun h => do
+    Render.prose (← instantiateMVars h.prop.expr)
+  let conclusion ← Render.prose (← instantiateMVars d.conclusion.prop.expr)
+  -- "Then if …" would stack two connectives.
+  let conditional := conclusion.text.startsWith "if "
+  let sentence (t : Text) : Text := t.capitalize ++ "."
+  let mut sentences : List Text := [s!"{roleLabel d.role}."]
+  unless clauses.isEmpty do
+    sentences := sentences ++ [sentence (joinClauses clauses)]
+  if hypotheses.isEmpty then
+    let then_ := if clauses.isEmpty || conditional then "" else "then "
+    sentences := sentences ++ [sentence (then_ ++ conclusion.text)]
+  else if conclusion.simple && Prose.joinable hypotheses then
+    sentences := sentences ++ [sentence <|
+      "if " ++ Text.joinAnd (hypotheses.map (·.text)) ++ ", then " ++ conclusion.text]
+  else
+    sentences := sentences ++ [
+      sentence ("suppose " ++ Text.joinAnd (hypotheses.map ("that " ++ ·.text))),
+      sentence ((if conditional then "" else "then ") ++ conclusion.text)]
+  return Text.intercalate " " sentences
+
+/--
+The statement: "Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$,
+then $C \subseteq A \cap B$."
+
+An implicit object (`{α : Type}`) is introduced only if the rest of the text names it, or if it
+has properties, which are stated where it is introduced. Which
+objects that leaves out is not known before the text is written, so the text is written again
+until none of the objects it leaves out is named.
+-/
 def renderStatement (d : PresentedDecl) : MetaM Text := do
-  let objects ← d.objects.toList.mapM fun o => do
-    let type := (← ppExpr o.type.expr).pretty (width := 10000)
-    return Text.code s!"{displayName o.name} : {type}"
-  let hypotheses ← d.hypotheses.toList.mapM (exprCode ·.prop.expr)
-  let conclusion ← exprCode d.conclusion.prop.expr
-  let mut out : Text := s!"{roleLabel d.role}."
-  unless objects.isEmpty do out := out ++ " Let " ++ Text.joinAnd objects ++ "."
-  unless hypotheses.isEmpty do out := out ++ " Assume " ++ Text.joinAnd hypotheses ++ "."
-  let then_ := if objects.isEmpty && hypotheses.isEmpty then "" else "Then "
-  return out ++ s!" {then_}" ++ conclusion ++ "."
+  let implicit := d.objects.flatMap fun g => g.objects.filterMap fun o =>
+    if (o.binderInfo == .implicit || o.binderInfo == .strictImplicit) && o.properties.isEmpty
+    then some o.fvar else none
+  let mut omitted : FVarIdSet := implicit.foldl (·.insert ·) {}
+  -- Every round but the last introduces an object more.
+  for _ in [0:implicit.size] do
+    let (text, state) ← (statementText d).run { omitted } |>.run {}
+    let named := omitted.toList.filter state.mentioned.contains
+    if named.isEmpty then return text
+    omitted := named.foldl (·.erase ·) omitted
+  (statementText d).run { omitted } |>.run' {}
+
+/-! ## Proof steps -/
 
 /-- The Lean a step came from, for steps that have no English yet. -/
 def renderUntranslated (ir : ProofIR) (nodes : Array Nat) : Text :=
@@ -74,9 +193,32 @@ def renderStep (ir : ProofIR) (s : ProofStep) : MetaM RenderedStep := do
     | _ => pure (renderUntranslated ir s.origin.nodes)
   return { step := s.id, nodes := s.origin.nodes, text }
 
+/-- `ir` as the Lean it is, for a proof whose presentation `d` does not verify: the statement of
+the declaration as Lean code, and each step as its source. Nothing here was translated, so
+nothing can say something else than the Lean does. Runs inside `ir.withContext`. -/
+def renderQuoted (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
+  let env ← getEnv
+  let statement? ← match if ir.isDeclBody then env.find? ir.decl else none with
+    | some info => pure (some ((s!"{roleLabel d.role}. " : Text) ++ (← exprCode info.type) ++ "."))
+    | none => pure none
+  return {
+    statement?
+    steps := d.proof.steps.map fun s =>
+      { step := s.id, nodes := s.origin.nodes, text := renderUntranslated ir s.origin.nodes } }
+
+/-- The English of `d`, the presentation of `ir`, when only its statement verifies: the
+statement in English, and the steps as their source. Runs inside `ir.withContext`. -/
+def renderStatementOnly (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
+  let statement? ← ir.withGoalContext ir.rootGoal do
+    if ir.isDeclBody && (← isProp d.conclusion.prop.expr) then some <$> renderStatement d
+    else pure none
+  return { (← renderQuoted ir d) with statement? }
+
 /-- The English of `d`, the presentation of `ir`. Runs inside `ir.withContext`. -/
 def render (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
-  let statement ← ir.withGoalContext ir.rootGoal (renderStatement d)
-  return { statement, steps := ← d.proof.steps.mapM (renderStep ir) }
+  let statement? ← ir.withGoalContext ir.rootGoal do
+    if ir.isDeclBody && (← isProp d.conclusion.prop.expr) then some <$> renderStatement d
+    else pure none
+  return { statement?, steps := ← d.proof.steps.mapM (renderStep ir) }
 
 end Distill.Informalizer

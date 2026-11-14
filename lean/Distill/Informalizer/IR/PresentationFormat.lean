@@ -72,22 +72,40 @@ private def roleName : DeclRole → String
   | .lemma => "lemma"
   | .example => "example"
 
-/-- Formats `d`, the presentation of `ir`. Runs inside `ir.withContext`. -/
+/-- A group on one line: `{α} : Type`, `A, B : Set α`, `x : α   with f0: x ∈ A   hyp hx`. -/
+private def group (ir : ProofIR) (g : ObjectGroup) : MetaM String := do
+  let some first := g.objects[0]? | return "<empty group>"
+  let name (o : MathObject) : String :=
+    let n := hypName ir o.fvar
+    match o.binderInfo with
+    | .implicit => s!"\{{n}}"
+    | .strictImplicit => s!"⦃{n}⦄"
+    | .instImplicit => s!"[{n}]"
+    | .default => n
+  let value ← match first.value? with
+    | some v => pure s!" := {← mathExpr v}"
+    | none => pure ""
+  let properties ← g.objects.flatMapM (·.properties.mapM (claim ir))
+  let with_ := if properties.isEmpty then "" else s!"   with {"; ".intercalate properties.toList}"
+  return s!"{", ".intercalate (g.objects.toList.map name)} : {← mathExpr first.type}{value}{with_}"
+
+/-- Formats `d`, the presentation of `ir`. Runs inside `ir.withContext`; with
+`goalName := ir.goalNumbering`, the goals in the steps' evidence are numbered as in `#proof_ir`. -/
 def format (d : PresentedDecl) (ir : ProofIR) : MetaM String := ir.withGoalContext ir.rootGoal do
   let mut out := s!"PresentedDecl {d.decl}   role {roleName d.role}\n"
   out := out ++ "  objects\n"
-  for o in d.objects do
-    let value ← match o.value? with
-      | some v => pure s!" := {← mathExpr v}"
-      | none => pure ""
-    out := out ++ s!"    {hypName ir o.fvar} : {← mathExpr o.type}{value}\n"
+  for g in d.objects do
+    out := out ++ s!"    {← group ir g}\n"
   out := out ++ "  hypotheses\n"
   for h in d.hypotheses do
     out := out ++ s!"    {← claim ir h}\n"
   out := out ++ s!"  conclusion\n    {← claim ir d.conclusion}\n"
-  out := out ++ "  proof\n"
+  out := out ++ s!"  proof of {← pp (.mvar d.rootGoal)}\n"
   for s in d.proof.steps do
     out := out ++ s!"    {step ir s}\n"
+    for e in s.evidence do
+      let proof ← ir.withGoalContext e.goal (pp e.proof)
+      out := out ++ s!"      proves {← pp (.mvar e.goal)}: {proof}\n"
   return out
 
 end Distill.Informalizer.IR.PresentedDecl
