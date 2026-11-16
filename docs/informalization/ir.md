@@ -179,13 +179,16 @@ Here is the structure of the Presentation IR:
 structure PresentedDecl where
   decl : Name
   role : DeclRole
-  objects : Array MathObject
+  objects : Array ObjectGroup
   hypotheses : Array Claim
   conclusion : Claim
+  rootGoal : MVarId
   proof : Block
 ```
 
-The `decl` is the name of the proof in Lean, while the `role` is what type of proof it is (either a theorem, example, or lemma). Unlike in Lean, the objects and propositions in the "hypotheses" are separated into different structures (`objects` and `hypotheses`), while the `conclusion` is also a proposition. The `proof` is the proof itself.
+The `decl` is the name of the proof in Lean, while the `role` is what type of proof it is (either a theorem, example, or lemma). Unlike in Lean, the objects and propositions in the "hypotheses" are separated into different structures (`objects` and `hypotheses`), while the `conclusion` is also a proposition. The `proof` is the proof itself, and `rootGoal` is the Lean goal it proves.
+
+The objects come in groups. An `ObjectGroup` holds objects that are introduced together because they are described the same way ("let $A$, $B$ and $C$ be sets"). Before normalization every object is in a group of its own.
 
 A `Claim` holds the following information:
 
@@ -210,9 +213,10 @@ structure MathObject where
   value? : Option MathExpr := none
   instances : Array MathExpr := #[]
   properties : Array Claim := #[]
+  binderInfo : BinderInfo := .default
 ```
 
-It stores the original Lean ID (`fvar`) and `name`, as well as its `type` and `value?` (if relevant).
+It stores the original Lean ID (`fvar`) and `name`, as well as its `type` and `value?` (if relevant). The `binderInfo` says how the statement binds the object: an implicit object such as `{α : Type}` is left out of the English unless something else mentions it.
 
 The `instances` is a list of expressions corresponding to instances satisfied by the object (e.g. "G is a finite group"), while the `properties` is a list of properties of the object that can be treated as adjectives (e.g. "p is prime"). During normalization, properties are moved to be within the MathObject they are describing, resulting in a more natural English translation.
 
@@ -231,10 +235,13 @@ structure ProofStep where
   kind : StepKind
   reasons : Array Reason := #[]
   origin : StepOrigin
+  evidence : Array Evidence := #[]
   expansion? : Option Block := none
 ```
 
 The `id` is a unique ID for this step. The `kind` is one of many possible kinds of steps, along with its associated information. These kinds represent individual sentences/steps you would see in a written English proof. The `reasons` are a list of facts that support the validity of this step, such as prior propositions that we know are true, previous definitions or theorems, or a complicated tactic. The `origin` relates the step back to the Lean proof: what tactics and/or hypotheses it corresponds with, and whether it is from a single tactic, part of a tactic, multiple tactics, or inferred from a proof term. The `expansion?` contains an additional proof block that goes into more detail, if necessary.
+
+The `evidence` is the part of the Lean proof that the step presents: for each goal the step starts from, a proof term in which the goals it leaves to other steps are still metavariables (`fun x hx => ?g2 x hx` for `intro x hx`). Put together, the evidence of all steps is a proof of the statement, which is how a presentation is [verified](pipeline.md#verify). A pass that merges, splits or drops steps has to move their evidence along.
 
 Similarly to the `detail` information for tactics, there are many kinds of steps, and which ones are used is subject to change during the early development stages of Distill. Here is the initial list of `StepKind`s:
 | Kind | Meaning | English example | IR example | Usually comes from |

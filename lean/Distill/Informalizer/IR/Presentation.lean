@@ -18,6 +18,9 @@ It is organized around mathematical reasoning (`ProofStep`), not Lean tactics.
 * **Detail.** Every step can carry a more detailed version of itself (`expansion?`), shown
   when the reader expands the step. Steps justified by automation point at the Proof IR node
   (`Reason.automation`), whose evidence an expansion can be built from.
+* **Verification.** A presentation can be checked against the proof it presents: its statement
+  is equivalent to the original one, and the `Evidence` of its steps adds up to a proof of it
+  (`Distill.Informalizer.verify`).
 * **Provenance.** `StepOrigin` links steps to Proof IR tactic nodes and hypotheses. The
   mapping is many-to-many: one tactic can yield several steps (`.partOf`), several tactics
   can be merged (`.consolidated`), and some steps have no tactic at all (`.inferred` from
@@ -76,9 +79,20 @@ structure MathObject where
   value? : Option MathExpr := none
   /-- Structure the object carries: "let `X` be a *topological space*" (`TopologicalSpace X`). -/
   instances : Array MathExpr := #[]
-  /-- Properties stated with the introduction: "let `U` be an *open* subset of `E`".
-  Normalization can move `assume` facts here. -/
+  /-- Properties stated with the introduction: "let `U` be an *open* subset of `E`", "let
+  `x ∈ A`". Normalization can move hypotheses and `assume` facts here. -/
   properties : Array Claim := #[]
+  /-- How the statement binds the object; only meaningful for objects of the statement. An
+  implicit one (`{α : Type}`) is determined by the others, so a renderer leaves it out unless
+  something it shows mentions it. -/
+  binderInfo : BinderInfo := .default
+  deriving Inhabited, Repr
+
+/-- Objects introduced together because they are described the same way: "let `A`, `B` and `C`
+be sets", "let `x, y ∈ A`". They have the same type, and the same properties up to which of them
+a property is about. -/
+structure ObjectGroup where
+  objects : Array MathObject
   deriving Inhabited, Repr
 
 /-! ## Justifications -/
@@ -123,6 +137,17 @@ structure StepOrigin where
   /-- The normalization rule that produced this step, if any. The steps it replaced are in
   the step's `expansion?`. -/
   rule? : Option Name := none
+  deriving Inhabited, Repr
+
+/-! ## Formal content -/
+
+/-- The part of the Lean proof that a step presents: a proof of `goal` in which the goals the
+step leaves for other steps are still metavariables, as in `Assignment.proof`. Put together, the
+evidence of a proof's steps is a proof of its statement (`Distill.Informalizer.verify`), so a pass
+that merges, splits or drops steps has to say where their evidence went. -/
+structure Evidence where
+  goal : MVarId
+  proof : Expr
   deriving Inhabited, Repr
 
 /-! ## Steps -/
@@ -213,6 +238,8 @@ structure ProofStep where
   /-- Why the step holds. Empty if it needs no stated reason. -/
   reasons : Array Reason := #[]
   origin : StepOrigin
+  /-- The Lean proof of what the step does. -/
+  evidence : Array Evidence := #[]
   /-- A more detailed version of this step, proving the same thing: the steps a
   normalization pass merged into this one, or a breakdown built from automation evidence.
   Interactive output shows it when the reader expands the step. -/
@@ -240,11 +267,13 @@ inductive DeclRole where
 structure PresentedDecl where
   decl : Name
   role : DeclRole
-  /-- "Let `X` be a topological space and `E ⊆ X`." -/
-  objects : Array MathObject
-  /-- Hypotheses of the statement. -/
+  /-- "Let `X` be a topological space and `E ⊆ X`." In the order they are introduced. -/
+  objects : Array ObjectGroup
+  /-- Hypotheses of the statement that are not a property of one of the objects. -/
   hypotheses : Array Claim
   conclusion : Claim
+  /-- The Lean goal that `proof` proves; the steps' `evidence` starts from it. -/
+  rootGoal : MVarId
   proof : Block
   deriving Inhabited, Repr
 

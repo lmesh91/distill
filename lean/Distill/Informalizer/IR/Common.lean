@@ -59,4 +59,9 @@ def syntaxFirstLine (stx : Syntax) : String :=
   | line :: _ => line.trimAscii.toString ++ " …"
   | [] => ""
 
+/-- `x ∈ S`, as `(S, x)`. -/
+def membership? (e : Lean.Expr) : Option (Lean.Expr × Lean.Expr) :=
+  let e := e.consumeMData
+  if e.isAppOfArity ``Membership.mem 5 then some (e.getArg! 3, e.getArg! 4) else none
+
 end Distill.Informalizer.IR
