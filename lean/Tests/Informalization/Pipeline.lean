@@ -21,20 +21,26 @@ info: PresentedDecl nested   role theorem
   conclusion
     f2: C ⊆ A ∩ B
   proof of ?g0
-    s3 untranslated `intro x hx`   origin direct [#4]
+    s3 fix   origin direct [#4]
+      x : α   with f4: x ∈ C   hyp hx
       proves ?g0: fun x hx => @?g2 x hx
-    s4 untranslated `have ha : x ∈ A := by …`   origin direct [#7]
+    s5 claim   origin direct [#7]
+      f6: x ∈ A   hyp ha
       proves ?g2: have ha := ?g3; ?g4 ha
-    s5 untranslated `exact hCA x hx`   origin direct [#23]
-      proves ?g3: hCA x hx
-    s6 untranslated `exact ⟨ha, hCB x hx⟩`   origin direct [#24]
+      s7 conclude   origin direct [#23]
+        f8: x ∈ A
+        by hCA x hx
+        proves ?g3: hCA x hx
+    s9 conclude   origin direct [#24]
+      f10: x ∈ A ∩ B
+      by ⟨ha, hCB x hx⟩
       proves ?g4: ⟨ha, hCB x hx⟩
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
-  2: Apply `intro x hx`.
-  3: Apply `have ha : x ∈ A := by …`.
-  4: Apply `exact hCA x hx`.
-  5: Apply `exact ⟨ha, hCB x hx⟩`.
+  2: Let $x \in C$.
+  3: We claim that $x \in A$.
+  4: Thus $x \in A$ by `hCA x hx`.
+  5: Thus $x \in A \cap B$ by `⟨ha, hCB x hx⟩`.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -60,12 +66,14 @@ info: PresentedDecl _example   role example
   proof of ?g0
     s3 untranslated `⟨hp, by exact hq⟩`   origin direct [#0]
       proves ?g0: ⟨hp, ?g1⟩
-    s4 untranslated `exact hq`   origin direct [#5]
+    s4 conclude   origin direct [#5]
+      f5: q
+      by hq
       proves ?g1: hq
 English
   Example. Let $p$ and $q$ be propositions. If $p$ and $q$, then $p$ and $q$.
   1: Apply `⟨hp, by exact hq⟩`.
-  1: Apply `exact hq`.
+  1: Thus $q$ by `hq`.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -82,14 +90,20 @@ info: PresentedDecl no_binders   role theorem
   conclusion
     f0: ∀ (p : Prop), p → p
   proof of ?g0
-    s1 untranslated `intro p hp`   origin direct [#4]
+    s1 fix   origin partOf [#4]
+      p : Prop
       proves ?g0: fun p hp => @?g2 p hp
-    s2 untranslated `exact hp`   origin direct [#7]
+    s3 assume   origin partOf [#4]
+      f2: p   hyp hp
+    s4 conclude   origin direct [#7]
+      f5: p
+      by hp
       proves ?g2: hp
 English
   Theorem. For every proposition $p$, if $p$, then $p$.
-  2: Apply `intro p hp`.
-  3: Apply `exact hp`.
+  2: Let $p$ be a proposition.
+  2: Suppose that $p$.
+  3: Thus $p$ by `hp`.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -132,13 +146,14 @@ info: PresentedDecl unfinished   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 untranslated `intro x hx`   origin direct [#4]
+    s1 fix   origin direct [#4]
+      x : α   with f2: x ∈ A ∩ B   hyp hx
       proves ?g0: fun x hx => @?g2 x hx
-    s2 untranslated `sorry`   origin direct [#7]
+    s3 untranslated `sorry`   origin direct [#7]
       proves ?g2: sorry
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: Apply `intro x hx`.
+  2: Let $x \in A \cap B$.
   3: Apply `sorry`.
 Verification
   statement: identical to the original statement
@@ -166,11 +181,12 @@ info: PresentedDecl failing   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 untranslated `intro x hx`   origin direct [#4]
+    s1 fix   origin direct [#4]
+      x : α   with f2: x ∈ A ∩ B   hyp hx
       proves ?g0: fun x hx => @?g2 x hx
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: Apply `intro x hx`.
+  2: Let $x \in A \cap B$.
 Verification
   statement: identical to the original statement
   proof: incomplete (no step proves ?g2)
@@ -229,11 +245,13 @@ info: PresentedDecl with_passes   role theorem
   conclusion
     f3: C ⊆ A ∩ B
   proof of ?g0
-    s4 untranslated `exact subset_inter hCA hCB`   origin direct [#4]
+    s4 conclude   origin direct [#4]
+      f5: C ⊆ A ∩ B
+      by subset_inter hCA hCB
       proves ?g0: subset_inter hCA hCB
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $A \subseteq B$, $C \subseteq B$ and $C \subseteq A$, then $C \subseteq A \cap B$.
-  2: Apply `exact subset_inter hCA hCB`.
+  2: Thus $C \subseteq A \cap B$ by `subset_inter hCA hCB`.
 Verification
   statement: equivalent to the original statement (proof checked)
   proof: the steps rebuild a proof of the presented statement
@@ -266,12 +284,14 @@ info: PresentedDecl failing_bullet   role theorem
   proof of ?g0
     s3 untranslated `constructor`   origin direct [#4]
       proves ?g0: ⟨?g1, ?g2⟩
-    s4 untranslated `exact hq`   origin direct [#14]
+    s4 conclude   origin direct [#14]
+      f5: q
+      by hq
       proves ?g2: hq
 English
   Theorem. Let $p$ and $q$ be propositions. If $q$ and $p$, then $p$ and $q$.
   2: Apply `constructor`.
-  4: Apply `exact hq`.
+  4: Thus $q$ by `hq`.
 Verification
   statement: equivalent to the original statement (proof checked)
   proof: incomplete (no step proves ?g1)
@@ -306,9 +326,12 @@ info: PresentedDecl quoted   role theorem
   conclusion
     f0: True
   proof of ?g0
-    s1 untranslated `intro x hx`   origin direct [#4]
+    s1 fix   origin direct [#4]
+      x : α   with f2: x ∈ A ∩ B   hyp hx
       proves ?g0: fun x hx => @?g2 x hx
-    s2 untranslated `exact hx.left`   origin direct [#7]
+    s3 conclude   origin direct [#7]
+      f4: x ∈ A
+      by hx.left
       proves ?g2: hx.left
 English
   Theorem. `∀ {α : Type u_1} (A B : Set α), A ∩ B ⊆ A`.
