@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
 	ProofCheckError,
+	announceProofCheck,
 	createProofChecker,
 	describeProofCheck,
 	submitProof,
@@ -217,5 +218,24 @@ test('describeProofCheck shows elapsed time while busy and explains rejections',
 	assert.equal(
 		describeProofCheck({ kind: 'error', message: 'Sign in again to check your proof.' }, 0)?.detail,
 		'Sign in again to check your proof.'
+	);
+});
+
+test('screen readers hear the title and detail once per stage, including error instructions', () => {
+	const announce = (state: ProofCheckState, now: number) =>
+		announceProofCheck(describeProofCheck(state, now));
+	assert.equal(announce({ kind: 'idle' }, 0), '');
+	assert.equal(
+		announce({ kind: 'error', message: 'Sign in again to check your proof.' }, 0),
+		'Couldn’t check your proof. Sign in again to check your proof.'
+	);
+	assert.equal(
+		announce({ kind: 'accepted', result: accepted }, 0),
+		'Proof accepted! Lean checked every step.'
+	);
+	// the elapsed seconds tick on screen but don't change what gets announced
+	assert.equal(
+		announce({ kind: 'running', since: 0 }, 1000),
+		announce({ kind: 'running', since: 0 }, 9000)
 	);
 });

@@ -257,3 +257,15 @@ export function describeProofCheck(state: ProofCheckState, now: number): ProofCh
 		}
 	}
 }
+
+/**
+ * what screen readers hear for a state: the title and the detail, so instructions like
+ * "Sign in again" are read out too. no elapsed time, so it's only announced once per state.
+ * empty while idle, so the always-mounted live region has nothing to read
+ */
+export function announceProofCheck(view: ProofCheckView | null): string {
+	if (!view) return '';
+	// a period after a bare title so screen readers pause before the detail
+	const pause = /[.!?…]$/.test(view.title) ? '' : '.';
+	return `${view.title}${pause} ${view.detail}`;
+}

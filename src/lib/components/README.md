@@ -35,7 +35,8 @@ heading style.
 
 `ProofCheckStatus.svelte` shows where a "Check proof" request is (#57): waiting for a free Lean
 worker, checking (with a seconds counter), accepted, rejected with the reason, or an error. It
-renders nothing while idle. Pair it with `createProofChecker` from `src/lib/levels/proofCheck.ts`,
+renders nothing visible while idle, but keeps a hidden `role="status"` region mounted so screen
+readers announce each stage (title and detail) as it happens. Pair it with `createProofChecker` from `src/lib/levels/proofCheck.ts`,
 which calls `POST /api/submissions`, retries while Lean is busy (503 with `Retry-After`), and
 cancels an older check when a new one starts:
 

@@ -1,5 +1,9 @@
 <script lang="ts">
-	import { describeProofCheck, type ProofCheckState } from '$lib/levels/proofCheck';
+	import {
+		announceProofCheck,
+		describeProofCheck,
+		type ProofCheckState
+	} from '$lib/levels/proofCheck';
 
 	// shows where a "Check proof" request is (#57): waiting for Lean, checking, or the verdict
 	let { check }: { check: ProofCheckState } = $props();
@@ -15,9 +19,14 @@
 	});
 
 	const view = $derived(describeProofCheck(check, Math.max(now, Date.now())));
+	const announcement = $derived(announceProofCheck(view));
 </script>
 
-<!-- the live region only gets the title, so screen readers hear each stage once, not every tick -->
+<!-- the live region stays mounted while idle, since screen readers can miss a message in a region
+that appears together with it. it gets the title and detail but not the elapsed time, so each
+stage is read once instead of every tick -->
+<p class="sr-only" role="status">{announcement}</p>
+
 <div class="proof-check {view?.tone ?? ''} {check.kind}" hidden={!view}>
 	{#if view}
 		<svg class="icon" viewBox="0 0 20 20" width="20" height="20" aria-hidden="true">
@@ -43,7 +52,7 @@
 		</svg>
 		<div class="text">
 			<p class="title">
-				<span role="status" aria-live="polite">{view.title}</span>
+				<span>{view.title}</span>
 				{#if view.elapsed !== undefined}
 					<span class="elapsed" aria-hidden="true">{view.elapsed}s</span>
 				{/if}
