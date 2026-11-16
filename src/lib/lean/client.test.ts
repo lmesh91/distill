@@ -140,12 +140,12 @@ test('requests a translation once Lean finishes checking the current version', (
 	assert.equal(call.params.sessionId, '18446744073709551615');
 
 	client.update('example : True := by trivial');
-	receive({ id: call.id, result: [{ line: 0, english: 'stale' }] });
+	receive({ id: call.id, result: [{ line: 0, english: [{ kind: 'text', text: 'stale' }] }] });
 	done(2);
 	const next = sent.at(-1)!;
-	receive({ id: next.id, result: [{ line: 0, english: 'fresh' }] });
+	receive({ id: next.id, result: [{ line: 0, english: [{ kind: 'text', text: 'fresh' }] }] });
 	receive({ id: 999, error: { code: -32601, message: 'unrelated' } });
-	assert.deepEqual(translations, [[{ line: 0, english: 'fresh' }]]);
+	assert.deepEqual(translations, [[{ line: 0, english: [{ kind: 'text', text: 'fresh' }] }]]);
 	client.dispose();
 });
 
