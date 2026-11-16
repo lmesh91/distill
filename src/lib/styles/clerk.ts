@@ -1,24 +1,33 @@
 /**
- * theme for Clerk's sign-in, sign-up and account components, matching tokens.css
- * Clerk builds its own color shades from these, so they're plain hex values instead of
- * CSS variables. keep them in sync with tokens.css
- * https://clerk.com/docs/customization/variables
+ * theme for Clerk's sign-in, sign-up and account components, matching tokens.css (#192)
+ * the values are our CSS variables, so Clerk follows light and dark mode (including the theme
+ * toggle) without re-rendering. Clerk mixes its hover and border shades from these with
+ * color-mix(), which every browser we support has
+ * https://clerk.com/docs/react/guides/customizing-clerk/appearance-prop/variables
  */
 export const clerkAppearance = {
 	variables: {
-		colorPrimary: '#1a6db8', // --color-brand
-		colorBackground: '#ffffff', // --color-surface
-		colorDanger: '#b42318', // --color-error
-		colorSuccess: '#1a7f37', // --color-success
-		colorNeutral: '#1b1b1f', // --color-ink
-		fontFamily: "'Space Grotesk Variable', system-ui, sans-serif", // --font-body
-		borderRadius: '6px' // --radius
+		colorPrimary: 'var(--color-brand)',
+		colorPrimaryForeground: 'var(--color-text-on-brand)',
+		colorBackground: 'var(--color-surface)',
+		colorForeground: 'var(--color-text)',
+		colorMutedForeground: 'var(--color-text-muted)',
+		colorInput: 'var(--color-surface)',
+		colorInputForeground: 'var(--color-text)',
+		// borders, dividers and hover backgrounds are shades of this, so they flip with the theme
+		colorNeutral: 'var(--color-ink)',
+		colorDanger: 'var(--color-error)',
+		colorSuccess: 'var(--color-success)',
+		colorWarning: 'var(--color-warning)',
+		colorRing: 'var(--color-focus)',
+		fontFamily: 'var(--font-body)',
+		borderRadius: 'var(--radius)'
 	},
 	elements: {
 		// the pixel border and shadow used by .card
 		card: {
-			border: '2px solid #1b1b1f',
-			boxShadow: '4px 4px 0 #1b1b1f'
+			border: 'var(--border-width) solid var(--color-border)',
+			boxShadow: 'var(--shadow-pixel)'
 		}
 	}
 };
