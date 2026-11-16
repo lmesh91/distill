@@ -1,0 +1,95 @@
+/* page-wide defaults built on tokens.css. components add their own styles on top */
+
+/* Departure Mono 1.500 plus pixel Lean symbols, SIL OFL 1.1 (see src/lib/assets/fonts) */
+@font-face {
+	font-family: 'Distill Mono';
+	src: url('../assets/fonts/distill-mono.woff2') format('woff2');
+	font-weight: 400;
+	font-style: normal;
+	font-display: swap;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--color-page);
+	color: var(--color-text);
+	font-family: var(--font-body);
+	font-size: var(--text-md);
+	line-height: var(--leading-normal);
+	-webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4 {
+	line-height: var(--leading-tight);
+	font-weight: var(--weight-bold);
+}
+
+a {
+	color: var(--color-brand);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+}
+
+a:hover {
+	color: var(--color-brand-strong);
+}
+
+code,
+kbd,
+pre,
+samp {
+	font-family: var(--font-mono);
+	font-size: 0.925em;
+}
+
+:not(pre) > code {
+	padding: 0.1em 0.35em;
+	border-radius: var(--radius-sm);
+	background: var(--color-surface-sunken);
+}
+
+button,
+input,
+select,
+textarea {
+	font: inherit;
+	color: inherit;
+}
+
+/* one visible focus ring everywhere; components only change the offset if needed */
+:focus-visible {
+	outline: 2px solid var(--color-focus);
+	outline-offset: 2px;
+}
+
+::selection {
+	background: var(--color-highlight);
+	color: var(--color-on-highlight);
+}
+
+img,
+svg {
+	max-width: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		scroll-behavior: auto !important;
+	}
+}
