@@ -1,6 +1,6 @@
 import type { HighlighterCore } from 'shiki/core';
 
-const theme = 'github-light';
+const themes = { light: 'github-light', dark: 'github-dark' };
 // only Lean is loaded; other fenced languages render as plain code
 const leanAliases = new Set(['lean4', 'lean']);
 
@@ -10,7 +10,7 @@ function getHighlighter() {
 	highlighter ??= Promise.all([import('shiki/core'), import('shiki/engine/javascript')]).then(
 		([{ createHighlighterCore }, { createJavaScriptRegexEngine }]) =>
 			createHighlighterCore({
-				themes: [import('@shikijs/themes/github-light')],
+				themes: [import('@shikijs/themes/github-light'), import('@shikijs/themes/github-dark')],
 				langs: [import('@shikijs/langs/lean4')],
 				engine: createJavaScriptRegexEngine()
 			})
@@ -28,7 +28,8 @@ export async function highlightCode(code: string, lang: string, block: boolean) 
 	const shiki = await getHighlighter();
 	return shiki.codeToHtml(code, {
 		lang: 'lean4',
-		theme,
+		themes,
+		defaultColor: false,
 		structure: block ? 'classic' : 'inline'
 	});
 }

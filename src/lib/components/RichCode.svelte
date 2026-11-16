@@ -31,7 +31,8 @@
 		padding: 0.5rem 0.75rem;
 		overflow-x: auto;
 		border-radius: 4px;
-		background: #f6f8fa !important;
+		background: var(--color-surface-sunken);
+		color: var(--color-text);
 		font-size: 1em;
 		white-space: pre;
 	}
@@ -39,7 +40,26 @@
 	.inline-code {
 		padding: 0.1em 0.3em;
 		border-radius: 3px;
-		background: #f0f0f0;
+		background: var(--color-surface-sunken);
+		color: var(--color-text);
 		font-size: 1em;
+	}
+
+	/* Both palettes are in the markup, so theme changes need no JS or re-highlighting. */
+	.code-block :global(span),
+	.inline-code :global(span) {
+		color: var(--shiki-light);
+	}
+
+	:global(:root[data-theme='dark']) .code-block :global(span),
+	:global(:root[data-theme='dark']) .inline-code :global(span) {
+		color: var(--shiki-dark);
+	}
+
+	@media (prefers-color-scheme: dark) {
+		:global(:root:not([data-theme='light'])) .code-block :global(span),
+		:global(:root:not([data-theme='light'])) .inline-code :global(span) {
+			color: var(--shiki-dark);
+		}
 	}
 </style>
