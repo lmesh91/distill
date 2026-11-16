@@ -5,6 +5,7 @@
 	import { accountLinks, primaryLinks, visibleLinks, type NavLink } from '$lib/navigation/links';
 	import logo from '$lib/assets/distill-logo.png';
 	import ThemeToggle from './ThemeToggle.svelte';
+	import MusicControl from './MusicControl.svelte';
 
 	const clerk = useClerkContext();
 	// the server passes Clerk's auth state in the page data, so this is right on the first render;
@@ -13,6 +14,10 @@
 	const signedIn = $derived(Boolean(clerk.auth.userId));
 	const links = $derived(visibleLinks(primaryLinks, signedIn));
 	const authLinks = $derived(visibleLinks(accountLinks, signedIn));
+	// the music only plays on game pages, so its controls only show there
+	const onGamePage = $derived(
+		page.url.pathname === '/app' || page.url.pathname.startsWith('/app/')
+	);
 
 	// the sign-in and sign-up pages are catch-all routes for Clerk's sub-steps, so resolve
 	// needs their route ids; an empty rest parameter gives the plain /sign-in path
@@ -45,6 +50,9 @@
 		</ul>
 
 		<div class="account">
+			{#if onGamePage}
+				<MusicControl />
+			{/if}
 			<ThemeToggle />
 			{#if signedIn}
 				<!-- ends the Clerk session, then returns to the signed-out home page -->
