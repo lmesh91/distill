@@ -20,7 +20,7 @@
 		"test:proof-check": "node --test tests/lib/levels/proofCheck.test.ts",
         "test:initial-code": "node --test src/lib/levels/initialCode.test.ts",
         "test:redirects": "node --test src/lib/server/redirects.test.ts",
-        "test:progress": "node --test src/lib/server/progress.test.ts",
+        "test:progress": "node --test src/lib/server/progress.test.ts src/lib/server/attempts.test.ts",
         "test:autosave": "node --test tests/lib/levels/autosave.test.ts",
         "test:levels": "node --test src/lib/server/levels.test.ts",
 		"build": "vite build",

@@ -117,6 +117,7 @@ structure HypInfo where
   value? : Option Expr := none
   binderInfo : BinderInfo := .default
   replaces? : Option HypLineage := none
+  isRecursive : Bool := false
 ```
 
 It includes the ID (`fvarId`) and name (`userName`) of the hypotheses as well as its `type` and `value?` (when assigned to a specific value via `let` or `set`).
@@ -156,6 +157,20 @@ Most tactics will have their own information defined in the `detail` field. As a
 `.have hBx (some (hAB x hx.1)) none`
 `.term .exact ⟨hBx, hx.2⟩`
 
+#### Inspecting and testing
+
+`#proof_ir` before a command prints the Proof IR of its proofs, with positions relative to the command, and checks that the assignments rebuild the declaration's proof term (exactly, up to β-reduction, or else type-checked and definitionally equal without proof irrelevance, which would make any two proofs of a theorem equal):
+
+```lean
+import Distill.Informalizer.Extract.Frontend
+
+#proof_ir
+theorem t (p q : Prop) (hp : p) (hq : q) : p ∧ q := by
+  exact ⟨hp, hq⟩
+```
+
+The golden tests in `lean/Tests/Extraction` use it on the demo levels, alternate proofs of them, other proof shapes, and proofs that fail. Run them with `lake test` in `lean/`. When the output changes on purpose, update the docstring above the affected `#guard_msgs`.
+
 ## Presentation IR
 
 Here is the structure of the Presentation IR:
@@ -164,13 +179,16 @@ Here is the structure of the Presentation IR:
 structure PresentedDecl where
   decl : Name
   role : DeclRole
-  objects : Array MathObject
+  objects : Array ObjectGroup
   hypotheses : Array Claim
   conclusion : Claim
+  rootGoal : MVarId
   proof : Block
 ```
 
-The `decl` is the name of the proof in Lean, while the `role` is what type of proof it is (either a theorem, example, or lemma). Unlike in Lean, the objects and propositions in the "hypotheses" are separated into different structures (`objects` and `hypotheses`), while the `conclusion` is also a proposition. The `proof` is the proof itself.
+The `decl` is the name of the proof in Lean, while the `role` is what type of proof it is (either a theorem, example, or lemma). Unlike in Lean, the objects and propositions in the "hypotheses" are separated into different structures (`objects` and `hypotheses`), while the `conclusion` is also a proposition. The `proof` is the proof itself, and `rootGoal` is the Lean goal it proves.
+
+The objects come in groups. An `ObjectGroup` holds objects that are introduced together because they are described the same way ("let $A$, $B$ and $C$ be sets"). Before normalization every object is in a group of its own.
 
 A `Claim` holds the following information:
 
@@ -195,9 +213,10 @@ structure MathObject where
   value? : Option MathExpr := none
   instances : Array MathExpr := #[]
   properties : Array Claim := #[]
+  binderInfo : BinderInfo := .default
 ```
 
-It stores the original Lean ID (`fvar`) and `name`, as well as its `type` and `value?` (if relevant).
+It stores the original Lean ID (`fvar`) and `name`, as well as its `type` and `value?` (if relevant). The `binderInfo` says how the statement binds the object: an implicit object such as `{α : Type}` is left out of the English unless something else mentions it.
 
 The `instances` is a list of expressions corresponding to instances satisfied by the object (e.g. "G is a finite group"), while the `properties` is a list of properties of the object that can be treated as adjectives (e.g. "p is prime"). During normalization, properties are moved to be within the MathObject they are describing, resulting in a more natural English translation.
 
@@ -216,10 +235,13 @@ structure ProofStep where
   kind : StepKind
   reasons : Array Reason := #[]
   origin : StepOrigin
+  evidence : Array Evidence := #[]
   expansion? : Option Block := none
 ```
 
 The `id` is a unique ID for this step. The `kind` is one of many possible kinds of steps, along with its associated information. These kinds represent individual sentences/steps you would see in a written English proof. The `reasons` are a list of facts that support the validity of this step, such as prior propositions that we know are true, previous definitions or theorems, or a complicated tactic. The `origin` relates the step back to the Lean proof: what tactics and/or hypotheses it corresponds with, and whether it is from a single tactic, part of a tactic, multiple tactics, or inferred from a proof term. The `expansion?` contains an additional proof block that goes into more detail, if necessary.
+
+The `evidence` is the part of the Lean proof that the step presents: for each goal the step starts from, a proof term in which the goals it leaves to other steps are still metavariables (`fun x hx => ?g2 x hx` for `intro x hx`). Put together, the evidence of all steps is a proof of the statement, which is how a presentation is [verified](pipeline.md#verify). A pass that merges, splits or drops steps has to move their evidence along.
 
 Similarly to the `detail` information for tactics, there are many kinds of steps, and which ones are used is subject to change during the early development stages of Distill. Here is the initial list of `StepKind`s:
 | Kind | Meaning | English example | IR example | Usually comes from |
@@ -235,6 +257,7 @@ Similarly to the `detail` information for tactics, there are many kinds of steps
 | `split` | Divide the proof into branches: the two directions of an iff, the parts of an "and", cases, or induction | "(⇒) … (⇐) …" | `split iff [Branch mp …, Branch mpr …]` | `constructor`, `cases`, `rcases … with h \| h`, `induction` |
 | `contradiction` | Derive a contradiction from the cited facts | "Then $y \in E$, but also $y \notin E$, a contradiction." | `contradiction  because fact f9, fact f10` | `exact absurd …`, `contradiction`, `omega` on a `False` goal |
 | `conclude` | State that the current goal has been reached | "Hence $A \cap C \subseteq B \cap C$." | `conclude f1` | usually added for readability; Lean has no matching step |
+| `untranslated` | A tactic that has no presentation yet, shown as the Lean the user wrote | "Apply `intro x hx`." | `untranslated #1` | any surface node; see [pipeline.md](pipeline.md) |
 
 
 ## Full Example
@@ -268,11 +291,11 @@ ProofIR intersection_subset
 
   goals
     ?g0 ⊢ ∀ x, A x ∧ C x → B x ∧ C x   ctx [α A B C hAB]
-         assigned by #2   fun x => ?g1
+         assigned by #2   fun x => ?g1 x
     ?g1 ⊢ A x ∧ C x → B x ∧ C x         parent ?g0   new: x
-         assigned by #3   fun hx => ?g2
+         assigned by #3   fun hx => ?g2 hx
     ?g2 ⊢ B x ∧ C x                     parent ?g1   new: hx
-         assigned by #5   let hBx := hAB x hx.1; ?g3
+         assigned by #5   let hBx := hAB x hx.1; ?g3 hBx
     ?g3 ⊢ B x ∧ C x                     parent ?g2   new: hBx
          assigned by #6   ⟨hBx, hx.2⟩
 

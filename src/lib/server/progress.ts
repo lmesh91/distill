@@ -48,8 +48,8 @@ export async function saveLevelProgress(
 	if (!level) return 'level_not_found';
 
 	const now = new Date();
-	try {
-		await progress.updateOne(
+	const save = () =>
+		progress.updateOne(
 			{
 				userId,
 				levelId,
@@ -71,12 +71,20 @@ export async function saveLevelProgress(
 			],
 			{ upsert: true }
 		);
+	const isDuplicate = (error: unknown) =>
+		error instanceof MongoServerError && error.code === duplicateKeyErrorCode;
+	try {
+		await save();
 	} catch (error) {
-		// the record exists but has a newer save, so the upsert tried to insert a duplicate
-		if (error instanceof MongoServerError && error.code === duplicateKeyErrorCode) {
-			return 'stale';
+		if (!isDuplicate(error)) throw error;
+		// a concurrent first write (such as a proof check) may have created the record without
+		// a save time, which the retry matches; a second collision means a newer save exists
+		try {
+			await save();
+		} catch (retryError) {
+			if (isDuplicate(retryError)) return 'stale';
+			throw retryError;
 		}
-		throw error;
 	}
 	return 'saved';
 }
