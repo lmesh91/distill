@@ -40,4 +40,23 @@ inductive SyntaxOrigin where
 /-- Extension data has no structure Distill knows about; show only its type. -/
 instance : Repr Dynamic := ⟨fun d _ => s!"<{d.typeName}>"⟩
 
+/-- The first line of a piece of syntax as the user would read it, with `…` if there is more. -/
+def syntaxFirstLine (stx : Syntax) : String :=
+  -- Hygienic names in macro expansions (`h._@.Module._hyg.3`) depend on the module.
+  let stx := stx.rewriteBottomUp fun
+    -- Only hygienic ones: `hygieneInfo` nodes are identifiers with no source text.
+    | .ident info raw n pre =>
+      if n.hasMacroScopes then
+        let n := n.eraseMacroScopes
+        .ident info (toString n).toRawSubstring n pre
+      else .ident info raw n pre
+    | s => s
+  -- Comments after the syntax are attached to its last token.
+  let stx := stx.unsetTrailing
+  let text := (stx.reprint.getD (toString stx)).trimAscii.toString
+  match text.splitOn "\n" with
+  | [line] => line
+  | line :: _ => line.trimAscii.toString ++ " …"
+  | [] => ""
+
 end Distill.Informalizer.IR

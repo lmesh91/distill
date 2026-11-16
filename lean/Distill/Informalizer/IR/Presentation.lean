@@ -176,6 +176,10 @@ inductive StepKind where
   | contradiction
   /-- "Hence `P`", where `P` is the goal of the enclosing block. -/
   | conclude (goal : Claim)
+  /-- A Proof IR node that has no presentation yet, shown as the Lean the user wrote. Every
+  surface node starts out as one of these; translating a tactic means producing other steps
+  for it. -/
+  | untranslated (node : Nat)
   deriving Repr
 
 /-- One link `aᵢ₋₁ Rᵢ aᵢ` of a calculation. -/
