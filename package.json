@@ -21,7 +21,7 @@
         "test:redirects": "node --test src/lib/server/redirects.test.ts",
         "test:progress": "node --test src/lib/server/progress.test.ts src/lib/server/attempts.test.ts",
         "test:autosave": "node --test tests/lib/levels/autosave.test.ts",
-        "test:levels": "node --test src/lib/server/levels.test.ts",
+        "test:levels": "node --test src/lib/server/levels.test.ts tests/lib/server/nextLevel.test.ts",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
