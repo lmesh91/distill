@@ -1,10 +1,28 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { Show, SignOutButton } from 'svelte-clerk';
-	import { primaryLinks } from '$lib/navigation/links';
+	import { SignOutButton, useClerkContext } from 'svelte-clerk';
+	import { accountLinks, primaryLinks, visibleLinks, type NavLink } from '$lib/navigation/links';
 	import logo from '$lib/assets/distill-logo.png';
 	import ThemeToggle from './ThemeToggle.svelte';
+
+	const clerk = useClerkContext();
+	// the server passes Clerk's auth state in the page data, so this is right on the first render;
+	// <Show> renders nothing until Clerk's script loads, which made the nav jump after hydration
+	// it also updates on its own when the user signs out
+	const signedIn = $derived(Boolean(clerk.auth.userId));
+	const links = $derived(visibleLinks(primaryLinks, signedIn));
+	const authLinks = $derived(visibleLinks(accountLinks, signedIn));
+
+	// the sign-in and sign-up pages are catch-all routes for Clerk's sub-steps, so resolve
+	// needs their route ids; an empty rest parameter gives the plain /sign-in path
+	const hrefs = {
+		'/': resolve('/'),
+		'/app': resolve('/app'),
+		'/app/lean': resolve('/app/lean'),
+		'/sign-in': resolve('/(auth)/sign-in/[...sign_in]', { sign_in: '' }),
+		'/sign-up': resolve('/(auth)/sign-up/[...sign_up]', { sign_up: '' })
+	} satisfies Record<NavLink['href'], string>;
 </script>
 
 <header class="site-header">
@@ -14,10 +32,10 @@
 		</a>
 
 		<ul class="links">
-			{#each primaryLinks as link (link.href)}
+			{#each links as link (link.href)}
 				<li>
 					<a
-						href={resolve(link.href)}
+						href={hrefs[link.href]}
 						aria-current={link.isActive(page.url.pathname) ? 'page' : undefined}
 					>
 						{link.label}
@@ -28,10 +46,20 @@
 
 		<div class="account">
 			<ThemeToggle />
-			<!-- Ends the Clerk session, then returns to the signed-out home page. -->
-			<Show when="signed-in">
+			{#if signedIn}
+				<!-- ends the Clerk session, then returns to the signed-out home page -->
 				<SignOutButton redirectUrl="/" class="button small sign-out" />
-			</Show>
+			{:else}
+				{#each authLinks as link (link.href)}
+					<a
+						class={['button', 'small', link.href === '/sign-up' && 'primary']}
+						href={hrefs[link.href]}
+						aria-current={link.isActive(page.url.pathname) ? 'page' : undefined}
+					>
+						{link.label}
+					</a>
+				{/each}
+			{/if}
 		</div>
 	</nav>
 </header>
@@ -104,6 +132,12 @@
 		background: var(--color-highlight);
 		color: var(--color-on-highlight);
 		font-weight: var(--weight-bold);
+	}
+
+	/* on the sign-in and sign-up pages, their button gets the same marker as a current link */
+	.account a[aria-current='page'] {
+		background: var(--color-highlight);
+		color: var(--color-on-highlight);
 	}
 
 	.account {
