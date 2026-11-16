@@ -1,3 +1,5 @@
+import type { TextPart } from '$lib/lean/client';
+
 export type Segment =
 	| { kind: 'text'; text: string }
 	| { kind: 'math'; tex: string; display: boolean }
@@ -64,4 +66,18 @@ export function parseRichText(source: string): Segment[] {
 /** like Markdown, one space of padding lets inline code start or end with a backtick */
 function trimInlineCode(code: string) {
 	return /^ .*[^ ].* $/s.test(code) ? code.slice(1, -1) : code;
+}
+
+/** segments for Lean's translated text, which already marks its math and code */
+export function segmentsFromParts(parts: TextPart[]): Segment[] {
+	return parts.map((part): Segment => {
+		switch (part.kind) {
+			case 'math':
+				return { kind: 'math', tex: part.text, display: false };
+			case 'code':
+				return { kind: 'code', code: part.text, lang: defaultCodeLang, block: false };
+			default:
+				return { kind: 'text', text: part.text };
+		}
+	});
 }

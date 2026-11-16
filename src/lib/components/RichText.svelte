@@ -2,12 +2,18 @@
 	import katex from 'katex';
 	import 'katex/dist/katex.min.css';
 	import RichCode from '$lib/components/RichCode.svelte';
-	import { parseRichText } from '$lib/richText/parse';
+	import type { TextPart } from '$lib/lean/client';
+	import { parseRichText, segmentsFromParts } from '$lib/richText/parse';
 
-	/** level text with `$…$` / `$$…$$` LaTeX and Markdown-style code; see `parseRichText` */
-	let { text }: { text: string } = $props();
+	/**
+	 * Either level text with `$…$` / `$$…$$` LaTeX and Markdown-style code (see
+	 * `parseRichText`), or the parts of a Lean translation.
+	 */
+	let props: { text: string } | { parts: TextPart[] } = $props();
 
-	const segments = $derived(parseRichText(text));
+	const segments = $derived(
+		'parts' in props ? segmentsFromParts(props.parts) : parseRichText(props.text)
+	);
 
 	function renderMath(tex: string, displayMode: boolean) {
 		return katex.renderToString(tex, { displayMode, throwOnError: false });

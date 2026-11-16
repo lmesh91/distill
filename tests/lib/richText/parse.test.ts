@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseRichText } from '../../../src/lib/richText/parse.ts';
+import { parseRichText, segmentsFromParts } from '../../../src/lib/richText/parse.ts';
 
 test('plain text is a single segment', () => {
 	assert.deepEqual(parseRichText('Prove it.'), [{ kind: 'text', text: 'Prove it.' }]);
@@ -52,4 +52,21 @@ test('fenced code blocks keep their language', () => {
 	assert.deepEqual(parseRichText('```\nrfl\n```'), [
 		{ kind: 'code', code: 'rfl', lang: 'lean4', block: true }
 	]);
+});
+
+test('translated parts keep their math and code without reparsing', () => {
+	assert.deepEqual(
+		segmentsFromParts([
+			{ kind: 'text', text: 'costs $5 and ' },
+			{ kind: 'math', text: 'x + 1' },
+			{ kind: 'text', text: ' by ' },
+			{ kind: 'code', text: 'simp' }
+		]),
+		[
+			{ kind: 'text', text: 'costs $5 and ' },
+			{ kind: 'math', tex: 'x + 1', display: false },
+			{ kind: 'text', text: ' by ' },
+			{ kind: 'code', code: 'simp', lang: 'lean4', block: false }
+		]
+	);
 });
