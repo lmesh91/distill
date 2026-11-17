@@ -1,0 +1,11 @@
+-- id: l3-proj-2
+-- level: 3
+-- kind: alternative
+-- note: numeric projection
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_right (A B : Set α) : A ∩ B ⊆ B := by
+  intro x hx
+  exact hx.2

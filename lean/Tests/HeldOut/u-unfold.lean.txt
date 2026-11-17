@@ -1,0 +1,13 @@
+-- id: u-unfold
+-- level: 1
+-- kind: unsupported
+-- note: `unfold` after `show`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by
+  show Set.Subset A A
+  unfold Set.Subset
+  intro x hx
+  exact hx

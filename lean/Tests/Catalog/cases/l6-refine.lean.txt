@@ -1,0 +1,12 @@
+-- id: l6-refine
+-- level: 6
+-- kind: alternative
+-- note: `refine Set.ext ?_ ?_`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A := by
+  refine Set.ext ?_ ?_
+  · exact inter_subset_inter_comm A B
+  · exact inter_subset_inter_comm B A

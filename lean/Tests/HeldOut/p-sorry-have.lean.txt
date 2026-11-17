@@ -1,0 +1,13 @@
+-- id: p-sorry-have
+-- level: 4
+-- kind: partial
+-- note: one `have` proved by `sorry`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_inter {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  have ha : x ∈ A := sorry
+  have hb : x ∈ B := hCB x hx
+  exact ⟨ha, hb⟩

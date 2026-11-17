@@ -1,0 +1,10 @@
+-- id: p-ext-only
+-- level: 6
+-- kind: partial
+-- note: `ext` and nothing else
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A := by
+  ext

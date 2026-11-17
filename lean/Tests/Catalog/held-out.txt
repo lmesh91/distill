@@ -1,0 +1,27 @@
+# seed 20261116, fraction 0.25, stratified by kind
+b-too-many-intro
+b-typo-tactic
+b-unknown-hyp
+l1-anonymous
+l2-have-obtain
+l2-rintro
+l2-term
+l3-proj-2
+l3-rcases
+l4-case
+l4-have-untyped
+l4-show
+l5-direct
+l5-lemma-as-function
+l5-scratch
+l6-apply-ext
+l6-bullets
+l6-have-first
+l6-scratch
+p-ext-one-goal
+p-intro-x-only
+p-sorry-have
+p-unclosed-bracket
+u-point-free
+u-simp
+u-unfold

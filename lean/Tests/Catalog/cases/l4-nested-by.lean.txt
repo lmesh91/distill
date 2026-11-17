@@ -1,0 +1,11 @@
+-- id: l4-nested-by
+-- level: 4
+-- kind: alternative
+-- note: `by` blocks inside the anonymous constructor
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_inter {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  exact ⟨by exact hCA x hx, by exact hCB x hx⟩

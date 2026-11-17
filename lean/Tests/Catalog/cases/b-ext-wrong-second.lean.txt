@@ -1,0 +1,12 @@
+-- id: b-ext-wrong-second
+-- level: 6
+-- kind: broken
+-- note: the second goal of `ext` given the first goal's proof
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A := by
+  ext
+  exact inter_subset_inter_comm A B
+  exact inter_subset_inter_comm A B

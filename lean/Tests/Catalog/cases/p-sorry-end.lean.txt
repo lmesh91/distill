@@ -1,0 +1,12 @@
+-- id: p-sorry-end
+-- level: 2
+-- kind: partial
+-- note: `sorry` as the last step
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  have h : x ∈ A ∧ x ∈ B := hx
+  sorry

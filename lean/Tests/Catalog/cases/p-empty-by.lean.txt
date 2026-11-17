@@ -1,0 +1,9 @@
+-- id: p-empty-by
+-- level: 1
+-- kind: partial
+-- note: nothing after `by` yet
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by

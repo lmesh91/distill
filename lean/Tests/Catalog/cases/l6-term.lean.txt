@@ -1,0 +1,10 @@
+-- id: l6-term
+-- level: 6
+-- kind: alternative
+-- note: term mode
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A :=
+  Set.ext (inter_subset_inter_comm A B) (inter_subset_inter_comm B A)

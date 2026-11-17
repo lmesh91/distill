@@ -1,0 +1,10 @@
+-- id: l1-term-underscore
+-- level: 1
+-- kind: alternative
+-- note: term mode with an unnamed element
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A :=
+  fun _ h => h

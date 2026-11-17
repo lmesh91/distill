@@ -1,0 +1,11 @@
+-- id: u-trivial
+-- level: 1
+-- kind: unsupported
+-- note: `trivial`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by
+  intro x hx
+  trivial

@@ -1,0 +1,12 @@
+-- id: u-suffices
+-- level: 2
+-- kind: unsupported
+-- note: `suffices`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  suffices h : x ∈ A ∧ x ∈ B from h.1
+  exact hx

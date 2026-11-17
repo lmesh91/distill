@@ -1,0 +1,12 @@
+-- id: l1-show
+-- level: 1
+-- kind: alternative
+-- note: `show` restating the goal
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by
+  intro x hx
+  show x ∈ A
+  exact hx

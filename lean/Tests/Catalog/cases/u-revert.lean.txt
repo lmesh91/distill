@@ -1,0 +1,13 @@
+-- id: u-revert
+-- level: 1
+-- kind: unsupported
+-- note: `revert` and a second `intro`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by
+  intro x hx
+  revert x
+  intro y hy
+  exact hy

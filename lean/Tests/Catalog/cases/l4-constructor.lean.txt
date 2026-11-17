@@ -1,0 +1,13 @@
+-- id: l4-constructor
+-- level: 4
+-- kind: alternative
+-- note: `constructor` with bullets
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_inter {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  constructor
+  · exact hCA x hx
+  · exact hCB x hx

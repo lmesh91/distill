@@ -1,0 +1,11 @@
+-- id: b-wrong-proj
+-- level: 2
+-- kind: broken
+-- note: the wrong projection: a type mismatch
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  exact hx.right

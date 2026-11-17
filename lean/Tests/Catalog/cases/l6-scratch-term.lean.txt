@@ -1,0 +1,10 @@
+-- id: l6-scratch-term
+-- level: 6
+-- kind: alternative
+-- note: from scratch in term mode
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A :=
+  Set.ext (fun x hx => ⟨hx.2, hx.1⟩) (fun x hx => ⟨hx.2, hx.1⟩)

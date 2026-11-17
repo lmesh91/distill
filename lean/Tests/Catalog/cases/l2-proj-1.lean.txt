@@ -1,0 +1,11 @@
+-- id: l2-proj-1
+-- level: 2
+-- kind: alternative
+-- note: numeric projection without the `have`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  exact hx.1

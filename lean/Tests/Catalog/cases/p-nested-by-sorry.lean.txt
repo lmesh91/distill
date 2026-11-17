@@ -1,0 +1,11 @@
+-- id: p-nested-by-sorry
+-- level: 4
+-- kind: partial
+-- note: `sorry` inside a nested `by`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_inter {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  exact ⟨by sorry, hCB x hx⟩

@@ -1,0 +1,12 @@
+-- id: l5-apply
+-- level: 5
+-- kind: alternative
+-- note: `apply subset_inter` with bullets
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_inter_comm (A B : Set α) : A ∩ B ⊆ B ∩ A := by
+  apply subset_inter
+  · exact inter_subset_right A B
+  · exact inter_subset_left A B

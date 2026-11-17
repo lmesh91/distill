@@ -1,0 +1,13 @@
+-- id: u-by-cases
+-- level: 1
+-- kind: unsupported
+-- note: a case distinction
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by
+  intro x hx
+  by_cases h : x ∈ A
+  · exact h
+  · exact absurd hx h

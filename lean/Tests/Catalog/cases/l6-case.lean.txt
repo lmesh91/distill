@@ -1,0 +1,12 @@
+-- id: l6-case
+-- level: 6
+-- kind: alternative
+-- note: `case` naming the goals of `ext`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A := by
+  ext
+  case h₁ => exact inter_subset_inter_comm A B
+  case h₂ => exact inter_subset_inter_comm B A

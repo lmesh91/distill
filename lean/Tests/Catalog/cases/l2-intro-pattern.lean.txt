@@ -1,0 +1,11 @@
+-- id: l2-intro-pattern
+-- level: 2
+-- kind: alternative
+-- note: `intro` with a pattern
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x ⟨ha, _⟩
+  exact ha

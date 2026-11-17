@@ -1,0 +1,12 @@
+-- id: b-have-mismatch
+-- level: 2
+-- kind: broken
+-- note: a `have` whose proof does not have its type
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  have h : x ∈ A := hx
+  exact h

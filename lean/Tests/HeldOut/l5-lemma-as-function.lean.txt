@@ -1,0 +1,13 @@
+-- id: l5-lemma-as-function
+-- level: 5
+-- kind: alternative
+-- note: earlier theorems applied to the element
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_inter_comm (A B : Set α) : A ∩ B ⊆ B ∩ A := by
+  intro x hx
+  have ha : x ∈ A := inter_subset_left A B x hx
+  have hb : x ∈ B := inter_subset_right A B x hx
+  exact ⟨hb, ha⟩

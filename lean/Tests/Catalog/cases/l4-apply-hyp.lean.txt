@@ -1,0 +1,15 @@
+-- id: l4-apply-hyp
+-- level: 4
+-- kind: alternative
+-- note: `apply` with a hypothesis applied to the element
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_inter {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  constructor
+  · apply hCA x
+    exact hx
+  · apply hCB x
+    exact hx

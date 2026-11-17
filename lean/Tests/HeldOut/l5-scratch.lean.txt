@@ -1,0 +1,11 @@
+-- id: l5-scratch
+-- level: 5
+-- kind: alternative
+-- note: from scratch, without earlier levels
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_inter_comm (A B : Set α) : A ∩ B ⊆ B ∩ A := by
+  intro x hx
+  exact ⟨hx.2, hx.1⟩

@@ -1,0 +1,11 @@
+-- id: b-intros
+-- level: 1
+-- kind: broken
+-- note: `intros` does not unfold the subset, so nothing is introduced
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by
+  intros
+  assumption

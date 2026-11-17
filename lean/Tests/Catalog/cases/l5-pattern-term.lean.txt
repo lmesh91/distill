@@ -1,0 +1,10 @@
+-- id: l5-pattern-term
+-- level: 5
+-- kind: alternative
+-- note: pattern-matching `fun`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_inter_comm (A B : Set α) : A ∩ B ⊆ B ∩ A :=
+  fun x ⟨ha, hb⟩ => ⟨hb, ha⟩

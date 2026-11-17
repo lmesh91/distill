@@ -1,0 +1,12 @@
+-- id: l2-cases
+-- level: 2
+-- kind: alternative
+-- note: `cases … with`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  cases hx with
+  | intro ha hb => exact ha

@@ -1,0 +1,12 @@
+-- id: l4-show
+-- level: 4
+-- kind: alternative
+-- note: `show` unfolding the intersection by hand
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_inter {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  show x ∈ A ∧ x ∈ B
+  exact ⟨hCA x hx, hCB x hx⟩

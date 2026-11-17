@@ -1,0 +1,11 @@
+-- id: l2-refine-fun
+-- level: 2
+-- kind: alternative
+-- note: `refine` with a function and a hole
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  refine fun x hx => ?_
+  exact hx.1

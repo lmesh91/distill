@@ -1,0 +1,9 @@
+-- id: p-statement-only
+-- level: 1
+-- kind: partial
+-- note: the statement without a proof
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A

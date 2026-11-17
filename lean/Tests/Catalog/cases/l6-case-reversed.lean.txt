@@ -1,0 +1,12 @@
+-- id: l6-case-reversed
+-- level: 6
+-- kind: alternative
+-- note: the goals of `ext` proved in the other order
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A := by
+  ext
+  case h₂ => exact inter_subset_inter_comm B A
+  case h₁ => exact inter_subset_inter_comm A B

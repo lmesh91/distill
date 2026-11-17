@@ -1,0 +1,12 @@
+-- id: l6-have-first
+-- level: 6
+-- kind: alternative
+-- note: both inclusions as `have`s first
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_comm (A B : Set α) : A ∩ B = B ∩ A := by
+  have h₁ : A ∩ B ⊆ B ∩ A := inter_subset_inter_comm A B
+  have h₂ : B ∩ A ⊆ A ∩ B := inter_subset_inter_comm B A
+  exact Set.ext h₁ h₂

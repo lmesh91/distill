@@ -1,0 +1,10 @@
+-- id: l1-exact-fun
+-- level: 1
+-- kind: alternative
+-- note: `exact` given a whole function
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem subset_rfl (A : Set α) : A ⊆ A := by
+  exact fun x hx => hx

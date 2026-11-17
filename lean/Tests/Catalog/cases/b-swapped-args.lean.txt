@@ -1,0 +1,12 @@
+-- id: b-swapped-args
+-- level: 5
+-- kind: broken
+-- note: the arguments of an earlier theorem swapped
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_inter_comm (A B : Set α) : A ∩ B ⊆ B ∩ A := by
+  have hA : A ∩ B ⊆ A := inter_subset_left A B
+  have hB : A ∩ B ⊆ B := inter_subset_right A B
+  exact subset_inter hA hB

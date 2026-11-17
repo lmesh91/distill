@@ -1,0 +1,12 @@
+-- id: l2-have-this
+-- level: 2
+-- kind: alternative
+-- note: anonymous `have`, used as `this`
+import Distill.Levels.Demo
+open Distill Distill.Levels.Demo
+namespace Catalog
+
+theorem inter_subset_left (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  have : x ∈ A := hx.1
+  exact this
