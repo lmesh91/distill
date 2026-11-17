@@ -188,6 +188,83 @@ def renderStatement (d : PresentedDecl) : MetaM Text := do
     omitted := named.foldl (·.erase ·) omitted
   (statementText d).run { omitted } |>.run' {}
 
+/-! ## Goal states -/
+
+/-- The objects and hypotheses of a local context, grouped the way a statement's are: objects
+of the same type with nothing said about them share a group, and a hypothesis right after an
+object saying which set it is in (`x : α`, `hx : x ∈ A`) is a property of that object. -/
+private def contextObjects (hyps : Array LocalDecl) :
+    MetaM (Array ObjectGroup × Array Claim) := do
+  let mut groups : Array ObjectGroup := #[]
+  let mut hypotheses : Array Claim := #[]
+  let mut lastObject? : Option FVarId := none
+  for (d, i) in hyps.zipIdx do
+    if ← isProp d.type then
+      let claim : Claim := { id := i, prop := { expr := d.type }, hyp? := some d.fvarId }
+      -- "let $x \in A$": a membership right after the object it is about.
+      if let some x := lastObject? then
+        if (membership? d.type).any fun (set, e) => e == .fvar x && !set.containsFVar x then
+          lastObject? := none
+          groups := groups.modify (groups.size - 1) fun g =>
+            { g with objects := g.objects.modify (g.objects.size - 1) fun o =>
+                { o with properties := o.properties.push claim } }
+          continue
+      hypotheses := hypotheses.push claim
+      lastObject? := none
+    else
+      let o : MathObject := {
+        fvar := d.fvarId, name := d.userName, type := { expr := d.type }
+        value? := d.value?.map ({ expr := · }), binderInfo := d.binderInfo }
+      lastObject? := some d.fvarId
+      -- "Let $A$ and $B$ be sets": the previous object had the same type and nothing said.
+      if let some g := groups.back? then
+        if let some prev := g.objects.back? then
+          if prev.type.expr == d.type && prev.properties.isEmpty && prev.value?.isNone &&
+              d.value?.isNone && prev.binderInfo == d.binderInfo then
+            groups := groups.modify (groups.size - 1) fun g => { g with objects := g.objects.push o }
+            continue
+      groups := groups.push { objects := #[o] }
+  return (groups, hypotheses)
+
+/-- The goal state as text, given which objects not to introduce. -/
+private def goalStateText (groups : Array ObjectGroup) (hypotheses : Array Claim)
+    (target : Expr) : RenderM Text := do
+  let clauses ← groups.toList.filterMapM groupClause
+  let hypotheses ← hypotheses.toList.mapM fun h => do Render.prose (← instantiateMVars h.prop.expr)
+  let target ← Render.prose (← instantiateMVars target)
+  let sentence (t : Text) : Text := t.capitalize ++ "."
+  let mut sentences : List Text := []
+  unless clauses.isEmpty do sentences := sentences ++ [sentence (joinClauses clauses)]
+  unless hypotheses.isEmpty do
+    sentences := sentences ++
+      [sentence ("suppose " ++ Text.joinAnd (hypotheses.map ("that " ++ ·.text)))]
+  sentences := sentences ++ [sentence ("we need to show that " ++ target.text)]
+  return Text.intercalate " " sentences
+
+/--
+A goal state in English (#91): its objects, its hypotheses and its target. "Let $A$ and $B$ be
+sets and let $x \in A \cap B$. We need to show that $x \in A$." Objects of an implicit type
+(`α`) are introduced only if something names them, as in statements. Runs inside
+`ir.withContext`.
+-/
+def renderGoalState (ir : ProofIR) (g : MVarId) : MetaM Text := ir.withGoalContext g do
+  let some gi := ir.goal? g | return "A goal of the Lean proof."
+  let lctx ← getLCtx
+  let decls := gi.context.filterMap fun h =>
+    (lctx.find? h).filter fun d => !d.isAuxDecl && !d.binderInfo.isInstImplicit
+  let (groups, hypotheses) ← contextObjects decls
+  let implicit := groups.flatMap fun g => g.objects.filterMap fun o =>
+    if (o.binderInfo == .implicit || o.binderInfo == .strictImplicit) && o.properties.isEmpty
+    then some o.fvar else none
+  let text := goalStateText groups hypotheses gi.target
+  let mut omitted : FVarIdSet := implicit.foldl (·.insert ·) {}
+  for _ in [0:implicit.size] do
+    let (out, state) ← text.run { omitted, plainElements := true } |>.run {}
+    let named := omitted.toList.filter state.mentioned.contains
+    if named.isEmpty then return out
+    omitted := named.foldl (·.erase ·) omitted
+  text.run { omitted, plainElements := true } |>.run' {}
+
 /-! ## Proof steps -/
 
 private def firstLine (ir : ProofIR) (n : Nat) : Option Text :=
