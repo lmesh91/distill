@@ -104,7 +104,7 @@ def unfoldedConstants (ir : ProofIR) : MetaM (Array Name) := do
       ir.withGoalContext g do
         try
           Meta.check a.proof
-          discard <| isDefEq (← inferType a.proof) gi.target
+          discard <| withNewMCtxDepth (isDefEq (← inferType a.proof) gi.target)
         catch _ => pure ()
   return names
 

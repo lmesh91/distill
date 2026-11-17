@@ -73,7 +73,7 @@ def checkProofTerm (env : Environment) (ir : IR.ProofIR) : IO String := do
       return "rebuilds the declaration's proof term up to β-reduction"
     -- Without proof irrelevance, any two proofs of a theorem's statement would be equal.
     try check rebuilt catch e => return s!"DIFFERS: ill-typed: {← e.toMessageData.toString}"
-    if ← withoutProofIrrelevance (isDefEq rebuilt value) then
+    if ← withoutProofIrrelevance (withNewMCtxDepth (isDefEq rebuilt value)) then
       return "definitionally equal to the declaration's proof term"
     return "DIFFERS from the declaration's proof term"
 

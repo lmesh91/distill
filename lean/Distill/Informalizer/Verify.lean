@@ -14,8 +14,9 @@ Presenting and normalizing a proof must not change what it says. `verify` checks
   builds and checks. The proof reorders the binders, and uses the proofs recorded in
   `MathExpr.history` where a hypothesis or the conclusion was restated.
 * **Proof.** The `Evidence` of the steps adds up to a term that proves the presented statement.
-  Only the sum is checked: which step carries which piece is not, and neither is that every
-  tactic of the proof has a step.
+  Not checked: that every tactic of the proof has a step.
+* **Claims.** A claim that is a Lean hypothesis states its type (`claimProblem?`). Not yet
+  checked: that a `conclude` or `suffices` states the goal it is about.
 * **Structure.** What rendering reads besides expressions is right: objects in a group are
   described the same way, and objects and the declaration have their own names and label.
 
@@ -226,7 +227,8 @@ private def equivalenceProof (ir : ProofIR) (d : PresentedDecl) (bs : Array Bind
     mkLambdaFVars (#[h] ++ binders.map .fvar) body
   let proof := mkApp4 (mkConst ``Iff.intro) original presented mp mpr
   check proof
-  unless ← isDefEq (← inferType proof) (mkIff original presented) do
+  -- At a new depth, so that the check cannot assign a metavariable (a goal left open) to pass.
+  unless ← withNewMCtxDepth (isDefEq (← inferType proof) (mkIff original presented)) do
     throwError "the proof built for the equivalence proves something else"
   return proof
 
@@ -330,12 +332,60 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
       | .identical | .defEq => pure (closed, presented)
       | .failed _ => pure (closed, original)
     check proof
-    unless ← isDefEq (← inferType proof) statement do
+    -- At a new depth: an incomplete proof still has its open goals as metavariables, which
+    -- the check must not assign to make it pass.
+    unless ← withNewMCtxDepth (isDefEq (← inferType proof) statement) do
       return .failed "the steps prove a different statement"
     if statement == original && !(statement == presented) then
       return .failed "the steps prove the original statement, which the presented one was not shown to match"
     return (incomplete?.map .incomplete).getD (.complete proof)
   catch e => return .failed (← e.toMessageData.toString)
+
+/-- Every step of `b`, of the blocks nested in them, and of their expansions. -/
+private partial def allSteps (b : Block) : Array ProofStep :=
+  b.steps.flatMap fun s =>
+    let nested := match s.kind with
+      | .claim _ p => allSteps p
+      | .split _ bs => bs.flatMap fun br => allSteps br.body
+      | _ => #[]
+    #[s] ++ nested ++ ((s.expansion?.map allSteps).getD #[])
+
+/-- Whether claim `c` states `expected`: as it is written, or as it was before restatements
+that `checkHistory` accepts. -/
+private def statesExactly (c : Claim) (expected : Expr) : MetaM Bool := do
+  let expected ← instantiateMVars expected
+  let same (e : Expr) : MetaM Bool := do
+    withNewMCtxDepth (isDefEq (← instantiateMVars e) expected)
+  if ← same c.prop.expr then return true
+  let some first := c.prop.history[0]? | return false
+  unless ← same first.before do return false
+  try checkHistory c.prop; return true catch _ => return false
+
+/-- Every claim of the steps of `d` that is a Lean hypothesis states that hypothesis's type
+(or did, before restatements that `checkHistory` accepts). `none` if so, else the first that
+does not.
+
+The evidence check (`checkProof`) shows that the steps add up to a proof; this one, that what
+the English says a hypothesis is, it is. Not checked: that what a `conclude` or `suffices` step
+states is the goal it is about. A step's evidence does not say that (in a term proof it is
+whatever was gathered since the previous step), so the presentation would have to record each
+step's goal. -/
+private def claimProblem? (ir : ProofIR) (d : PresentedDecl) : MetaM (Option String) :=
+  d.withLocals do
+    for s in allSteps d.proof do
+      let claims : Array Claim := match s.kind with
+        | .fix os => os.flatMap (·.properties)
+        | .assume cs _ | .derive cs => cs
+        | .obtain os cs => os.flatMap (·.properties) ++ cs
+        | .claim c _ | .conclude c | .suffices c | .witness _ c => #[c]
+        | .split _ bs => bs.flatMap fun b => b.objects.flatMap (·.properties) ++ b.assumptions
+        | _ => #[]
+      for c in claims do
+        let some h := c.hyp? | continue
+        let some hi := ir.hyp? h | continue
+        unless ← statesExactly c hi.type do
+          return some s!"a step states {← ppExpr c.prop.expr} for the hypothesis `{hi.userName}`, which is {← ppExpr hi.type}"
+    return none
 
 /-- Checks `d`, the presentation of `ir`, against `ir`. Runs inside `ir.withContext`. -/
 def verify (ir : ProofIR) (d : PresentedDecl) : MetaM Verification := do
@@ -361,6 +411,9 @@ def verify (ir : ProofIR) (d : PresentedDecl) : MetaM Verification := do
     if let some info := (← getEnv).find? ir.decl then
       unless ← withNewMCtxDepth (isDefEq info.type original) do
         statement := .failed "the Proof IR does not have the statement of the declaration"
-  return { original, presented, statement, proof := ← checkProof ir d original presented statement }
+  let mut proof ← checkProof ir d original presented statement
+  unless proof matches .failed _ do
+    if let some problem ← claimProblem? ir d then proof := .failed problem
+  return { original, presented, statement, proof }
 
 end Distill.Informalizer
