@@ -33,6 +33,20 @@ These never appear in any term, but the informalizer needs them to explain the "
 
 The chain for `x ∈ A ∩ B` is: `Membership.mem` → `instMembershipSet` → `Set.mem` → `Inter.inter` → `instInterSet` → `Set.Intersection` → `x ∈ A ∧ x ∈ B`.
 
+### Checked by `referencedConstants` (#89)
+
+`Distill.Informalizer.referencedConstants` (`lean/Distill/Informalizer/Constants.lean`) computes
+§1–2 per proof, and `lean/Tests/Informalization/Constants.lean` prints it for the demo levels.
+It agrees with the tables above, with these refinements:
+
+- Instances (`instMembershipSet`, …) and binder annotations (`outParam`) are left out, as is the
+  auto-bound `α`, which is not a constant.
+- `Set.Subset`, `Set.Intersection` and `Set.mem` are reported as *reached by unfolding*, in
+  levels 1–4 only (level 1 needs only `Set.Subset`). `Set.mk` is not reported: Lean never
+  unfolds it, it only reduces the projection `Set.mem` applied to it.
+- `And` is direct only where an `∧` is written or shown (level 2's `have`); in level 3 it occurs
+  only inside `And.right`'s own type.
+
 ## 3. Implicit unfoldings
 
 Lean accepts each of these because the two types are definitionally equal. The proof term contains no step for the unfolding.
