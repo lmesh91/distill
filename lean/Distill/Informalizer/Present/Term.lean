@@ -115,7 +115,7 @@ partial def explain (e goal : Expr) : PresentM (Array ProofStep) := do
     let t ← tidy e.appFn!.appArg!
     let some defs ← sameUpToDefinitions goal t | throwError "{t} is not {goal}"
     let pre ← if defs.isEmpty then pure #[] else
-      pure #[← mkStep (.suffices (← newClaim t)) (defs.map .definition) .inferred]
+      pure #[(← mkStep (.suffices (← newClaim t)) (defs.map .definition) .inferred).about goal]
     return pre ++ (← explain inner t)
   match e with
   | .lam n _ b bi => explainFun n b bi goal
@@ -140,7 +140,7 @@ private partial def explainFun (n : Name) (b : Expr) (bi : BinderInfo) (goal : E
     let (unfolded, defs) ← whnfWithDefinitions goal
     unless unfolded.isForall do throwError "a function proves {goal}"
     goal := unfolded
-    pre := #[← mkStep (.suffices (← newClaim goal)) (defs.map .definition) .inferred]
+    pre := #[(← mkStep (.suffices (← newClaim goal)) (defs.map .definition) .inferred).about goal]
   let .forallE _ d body _ := goal | unreachable!
   openBinder n d b (bi := bi) fun x b => do
     let intro ← introduce x d
@@ -206,6 +206,8 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
   let mut objects : Array MathExpr := #[]
   let mut head? : Option Name := none
   let mut type : Expr := default
+  -- What each premise proved on the way has to prove, as the function's type says.
+  let mut premises : Array Expr := #[]
   match fn with
   | .fvar h =>
     let some f ← fact? h | throwError "{fn} is not a fact of the presentation"
@@ -217,7 +219,9 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
     type ← inferType fn
   | .proj _ _ a =>
     -- The structure as Lean reads it: `x ∈ A ∧ x ∈ B` for `a : x ∈ A ∩ B`.
-    let (steps, f) ← premise a (← whnf (← inferType a))
+    let structure_ ← whnf (← inferType a)
+    let (steps, f) ← premise a structure_
+    premises := premises.push structure_
     pre := steps
     reasons := #[.fact f.id]
     type ← inferType fn
@@ -236,6 +240,7 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
       | some (m, args) => remaining := remaining.push (m, args, d)
       | none =>
         let (steps, f) ← premise a d
+        premises := premises.push d
         pre := pre ++ steps
         reasons := reasons.push (.fact f.id)
     else if (← isClass? d).isNone then
@@ -252,13 +257,14 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
     if conclude then
       if let #[{ kind := .claim claim body, id, origin, evidence, .. }] := pre then
         let rest := all.filter fun | .fact f _ => f != claim.id | _ => true
-        let step ← mkStep (.suffices claim) rest
+        let step := (← mkStep (.suffices claim) rest).about goal premises
         return (#[{ step with
           evidence := evidence ++ step.evidence
           origin := { step.origin with nodes := origin.nodes ++ step.origin.nodes } }] ++
           body.steps, fact)
     let kind := if conclude then StepKind.conclude c else .derive #[c]
-    return (pre.push (← mkStep kind all), fact)
+    let step ← mkStep kind all
+    return (pre.push (if conclude then step.about goal else step), fact)
   unless conclude do throwError "a fact on the way leaves a goal"
   let ir := (← read).ir
   -- In the order the proof goes on to prove them.
@@ -270,7 +276,7 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
   let announced := !((← tidy goal) == all_)
   let mut steps := pre
   if announced then
-    steps := steps.push (← mkStep (.suffices (← newClaim all_)) all)
+    steps := steps.push ((← mkStep (.suffices (← newClaim all_)) all).about goal targets)
   if let #[(m, args, target)] := remaining then
     return (steps ++ (← enterGoal m args target), fact)
   let mut branches : Array Branch := #[]
@@ -282,7 +288,7 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
   steps := steps.push (← mkStep (.split .conjunction branches))
   if announced then
     let last := lastNodes steps
-    let step ← mkStep (.conclude c) #[] .synthesized
+    let step := (← mkStep (.conclude c) #[] .synthesized).about goal
     steps := steps.push { step with origin := { step.origin with nodes := last } }
   return (steps, fact)
 
@@ -361,7 +367,7 @@ private partial def enterGoal (m : MVarId) (args : Array Expr) (goal : Expr) :
     | none => throwError "the goal {target} is not {goal}"
     | some defs =>
       unless defs.isEmpty do
-        steps := #[← mkStep (.suffices (← newClaim target)) (defs.map .definition) .inferred]
+        steps := #[(← mkStep (.suffices (← newClaim target)) (defs.map .definition) .inferred).about goal]
     return steps ++ (← goalSteps m target)
 
 /-- The steps that prove the goal `m`, whose target reads `target` here. Never throws: what

@@ -258,6 +258,14 @@ structure ProofStep where
   normalization pass merged into this one, or a breakdown built from automation evidence.
   Interactive output shows it when the reader expands the step. -/
   expansion? : Option Block := none
+  /-- For a step that concludes or reduces a goal (`conclude`, `suffices`): that goal, as
+  presentation read it from the proof. `verify` checks the step's claim against it: a
+  `conclude` states it, a `suffices` restates it or states what it `leaves`. `none` if the
+  step does not say (it is then not checked). -/
+  goal? : Option Expr := none
+  /-- For a `suffices` that hands on other goals than its own restated: what they are, read from
+  the proof (the targets of the goals left, or the premise of the theorem cited). -/
+  leaves : Array Expr := #[]
   deriving Repr
 
 end

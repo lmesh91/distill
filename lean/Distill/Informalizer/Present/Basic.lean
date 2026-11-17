@@ -79,6 +79,11 @@ def mkStep (kind : StepKind) (reasons : Array Reason := #[])
   modify fun s => { s with used := nodes.foldl (·.insert ·) s.used }
   return { id, kind, reasons, origin := { relation, nodes }, evidence }
 
+/-- `s`, which concludes or reduces `goal` (and, a `suffices`, leaves `leaves` to show): what
+`verify` checks its claim against. -/
+def _root_.Distill.Informalizer.IR.ProofStep.about (s : ProofStep) (goal : Expr) (leaves : Array Expr := #[]) : ProofStep :=
+  { s with goal? := some goal, leaves }
+
 /-- Records that the hypothesis `h` is the fact `c`. -/
 def registerFact (h : FVarId) (c : Claim) : PresentM Unit :=
   modify fun s => { s with facts := s.facts.insert h { id := c.id, prop := c.prop.expr } }

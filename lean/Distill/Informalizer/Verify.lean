@@ -15,8 +15,8 @@ Presenting and normalizing a proof must not change what it says. `verify` checks
   `MathExpr.history` where a hypothesis or the conclusion was restated.
 * **Proof.** The `Evidence` of the steps adds up to a term that proves the presented statement.
   Not checked: that every tactic of the proof has a step.
-* **Claims.** A claim that is a Lean hypothesis states its type (`claimProblem?`). Not yet
-  checked: that a `conclude` or `suffices` states the goal it is about.
+* **Claims.** A claim that is a Lean hypothesis states its type, a `conclude` states its goal,
+  and a `suffices` restates its goal or states what it leaves (`claimProblem?`).
 * **Structure.** What rendering reads besides expressions is right: objects in a group are
   described the same way, and objects and the declaration have their own names and label.
 
@@ -341,6 +341,12 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
     return (incomplete?.map .incomplete).getD (.complete proof)
   catch e => return .failed (← e.toMessageData.toString)
 
+/-- `P ∧ Q ∧ R` as `[P, Q, R]`. -/
+private partial def conjuncts (e : Expr) : List Expr :=
+  match e.consumeMData.and? with
+  | some (p, q) => conjuncts p ++ conjuncts q
+  | none => [e]
+
 /-- Every step of `b`, of the blocks nested in them, and of their expansions. -/
 private partial def allSteps (b : Block) : Array ProofStep :=
   b.steps.flatMap fun s =>
@@ -363,13 +369,13 @@ private def statesExactly (c : Claim) (expected : Expr) : MetaM Bool := do
 
 /-- Every claim of the steps of `d` that is a Lean hypothesis states that hypothesis's type
 (or did, before restatements that `checkHistory` accepts). `none` if so, else the first that
-does not.
+does not. A `conclude` or `suffices` step that records its goal (`ProofStep.goal?`) states it:
+a `conclude` the goal, a `suffices` the goal restated or what it `leaves`.
 
 The evidence check (`checkProof`) shows that the steps add up to a proof; this one, that what
-the English says a hypothesis is, it is. Not checked: that what a `conclude` or `suffices` step
-states is the goal it is about. A step's evidence does not say that (in a term proof it is
-whatever was gathered since the previous step), so the presentation would have to record each
-step's goal. -/
+the English says each piece is, it is. A step's evidence cannot be used for this (in a term
+proof it is whatever was gathered since the previous step), which is why presentation records
+the goal. -/
 private def claimProblem? (ir : ProofIR) (d : PresentedDecl) : MetaM (Option String) :=
   d.withLocals do
     for s in allSteps d.proof do
@@ -385,6 +391,25 @@ private def claimProblem? (ir : ProofIR) (d : PresentedDecl) : MetaM (Option Str
         let some hi := ir.hyp? h | continue
         unless ← statesExactly c hi.type do
           return some s!"a step states {← ppExpr c.prop.expr} for the hypothesis `{hi.userName}`, which is {← ppExpr hi.type}"
+      let some goal := s.goal? | continue
+      match s.kind with
+      | .conclude c =>
+        unless ← statesExactly c goal do
+          return some s!"a step concludes {← ppExpr c.prop.expr}, but its goal is {← ppExpr goal}"
+      | .suffices c =>
+        -- The goal restated ("by the definition of subset, we need to show that …"), or what
+        -- the step leaves, one conjunct each ("it suffices to show that `P` and `Q`").
+        let leaves := conjuncts c.prop.expr
+        let same (a b : Expr) : MetaM Bool := do
+          withNewMCtxDepth (isDefEq (← instantiateMVars a) (← instantiateMVars b))
+        let states ← if s.leaves.isEmpty then pure false
+          else if leaves.length == s.leaves.size then
+            (leaves.zip s.leaves.toList).allM fun (a, b) => same a b
+          else if s.leaves.size == 1 then statesExactly c s.leaves[0]!
+          else pure false
+        unless states || (← statesExactly c goal) do
+          return some s!"a step leaves {← ppExpr c.prop.expr} to show, but its goal is {← ppExpr goal}"
+      | _ => pure ()
     return none
 
 /-- Checks `d`, the presentation of `ir`, against `ir`. Runs inside `ir.withContext`. -/
