@@ -49,7 +49,7 @@ unsafe def checkCatalogEntry (path : System.FilePath) : IO Unit := do
 info: b-ext-wrong-second
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. The Lean proof does not prove this yet.
+    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. The Lean proof does not prove this yet.
     verify: identical to the original statement; incomplete (no step proves ?g2)
   broken: meets its kind's requirements
 -/
@@ -104,7 +104,7 @@ info: b-missing-arg
 info: b-swapped-args
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We claim that $A \cap B \subseteq B$. Lean reports an error here, so this is not proved yet. We go on as if this were proved. We claim that $A \cap B \subseteq A$. Lean reports an error here, so this is not proved yet. We go on as if this were proved. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+    Proof. We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. We have $A \cap B \subseteq B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We claim that $A \cap B \subseteq B$. Lean reports an error here, so this is not proved yet. We go on as if this were proved. We claim that $A \cap B \subseteq A$. Lean reports an error here, so this is not proved yet. We go on as if this were proved. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
     verify: identical to the original statement; incomplete (the proof uses `sorry`)
   broken: meets its kind's requirements
 -/
@@ -130,7 +130,7 @@ info: b-two-theorems
 info: b-unknown-lemma
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. We claim that $A \cap B \subseteq B$. Lean reports an error here, so this is not proved yet. We go on as if this were proved. We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+    Proof. We claim that $A \cap B \subseteq B$. Lean reports an error here, so this is not proved yet. We go on as if this were proved. We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
     verify: identical to the original statement; incomplete (the proof uses `sorry`)
   broken: meets its kind's requirements
 -/
@@ -537,7 +537,7 @@ info: l4-term
 info: l5-apply
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. By the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$, it suffices to show that $A \cap B \subseteq B$ and $A \cap B \subseteq A$. First, we show that $A \cap B \subseteq B$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. Next, we show that $A \cap B \subseteq A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Therefore, $A \cap B \subseteq B \cap A$.
+    Proof. By the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$, it suffices to show that $A \cap B \subseteq B$ and $A \cap B \subseteq A$. First, we show that $A \cap B \subseteq B$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. Next, we show that $A \cap B \subseteq A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Therefore, $A \cap B \subseteq B \cap A$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -548,7 +548,7 @@ info: l5-apply
 info: l5-exact-direct
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+    Proof. We have $A \cap B \subseteq B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -559,7 +559,7 @@ info: l5-exact-direct
 info: l5-explicit
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+    Proof. We have $A \cap B \subseteq B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -570,7 +570,7 @@ info: l5-explicit
 info: l5-have-swapped
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+    Proof. We have $A \cap B \subseteq B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -614,7 +614,7 @@ info: l5-scratch-term
 info: l5-underscores
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+    Proof. We have $A \cap B \subseteq B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$. We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$. Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -625,7 +625,7 @@ info: l5-underscores
 info: l6-case
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
+    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -636,7 +636,7 @@ info: l6-case
 info: l6-case-reversed
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $B \cap A \subseteq A \cap B$ and $A \cap B \subseteq B \cap A$. First, we show that $B \cap A \subseteq A \cap B$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Next, we show that $A \cap B \subseteq B \cap A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Therefore, $A \cap B = B \cap A$.
+    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $B \cap A \subseteq A \cap B$ and $A \cap B \subseteq B \cap A$. First, we show that $B \cap A \subseteq A \cap B$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Next, we show that $A \cap B \subseteq B \cap A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Therefore, $A \cap B = B \cap A$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -647,7 +647,7 @@ info: l6-case-reversed
 info: l6-exact-ext
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. We have $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. We have $B \cap A \subseteq A \cap B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Since $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$, we conclude that $A \cap B = B \cap A$ by extensionality for sets (two sets are equal if each is a subset of the other).
+    Proof. We have $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. We have $B \cap A \subseteq A \cap B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Since $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$, we conclude that $A \cap B = B \cap A$ by extensionality for sets (two sets are equal if each is a subset of the other).
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -658,7 +658,7 @@ info: l6-exact-ext
 info: l6-refine
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
+    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -680,7 +680,7 @@ info: l6-scratch-term
 info: l6-seq-apply
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
+    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -691,7 +691,7 @@ info: l6-seq-apply
 info: l6-term
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. We have $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. We have $B \cap A \subseteq A \cap B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Since $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$, we conclude that $A \cap B = B \cap A$ by extensionality for sets (two sets are equal if each is a subset of the other).
+    Proof. We have $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. We have $B \cap A \subseteq A \cap B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Since $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$, we conclude that $A \cap B = B \cap A$ by extensionality for sets (two sets are equal if each is a subset of the other).
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -702,7 +702,7 @@ info: l6-term
 info: l6-underscores
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
+    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   alternative: meets its kind's requirements
 -/
@@ -856,7 +856,7 @@ info: p-term-hole
 info: u-all-goals
   inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
-    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
+    Proof. By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$. First, we show that $A \cap B \subseteq B \cap A$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$. Next, we show that $B \cap A \subseteq A \cap B$. This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$. Therefore, $A \cap B = B \cap A$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   unsupported: meets its kind's requirements
 -/
@@ -867,7 +867,7 @@ info: u-all-goals
 info: u-and-symm
   inter_subset_inter_comm
     Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-    Proof. By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in B \cap A$. Let $x \in A \cap B$. Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them). Hence $x \in B \cap A$ by the definition of intersection and the theorem that for all propositions $a$ and $b$, if $a$ and $b$, then $b$ and $a$, applied with $x \in A$ and $x \in B$ in place of $a$ and $b$.
+    Proof. By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in B \cap A$. Let $x \in A \cap B$. Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them). Hence $x \in B \cap A$ by the definition of intersection and the earlier theorem that for all propositions $a$ and $b$, if $a$ and $b$, then $b$ and $a$, applied with $x \in A$ and $x \in B$ in place of $a$ and $b$.
     verify: identical to the original statement; the steps rebuild a proof of the presented statement
   unsupported: meets its kind's requirements
 -/

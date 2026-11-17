@@ -13,6 +13,10 @@ Options:
     --held-out     the held-out catalog entries instead of the demo and the other entries;
                    only for the final evaluation
     --write FILE   also write the results as Markdown
+    --export DIR   write each judge prompt to DIR/<kind>/<case>.<n>.prompt.txt instead of asking
+                   the CLI, for a judge run elsewhere (e.g. as subagents); it writes its reply
+                   next to the prompt as <case>.<n>.reply.txt
+    --import DIR   score the replies in DIR instead of asking the CLI
 
 The cases are every proof in `lean/Distill/Levels/Demo.lean` and in each catalog entry of kind
 `alternative` (complete alternative proofs of the demo levels). Other kinds are not reviewed:
@@ -21,7 +25,8 @@ criterion 2 names complete proofs, and the regression test checks the others' fa
 The judge is `claude-haiku-5-5`, run with `claude -p` from an empty directory, without tools,
 settings or session, so that it is given nothing but the prompt. The prompts are frozen:
 `docs/informalization/judge-prompt.md` and `docs/informalization/faithfulness-prompt.md` (the
-text below their `---` line).
+text below their `---` line). The faithfulness judge's Lean source starts with the library the
+proof relies on: the set definitions, and the statements of the earlier theorems it names.
 
 Exits with code 1 if any judgment is not a pass, and with an error before judging anything if
 the judge cannot be reached (a failed call is never recorded as a judgment).
@@ -39,6 +44,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 LEAN = ROOT / "lean"
 DEMO = LEAN / "Distill" / "Levels" / "Demo.lean"
+SETS = LEAN / "Distill" / "Definitions" / "Sets.lean"
 CASES = LEAN / "Tests" / "Catalog" / "cases"
 HELD_OUT = LEAN / "Tests" / "HeldOut"
 DOCS = ROOT / "docs" / "informalization"
@@ -82,6 +88,28 @@ def declaration_source(source: str, short_name: str) -> str:
     return strip_comments(source)
 
 
+def earlier_theorems(source: str, own: str) -> list:
+    """The statements of the demo theorems that `source` names, other than `own` itself."""
+    used = set(re.findall(r"[A-Za-z_][\w.']*", strip_comments(source)))
+    out = []
+    for m in re.finditer(r"^theorem\s+(\S+)(.*?):=", DEMO.read_text(), re.M | re.S):
+        if m.group(1) != own and m.group(1) in used:
+            out.append(f"theorem {m.group(1)}{m.group(2).rstrip()} := ...")
+    return out
+
+
+def with_library(source: str, own: str) -> str:
+    """The proof's Lean source, after the library it relies on: the set definitions (in which
+    `Set.ext` is not Mathlib's) and the statements of the earlier theorems it names."""
+    parts = ["-- The definitions the proof uses (Distill/Definitions/Sets.lean):",
+             strip_comments(SETS.read_text()).strip()]
+    earlier = earlier_theorems(source, own)
+    if earlier:
+        parts += ["", "-- Earlier theorems the proof cites (proved before it):"] + earlier
+    parts += ["", "-- The proof:", source.strip()]
+    return "\n".join(parts) + "\n"
+
+
 def translate(paths: list) -> list:
     """The translator's output for each file (scripts/informalization/translate.lean)."""
     result = subprocess.run(
@@ -107,6 +135,7 @@ def cases(held_out: bool, only: set) -> list:
         for proof in result["proofs"]:
             short = proof["decl"].split(".")[-1]
             lean = declaration_source(source, short) if entry == "demo" else strip_comments(source)
+            lean = with_library(lean, short)
             out.append({
                 "case": entry, "decl": proof["decl"], "lean": lean,
                 "statement": proof["statement"] or "", "proof": proof["proof"],
@@ -131,15 +160,45 @@ def verdict(reply: str) -> str:
     return m.group(1).upper() if m else "NONE"
 
 
-def judge(kind: str, case: dict, runs: int) -> list:
+def prompt_for(kind: str, case: dict) -> str:
     if kind == "blind":
         prompt = frozen_prompt("judge-prompt.md")
     else:
         prompt = frozen_prompt("faithfulness-prompt.md").replace("{{LEAN}}", case["lean"].strip())
-    prompt = prompt.replace("{{STATEMENT}}", case["statement"]).replace("{{PROOF}}", case["proof"])
+    return prompt.replace("{{STATEMENT}}", case["statement"]).replace("{{PROOF}}", case["proof"])
+
+
+def judge(kind: str, case: dict, runs: int) -> list:
     # A failed call (authentication, network) is not a judgment: it stops the run rather than
     # being recorded as a failure.
-    return [ask(prompt) for _ in range(runs)]
+    return [ask(prompt_for(kind, case)) for _ in range(runs)]
+
+
+def file_stem(index: int, case: dict) -> str:
+    """A file name for a case: its position, catalog id and declaration."""
+    return f"{index:03}-{case['case']}-{case['decl'].split('.')[-1]}"
+
+
+def export(directory: Path, kind: str, cases_: list, runs: int) -> None:
+    (directory / kind).mkdir(parents=True, exist_ok=True)
+    for i, case in enumerate(cases_):
+        for r in range(runs):
+            (directory / kind / f"{file_stem(i, case)}.{r}.prompt.txt").write_text(
+                prompt_for(kind, case))
+
+
+def imported(directory: Path, kind: str, cases_: list, runs: int) -> list:
+    """The replies for each case. A missing reply stops the run: it is not a judgment."""
+    out = []
+    for i, case in enumerate(cases_):
+        replies = []
+        for r in range(runs):
+            path = directory / kind / f"{file_stem(i, case)}.{r}.reply.txt"
+            if not path.exists():
+                sys.exit(f"no reply {path}: nothing was scored")
+            replies.append(path.read_text().strip())
+        out.append(replies)
+    return out
 
 
 PASS = {"blind": "PASS", "faithfulness": "FAITHFUL"}
@@ -174,19 +233,30 @@ def main() -> None:
     parser.add_argument("--held-out", action="store_true")
     parser.add_argument("--write")
     parser.add_argument("--json")
+    parser.add_argument("--export")
+    parser.add_argument("--import", dest="import_")
     args = parser.parse_args()
     kinds = ["blind", "faithfulness"] if args.kind == "all" else [args.kind]
-    # Before anything is judged: a judge that cannot be reached must not produce results.
-    try:
-        ask("Reply with the single word OK.")
-    except Exception as e:  # noqa: BLE001
-        sys.exit(f"the judge cannot be reached, nothing was judged: {e}")
+    runs_of = lambda kind: args.runs or (3 if kind == "blind" else 1)
     cases_ = cases(args.held_out, set(args.only))
-    results = {}
-    with ThreadPoolExecutor(args.jobs) as pool:
+    if args.export:
         for kind in kinds:
-            runs = args.runs or (3 if kind == "blind" else 1)
-            results[kind] = list(pool.map(lambda c: judge(kind, c, runs), cases_))
+            export(Path(args.export), kind, cases_, runs_of(kind))
+        print(f"wrote the prompts of {len(cases_)} cases to {args.export}")
+        return
+    results = {}
+    if args.import_:
+        for kind in kinds:
+            results[kind] = imported(Path(args.import_), kind, cases_, runs_of(kind))
+    else:
+        # Before anything is judged: a judge that cannot be reached must not produce results.
+        try:
+            ask("Reply with the single word OK.")
+        except Exception as e:  # noqa: BLE001
+            sys.exit(f"the judge cannot be reached, nothing was judged: {e}")
+        with ThreadPoolExecutor(args.jobs) as pool:
+            for kind in kinds:
+                results[kind] = list(pool.map(lambda c: judge(kind, c, runs_of(kind)), cases_))
     failed = False
     for kind, rows in results.items():
         for case, replies in zip(cases_, rows):

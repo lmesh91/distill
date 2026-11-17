@@ -173,9 +173,9 @@ PresentedDecl Distill.Levels.Demo.inter_subset_inter_comm   role theorem
       proves ?g2: subset_inter hB hA
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-  69: We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$.
-  70: We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$.
-  73: Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+  69: We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$.
+  70: We have $A \cap B \subseteq B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$.
+  73: Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -208,9 +208,9 @@ English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
   80: By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$.
   82: First, we show that $A \cap B \subseteq B \cap A$.
-  82: This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$.
+  82: This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$.
   83: Next, we show that $B \cap A \subseteq A \cap B$.
-  83: This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$.
+  83: This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$.
   83: Therefore, $A \cap B = B \cap A$.
 Verification
   statement: identical to the original statement
@@ -257,15 +257,15 @@ info: 31: Theorem. Let $A$ be a set. Then $A \subseteq A$.
 62: Since $C \subseteq B$ and $x \in C$, we have $x \in B$ by the definition of subset.
 64: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
 67: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
-69: We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$.
-70: We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$.
-73: Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
+69: We have $A \cap B \subseteq A$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$.
+70: We have $A \cap B \subseteq B$ by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$.
+73: Since $A \cap B \subseteq B$ and $A \cap B \subseteq A$, we conclude that $A \cap B \subseteq B \cap A$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$, applied with $B$, $A$ and $A \cap B$ in place of $A$, $B$ and $C$.
 76: Theorem. Let $A$ and $B$ be sets. Then $A \cap B = B \cap A$.
 80: By extensionality for sets (two sets are equal if each is a subset of the other), it suffices to show that $A \cap B \subseteq B \cap A$ and $B \cap A \subseteq A \cap B$.
 82: First, we show that $A \cap B \subseteq B \cap A$.
-82: This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$.
+82: This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$.
 83: Next, we show that $B \cap A \subseteq A \cap B$.
-83: This holds by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$.
+83: This holds by the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq B \cap A$, applied with $B$ and $A$ in place of $A$ and $B$.
 83: Therefore, $A \cap B = B \cap A$.
 -/
 #guard_msgs in

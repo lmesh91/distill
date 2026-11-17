@@ -27,7 +27,7 @@ def constantHasEnglish (c : ReferencedConstant) : MetaM Bool := do
   if ← Render.hasTranslator c.name then return true
   match c.kind with
   | .theorem | .axiom =>
-    -- Cited by its statement: "the theorem that for all sets $A$ and $B$, …".
+    -- Cited by its statement: "the earlier theorem that for all sets $A$ and $B$, …".
     let text? ← (citation c.name #[]).run {} |>.run' {}
     return text?.any fun t => !t.leaves.any (· matches .code _)
   | _ => return false

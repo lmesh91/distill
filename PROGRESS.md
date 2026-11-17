@@ -96,6 +96,9 @@ hx`), anonymous constructors and `And.intro`, lemma applications, `fun`, `have` 
 
 ## Edits to existing tests
 
+- The expected English in `DemoLevels.lean`, `Pipeline.lean` and `Catalog.lean` says "the
+  earlier theorem that" instead of "the theorem that" (the judge fix above).
+
 - **Goldens regenerated** (expected text only, inputs and assertions unchanged) in
   `Tests/Extraction/{Extensibility,Robustness,Shapes}.lean` (the Proof IR printer now prints
   `constructor` and `destruct … ⟶ …` instead of `<detail>`) and
@@ -203,6 +206,27 @@ declaration. Ranked recommendations: (1) verify and fall back per goal; (2) open
 documented evidence contract; (4) recognizers that declare transparency; (5) for Mathlib, a
 configurable vocabulary, cached unfold analysis, name-based citations, and an automation
 recognizer.
+
+### Judges (criteria 2 and 3)
+
+The judge is `haiku` (`claude-haiku-5-5`), run as one subagent per judgment (the user asked for
+subagents instead of the `claude` CLI): `scripts/judge.py all --export DIR` writes every prompt,
+each subagent reads one and writes its reply, and `scripts/judge.py all --import DIR` scores them.
+56 cases (the 6 demo levels and 50 alternative proofs), 3 blind runs and 1 faithfulness run each.
+
+**Run 1** (commit be3e01b): 47 of 56 cases passed blind review 3/3, and 55 of 56 were faithful.
+
+- Blind review failed on every proof of level 6 (`inter_comm`), and once (1 of 3) on
+  `l5-exact-direct`. The judges' reason: "the theorem that for all sets $A$ and $B$, …" is cited
+  without being introduced, and for level 6 looked circular. Fixed generically: a cited theorem
+  is "the earlier theorem that …" (an axiom "the axiom that …"), which tells the reader that it
+  was proved before.
+- Faithfulness failed on `l6-refine`: the judge took `Set.ext` to be Mathlib's (a membership
+  iff) and said "it suffices to show $A \cap B \subseteq B \cap A$ and …" was the wrong
+  reduction. Distill's `Set.ext` takes exactly those two inclusions, but the judge was not shown
+  it. Fixed in `judge.py`: the faithfulness judge's Lean source now starts with the set
+  definitions and the statements of the earlier theorems the proof names. The frozen prompt is
+  unchanged.
 
 ## Held-out evaluation
 
