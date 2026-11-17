@@ -183,3 +183,22 @@ example (p : Prop) : p := by
   have hp : p := by
     sorry
   exact hp
+
+/-! `show` restating the goal by a definition: the conclusion states the goal it restated, not
+the restatement again. -/
+
+/--
+info: 2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in C$, $x \in A \cap B$.
+2: Let $x \in C$.
+3: By the definition of intersection (the intersection of two sets consists of the elements that belong to both of them), we need to show that $x \in A$ and $x \in B$.
+4: Since $C \subseteq A$ and $x \in C$, we have $x \in A$ by the definition of subset.
+4: Since $C \subseteq B$ and $x \in C$, we have $x \in B$ by the definition of subset.
+4: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$.
+proof: the steps rebuild a proof of the presented statement
+-/
+#guard_msgs in
+#tactics
+example {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  show x ∈ A ∧ x ∈ B
+  exact ⟨hCA x hx, hCB x hx⟩

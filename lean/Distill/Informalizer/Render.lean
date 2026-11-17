@@ -511,6 +511,9 @@ structure StepPlace where
   /-- The goal the sentence before it announced ("First, we show that …", "We claim that …"),
   if this is the first step proving it. -/
   announced? : Option Expr := none
+  /-- The last goal of the block that a definition restated ("by the definition of
+  intersection, we need to show that …"), as the restatement and the goal it restated. -/
+  restated? : Option (Expr × Expr) := none
 
 /-- The sentence for one step. `none` for a step that is only structure (`split`: its branches
 are introduced one by one). -/
@@ -565,7 +568,12 @@ private def stepTextCore (pc : ProofContext) (place : StepPlace) (s : ProofStep)
     return sentence ("since " ++ since ++ ", we obtain " ++ what)
   | .claim fact _ => return sentence ("we claim that " ++ (← prose fact).text)
   | .conclude goal =>
-    let what := (← prose goal).text
+    -- The goal a definition restated: conclude what it restated, not the restatement again
+    -- ("since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$").
+    let shown := match place.restated? with
+      | some (r, g) => if r == goal.prop.expr then g else goal.prop.expr
+      | none => goal.prop.expr
+    let what := (← Render.prose (← instantiateMVars shown)).text
     if particular && !announced then return sentence ("in particular, " ++ what)
     if announced then
       if let #[.fact id _] := s.reasons then
@@ -665,7 +673,12 @@ private partial def renderBlock (pc : ProofContext) (b : Block) (announced? : Op
     unless gapped && free do
       if let some text ← stepText pc place s then
         out := out.push { step := s.id, nodes := s.origin.nodes, text }
-    place := { previous := established s.kind
+    let restated? := match s.kind, s.goal? with
+      | .suffices c, some g => if c.prop.expr != g && !s.reasons.isEmpty &&
+          s.reasons.all (fun | .definition _ => true | _ => false)
+          then some (c.prop.expr, g) else place.restated?
+      | _, _ => place.restated?
+    place := { previous := established s.kind, restated?
                afterIntro := match s.kind with | .fix _ | .assume .. => true | _ => false }
     match s.kind with
     | .gap .. => gapped := true

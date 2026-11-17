@@ -294,6 +294,12 @@ held-out result above stays recorded as a failure.
 | `l6-apply-ext` | FAIL FAIL FAIL | The citation of the previously proved $A \cap B \subseteq B \cap A$ (the same failure as the level-6 demo cases, accepted by the user).                                                                                                                          |
 | `l6-bullets`   | FAIL FAIL FAIL | As `l6-apply-ext`.                                                                                                                                                                                                                                               |
 
+After the run, `l4-show` was fixed in general (Render: a `conclude` of a goal that a definition
+restated states the goal it restated; regression test in `Tactics.lean`). Its proof now ends
+"Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$", and a blind rerun of that
+case gave PASS PASS PASS. No other held-out English changed. The held-out result above stays
+recorded as a failure.
+
 ### Faithfulness (criterion 3), 16 alternative proofs
 
 16/16 FAITHFUL.

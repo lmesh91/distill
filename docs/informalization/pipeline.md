@@ -170,6 +170,10 @@ Each step is one sentence, written from its kind and its reasons (`Render.lean`,
 | `gap`           | "It remains to show that …, which the Lean proof does not do yet."                                                                                                         |
 | `untranslated`  | "The Lean proof continues with the step `simp`, which is not translated into English yet. After it, it remains to show that …"                                             |
 
+After a goal is restated by a definition ("by the definition of intersection, we need to show
+that $x \in A$ and $x \in B$"), a `conclude` of the restatement states the goal it restated
+("Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$"), not the restatement again.
+
 Reasons are never Lean code:
 
 - **Facts** are recalled by their statement ("since $x \in C$"), or with "hence"/"then" when the step before just established them.
