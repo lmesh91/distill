@@ -416,8 +416,14 @@ private structure Because where
   definitionsOnly : Bool := false
   automation : Bool := false
 
-private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : Array Claim) :
-    RenderM Because := do
+private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : Array Claim)
+    (previous : Array Nat := #[]) : RenderM Because := do
+  -- An implication the step before just stated, applied to other facts here, is not listed
+  -- again: "… we have that if $x \in C$, then $x \in A$. Since $x \in C$, we have $x \in A$."
+  let otherFacts := reasons.filter fun | .fact id _ => !previous.contains id | _ => false
+  let isJustStatedImplication (id : Nat) : Bool :=
+    previous.contains id && !otherFacts.isEmpty &&
+      (pc.claims[id]?).any fun c => c.prop.expr.consumeMData.isArrow
   let mut facts := #[]
   let mut premises : Array Prose := #[]
   let mut cited : Array Text := #[]
@@ -430,7 +436,8 @@ private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : A
       -- A premise that is the conclusion says nothing.
       if facts.contains id || conclusion.any (·.prop.expr == c.prop.expr) then continue
       facts := facts.push id
-      premises := premises.push (← listed (← instantiateMVars c.prop.expr))
+      unless isJustStatedImplication id do
+        premises := premises.push (← listed (← instantiateMVars c.prop.expr))
     | .lemma decl args =>
       if let some t ← citation decl (args.map (·.expr)) then cited := cited.push t
     | .definition decl => definitions := definitions.push decl
@@ -496,7 +503,7 @@ private def stepText (pc : ProofContext) (place : StepPlace) (s : ProofStep) :
     | .derive cs | .obtain _ cs => cs
     | .conclude c | .suffices c => #[c]
     | _ => #[]
-  let b ← because pc s.reasons conclusion
+  let b ← because pc s.reasons conclusion previous
   let by_ : Text := match b.cited? with
     | some t => " by " ++ t
     | none => .empty
@@ -526,6 +533,12 @@ private def stepText (pc : ProofContext) (place : StepPlace) (s : ProofStep) :
     let what := statements (← facts.toList.mapM prose)
     if b.automation then return sentence ("here we also know " ++
       Text.joinAnd (← facts.toList.mapM fun c => return "that " ++ (← prose c).text))
+    -- "we have that if P, then Q by T" would leave unclear what "by T" belongs to.
+    let proses ← facts.toList.mapM prose
+    if !proses.all (·.simple) then
+      if let some t := b.cited? then
+        let lead : Text := if b.premises.isEmpty then .empty else "since " ++ since ++ ", "
+        return sentence (lead ++ "by " ++ t ++ ", " ++ Text.joinAnd (proses.map (·.text)))
     if hence then return sentence (then_ ++ what ++ by_)
     if b.premises.isEmpty then return sentence ("we have " ++ what ++ by_)
     return sentence ("since " ++ since ++ ", we have " ++ what ++ by_)

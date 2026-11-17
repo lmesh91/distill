@@ -108,6 +108,15 @@ partial def explain (e goal : Expr) : PresentM (Array ProofStep) := do
   if let some (m, args) ← goalApp? e then return ← enterGoal m args goal
   -- A hole Lean could not fill (`_`), which it reports as an error.
   if e.getAppFn.isMVar then return #[← gapStep goal .error]
+  -- `@id t p`, how `show t` writes a type ascription: `p` proves the goal restated as `t`.
+  if e.isAppOfArity ``id 2 then
+    let inner := e.appArg!
+    if (← goalApp? inner).isSome then return ← explain inner goal
+    let t ← tidy e.appFn!.appArg!
+    let some defs ← sameUpToDefinitions goal t | throwError "{t} is not {goal}"
+    let pre ← if defs.isEmpty then pure #[] else
+      pure #[← mkStep (.suffices (← newClaim t)) (defs.map .definition) .inferred]
+    return pre ++ (← explain inner t)
   match e with
   | .lam n _ b bi => explainFun n b bi goal
   | .letE n t v b _ => explainHave n t v b goal
