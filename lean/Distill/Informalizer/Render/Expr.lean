@@ -139,6 +139,10 @@ def translators : List (Name × Translator) := [
 private def translatorsFor : Std.HashMap Name (List Translator) :=
   translators.foldl (init := {}) fun m (c, t) => m.insert c (m.getD c [] ++ [t])
 
+/-- Whether some translator, built in or registered, writes the constant `c` in English. -/
+def hasTranslator (c : Name) : CoreM Bool := do
+  return !(translatorAttribute.getValues (← getEnv) c).isEmpty || translatorsFor.contains c
+
 /-- `p₁ → … → pₙ → q` as `(#[p₁, …, pₙ], q)`, for as long as the `pᵢ` are propositions. -/
 private partial def premises (e : Expr) (acc : Array Expr := #[]) : MetaM (Array Expr × Expr) := do
   match e.consumeMData with

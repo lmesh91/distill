@@ -7,4 +7,5 @@ import Distill.Informalizer.Extract
 import Distill.Informalizer.Extract.Frontend
 import Distill.Informalizer.Pipeline
 import Distill.Informalizer.Constants
+import Distill.Informalizer.Coverage
 import Distill.Informalizer.Frontend
