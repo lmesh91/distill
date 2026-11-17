@@ -17,8 +17,8 @@ This file is the resume point after a context reset. Read "Status" first.
 | #93 #95 #96 #97 (term-driven presentation, English reasons, fallback) | done, committed                                                          |
 | #89 #91 #94                                                           | done, committed                                                          |
 | #103 #104 #105                                                        | done, committed (benchmark results in docs/informalization/benchmark.md) |
-| Acceptance 2–9                                                        | pending                                                                  |
-| Final held-out evaluation                                             | pending                                                                  |
+| Acceptance 2–9                                                        | done (level-6 blind failures accepted by the user; see Judges)           |
+| Final held-out evaluation                                             | run once, results below (blind review: 3 of 16 cases FAILED)             |
 
 ## Starting point (what already exists)
 
@@ -260,4 +260,40 @@ exception above.
 
 ## Held-out evaluation
 
-(not run yet)
+Run once, after criteria 1–9, at 7409dc1 (the held-out files were not opened before). Judge:
+`claude-haiku-5-5` with the frozen prompts, run as subagents (one judgment each) from prompts
+exported by `scripts/judge.py all --held-out --export`, scored with `--import`.
+
+### Catalog requirements (criteria 4 and 6), all 26 held-out entries
+
+`checkCatalogEntry` (from `Tests/Informalization/Catalog.lean`) on each held-out entry:
+
+| Kind        | Entries | Meets its kind's requirements        |
+| ----------- | ------- | ------------------------------------ |
+| alternative | 16      | 16                                   |
+| broken      | 3       | 3                                    |
+| partial     | 4       | 3 — **FAILED: `p-unclosed-bracket`** |
+| unsupported | 3       | 3                                    |
+
+`p-unclosed-bracket` (`exact ⟨ha,` cut off) failed verification: "a step leaves x ∈ B to show,
+but its goal is x ∈ A ∩ B", so its proof fell back to quoting the Lean source. The cause was a
+bug in the `suffices` goal check added just before the run (7409dc1): a step's `leaves`
+included premises a hypothesis already proves (`ha`). Fixed afterwards in 5c1c5b7, a general
+fix with a non-held-out regression test (`leaves_check` in `ClaimCheck.lean`). Rerun after the
+fix: 26/26 meet their requirements, and `p-unclosed-bracket` reads "… it suffices to show that
+$x \in B$. It remains to show that $x \in B$: Lean reports an error at this point". The
+held-out result above stays recorded as a failure.
+
+### Blind review (criterion 2), 16 alternative proofs × 3 runs
+
+13 of 16 cases pass 3/3 (40 of 48 judgments PASS). **FAILED:**
+
+| Case           | Verdicts       | What the judge reported                                                                                                                                                                                                                                          |
+| -------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `l4-show`      | PASS FAIL FAIL | The last sentence, "Since $x \in A$ and $x \in B$, we conclude that $x \in A$ and $x \in B$", restates the reduced goal instead of concluding $x \in A \cap B$. A real prose defect: a `show` that unfolds the goal is followed by a conclusion that repeats it. |
+| `l6-apply-ext` | FAIL FAIL FAIL | The citation of the previously proved $A \cap B \subseteq B \cap A$ (the same failure as the level-6 demo cases, accepted by the user).                                                                                                                          |
+| `l6-bullets`   | FAIL FAIL FAIL | As `l6-apply-ext`.                                                                                                                                                                                                                                               |
+
+### Faithfulness (criterion 3), 16 alternative proofs
+
+16/16 FAITHFUL.
