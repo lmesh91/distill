@@ -46,9 +46,10 @@ def coverageGaps (r : Informalized) : MetaM (Array String) := do
       unless isSorryCode c || gaps.contains gap do gaps := gaps.push gap
   if r.english.statement?.any (·.leaves.any (· matches .code _)) then
     gaps := gaps.push "Lean code in the statement"
-  for c in ← referencedConstants r.ir do
-    unless ← r.ir.withContext (constantHasEnglish c) do
-      gaps := gaps.push s!"no English for the {c.kind.describe} `{c.name}`"
+  let constants ← referencedConstants r.ir
+  let missing ← r.ir.withContext <| constants.filterM fun c => return !(← constantHasEnglish c)
+  for c in missing do
+    gaps := gaps.push s!"no English for the {c.kind.describe} `{c.name}`"
   return gaps
 
 /-- The coverage gaps of every proof in the InfoTree of a command, by declaration. A proof the

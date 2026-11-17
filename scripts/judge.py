@@ -23,7 +23,8 @@ settings or session, so that it is given nothing but the prompt. The prompts are
 `docs/informalization/judge-prompt.md` and `docs/informalization/faithfulness-prompt.md` (the
 text below their `---` line).
 
-Exits with code 1 if any judgment is not a pass.
+Exits with code 1 if any judgment is not a pass, and with an error before judging anything if
+the judge cannot be reached (a failed call is never recorded as a judgment).
 """
 
 import argparse
@@ -136,14 +137,9 @@ def judge(kind: str, case: dict, runs: int) -> list:
     else:
         prompt = frozen_prompt("faithfulness-prompt.md").replace("{{LEAN}}", case["lean"].strip())
     prompt = prompt.replace("{{STATEMENT}}", case["statement"]).replace("{{PROOF}}", case["proof"])
-    replies = []
-    for _ in range(runs):
-        try:
-            reply = ask(prompt)
-        except Exception as e:  # noqa: BLE001 -- recorded as a failed judgment
-            reply = f"ERROR: {e}"
-        replies.append(reply)
-    return replies
+    # A failed call (authentication, network) is not a judgment: it stops the run rather than
+    # being recorded as a failure.
+    return [ask(prompt) for _ in range(runs)]
 
 
 PASS = {"blind": "PASS", "faithfulness": "FAITHFUL"}
@@ -180,6 +176,11 @@ def main() -> None:
     parser.add_argument("--json")
     args = parser.parse_args()
     kinds = ["blind", "faithfulness"] if args.kind == "all" else [args.kind]
+    # Before anything is judged: a judge that cannot be reached must not produce results.
+    try:
+        ask("Reply with the single word OK.")
+    except Exception as e:  # noqa: BLE001
+        sys.exit(f"the judge cannot be reached, nothing was judged: {e}")
     cases_ = cases(args.held_out, set(args.only))
     results = {}
     with ThreadPoolExecutor(args.jobs) as pool:

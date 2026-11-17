@@ -285,7 +285,8 @@ both, which is checked in constant time: comparing whole contexts for each goal 
 quadratic in the length of a proof.
 -/
 def sharedPrefix? (parent child : Array FVarId) : Option Nat :=
-  if parent.size ≤ child.size && parent.back? == child[parent.size - 1]? then some parent.size
+  if parent.isEmpty then some 0
+  else if parent.size ≤ child.size && parent.back? == child[parent.size - 1]? then some parent.size
   else none
 
 /-- The hypotheses of `child` that are not in `parent`, in order (see `sharedPrefix?`). -/

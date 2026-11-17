@@ -70,12 +70,17 @@ def recognizeIntro : Recognizer := fun r => do
   return some (.intro (RecognizerInput.newHyps before after))
 
 /--
-`have h : t := e` and `have h : t := by tac`. The proof term of the goal is `have h : t := v; ?body`;
-`v` is `e`, or the goal `tac` proves.
+`have h : t := e`, `have h : t := by tac` and `have h : t` (which leaves the goal `t` before the
+rest of the proof). The proof term of the goal is `have h : t := v; ?body`; `v` is `e`, or the
+goal of proving `t`.
 -/
 def recognizeHave : Recognizer := fun r => do
   let some (before, proof) := r.ownAssignment? | return none
-  let [body] := r.newGoals | return ← recognizeDestruct r
+  let body? := match r.newGoals with
+    | [body] => some body
+    | [claim, body] => if (RecognizerInput.newHyps before claim).isEmpty then some body else none
+    | _ => none
+  let some body := body? | return ← recognizeDestruct r
   -- `have ⟨ha, hb⟩ := h` destructures.
   let #[hyp] := RecognizerInput.newHyps before body | return ← recognizeDestruct r
   let value? := match proof.consumeMData with
@@ -108,6 +113,8 @@ def recognizeConstructor : Recognizer := fun r => do
 
 /-- `show t`, `change t`: the goal restated, which is `refine (?_ : t)`. Not `change … at h`. -/
 def recognizeShow : Recognizer := fun r => do
+  -- `change … at h` changes a hypothesis, which this does not describe.
+  if (r.info.stx.find? (·.isOfKind ``Lean.Parser.Tactic.location)).isSome then return none
   let some (before, proof) := r.ownAssignment? | return none
   let [after] := r.newGoals | return none
   unless (RecognizerInput.newHyps before after).isEmpty && after.context.size == before.context.size do

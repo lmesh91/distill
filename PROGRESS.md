@@ -123,7 +123,18 @@ is dropped (a blank result).
 
 ## Review findings and answers
 
-(none yet)
+### Code review, round 1 (high effort, whole branch against `main`)
+
+| # | Finding | Severity | Outcome |
+|---|---|---|---|
+| 1 | `judge.py` recorded a failed `claude` call (expired login, network) as a FAIL judgment | high | fixed: a failed call stops the run, and a preflight call checks the judge is reachable before anything is judged |
+| 2 | `recognizeShow` also matched `change … at h` | medium | fixed: a tactic with an `at` clause is not recognized, so it is shown as its Lean (fallback) |
+| 3 | The hypothesis table keeps one type per hypothesis, so a hypothesis changed in place (`change … at h`, same fvar) keeps its old type in later goals | medium | answered, not changed: this is how the Proof IR has always modelled hypotheses (one `HypInfo` per fvar); `change … at h` is now untranslated (2), so the English never relies on the stale type for it. Changing it needs per-goal hypothesis types in the IR, which no demo construct needs. |
+| 4 | `have h : t` without a value (two new goals) was recognized as a `.destruct` | low | fixed: recognized as `.have` whose value is the goal of proving `t` |
+| 5 | A definition was marked as already explained even when the step's sentence did not cite it | low | fixed: `stepText` keeps the mark only if the sentence contains the citation |
+| 6 | Coverage rebuilt the proof's context once per referenced constant | low | fixed: one `withContext` for all of them |
+| 7 | `sharedPrefix?` never matched an empty parent context | low | fixed |
+| 8 | `newHypsIn` stops at the last shared hypothesis instead of filtering the whole context | low | answered, not changed: it relies on the invariant documented on `sharedPrefix?` (tactics add hypotheses only at the end of a context; Lean's `LocalContext` appends, and tactics that reorder revert and reintroduce with new fvars). Filtering whole contexts per goal made long proofs quadratic (#105). |
 
 ## Held-out evaluation
 

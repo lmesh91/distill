@@ -494,16 +494,11 @@ structure StepPlace where
 
 /-- The sentence for one step. `none` for a step that is only structure (`split`: its branches
 are introduced one by one). -/
-private def stepText (pc : ProofContext) (place : StepPlace) (s : ProofStep) :
+private def stepTextCore (pc : ProofContext) (place : StepPlace) (s : ProofStep) (b : Because) :
     RenderM (Option Text) := do
   let previous := place.previous
   let prose (c : Claim) : RenderM Prose := do Render.prose (← instantiateMVars c.prop.expr)
   let sentence (t : Text) : Option Text := some (t.capitalize ++ ".")
-  let conclusion := match s.kind with
-    | .derive cs | .obtain _ cs => cs
-    | .conclude c | .suffices c => #[c]
-    | _ => #[]
-  let b ← because pc s.reasons conclusion previous
   let by_ : Text := match b.cited? with
     | some t => " by " ++ t
     | none => .empty
@@ -591,6 +586,22 @@ private def stepText (pc : ProofContext) (place : StepPlace) (s : ProofStep) :
   | .untranslated n => return some (← untranslatedText pc.ir n)
   | .split .. => return none
   | _ => return some (renderUntranslated pc.ir s.origin.nodes)
+
+/-- The sentence for one step (see `stepTextCore`). A definition counts as given (its
+explanation is not repeated) only if the sentence cites it. -/
+private def stepText (pc : ProofContext) (place : StepPlace) (s : ProofStep) :
+    RenderM (Option Text) := do
+  let conclusion := match s.kind with
+    | .derive cs | .obtain _ cs => cs
+    | .conclude c | .suffices c => #[c]
+    | _ => #[]
+  let defined := (← get).defined
+  let b ← because pc s.reasons conclusion place.previous
+  let text? ← stepTextCore pc place s b
+  let cited := (b.cited?.map (·.toMarkup)).getD ""
+  unless !cited.isEmpty && text?.any fun t => (t.toMarkup.splitOn cited).length > 1 do
+    modify fun st => { st with defined }
+  return text?
 
 /-- The nodes of the first step of `steps` that has any. -/
 private partial def firstNodes (steps : Array ProofStep) : Array Nat :=
