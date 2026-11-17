@@ -288,7 +288,7 @@ info: PresentedDecl with_passes   role theorem
       proves ?g0: subset_inter hCA hCB
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $A \subseteq B$, $C \subseteq B$ and $C \subseteq A$, then $C \subseteq A \cap B$.
-  2: Since $C \subseteq A$ and $C \subseteq B$, we conclude that $C \subseteq A \cap B$ by the earlier theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
+  2: Since $C \subseteq A$ and $C \subseteq B$, we conclude that $C \subseteq A \cap B$ by the previously proved theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
 Verification
   statement: equivalent to the original statement (proof checked)
   proof: the steps rebuild a proof of the presented statement

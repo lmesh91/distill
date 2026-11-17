@@ -325,7 +325,7 @@ private def listed (e : Expr) : RenderM Prose := do
   | none => return p
 
 /-- The theorem `decl` as a proof cites it: what its `Citation` says, or else its statement,
-"the earlier theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$", followed by what it is
+"the previously proved theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$", followed by what it is
 applied to (`args`: its arguments that are not proofs) when those are not its own variables.
 `none` for a rule that is not named. -/
 def citation (decl : Name) (args : Array Expr) : RenderM (Option Text) := do
@@ -368,7 +368,7 @@ def citation (decl : Name) (args : Array Expr) : RenderM (Option Text) := do
       -- A cited theorem is one proved before this proof, which the reader must be told: a
       -- bare "the theorem that …" reads as a fact the proof never introduced.
       let mut text : Text := match info with
-        | .thmInfo _ => "the earlier theorem that "
+        | .thmInfo _ => "the previously proved theorem that "
         | .axiomInfo _ => "the axiom that "
         | _ => "the fact that "
       unless quantifiers.isEmpty do

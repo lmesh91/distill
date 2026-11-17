@@ -97,7 +97,7 @@ hx`), anonymous constructors and `And.intro`, lemma applications, `fun`, `have` 
 ## Edits to existing tests
 
 - The expected English in `DemoLevels.lean`, `Pipeline.lean` and `Catalog.lean` says "the
-  earlier theorem that" instead of "the theorem that" (the judge fix above).
+  previously proved theorem that" instead of "the theorem that" (see "Judges" below).
 
 - **Goldens regenerated** (expected text only, inputs and assertions unchanged) in
   `Tests/Extraction/{Extensibility,Robustness,Shapes}.lean` (the Proof IR printer now prints
@@ -218,15 +218,36 @@ each subagent reads one and writes its reply, and `scripts/judge.py all --import
 
 - Blind review failed on every proof of level 6 (`inter_comm`), and once (1 of 3) on
   `l5-exact-direct`. The judges' reason: "the theorem that for all sets $A$ and $B$, …" is cited
-  without being introduced, and for level 6 looked circular. Fixed generically: a cited theorem
-  is "the earlier theorem that …" (an axiom "the axiom that …"), which tells the reader that it
-  was proved before.
+  without being introduced, and for level 6 looked circular. A cited theorem is now "the
+  previously proved theorem that …" (an axiom "the axiom that …").
 - Faithfulness failed on `l6-refine`: the judge took `Set.ext` to be Mathlib's (a membership
   iff) and said "it suffices to show $A \cap B \subseteq B \cap A$ and …" was the wrong
   reduction. Distill's `Set.ext` takes exactly those two inclusions, but the judge was not shown
   it. Fixed in `judge.py`: the faithfulness judge's Lean source now starts with the set
   definitions and the statements of the earlier theorems the proof names. The frozen prompt is
   unchanged.
+
+**Run 2** (the changes above; the 9 cases that failed, the other demo levels, and `l5-apply`
+and `l6-scratch-term`, which cite theorems; 16 cases): faithfulness 16/16; blind review 3/3
+on levels 1–5, including `l5-exact-direct`. Level 6 still failed at least one of three runs in 7 of
+its 8 proofs (counting the demo's), with the same reason (run 2 used the wording "the earlier
+theorem that", which the judges read as "earlier in this proof"; run 3 used "previously
+proved").
+
+**Run 3** (blind only, the demo levels and the level-6 proofs): levels 1–5 3/3; level 6 3/3 in
+`l6-case-reversed`, `l6-exact-ext`, `l6-scratch-term` and `l6-term`, and failing in the demo,
+`l6-case`, `l6-refine`, `l6-seq-apply` and `l6-underscores`.
+
+**Decision (the user's): level 6's remaining blind failures are accepted.** Their only
+complaint is that the proof cites a previously proved theorem (level 5) that the text does not
+re-introduce. Citing an earlier theorem is fine, and wording the English to satisfy this judge
+(I tried opening the proof with a sentence restating each cited theorem) would be fitting the
+judge rather than improving the translation. When interactivity is added, the structured
+output will reference the exact Lean theorem used, which can then be shown in English.
+
+Summary: criterion 3 (faithfulness) passes on every case judged in its latest run. Criterion 2
+passes 3/3 on levels 1–5 and on every alternative proof of levels 1–5; level 6 is the accepted
+exception above.
 
 ## Held-out evaluation
 
