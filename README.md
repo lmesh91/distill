@@ -58,6 +58,7 @@ Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PA
 - `npm run test:relay`: checks connectivity against a Lean server.
 - `npm run test:editor`: checks document synchronization, stale-result filtering, and connection cleanup.
 - `npm run test:submissions`: checks code submission functionality.
+- `npm run test:proof-check`: checks proof submission requests, busy retries, cancellation, stale-result filtering, and status messages without a running Lean server.
 - `npm run test:initial-code`: checks selection of starter code or saved work, including intentionally empty saves.
 - `npm run test:redirects`: checks that redirect targets stay on the same site and invalid targets use the fallback.
 - `npm run test:progress`: checks saves scoped to a user and level, stale-save handling, and preservation of completed status.

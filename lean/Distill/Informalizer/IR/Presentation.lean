@@ -106,6 +106,9 @@ inductive Reason where
   | lemma (decl : Name) (args : Array MathExpr := #[])
   /-- Unfolding a definition. -/
   | definition (decl : Name)
+  /-- An elaborated proof term, quoted until term translation can describe its reasoning.
+  Keeping the expression (rather than source text) preserves instantiated arguments. -/
+  | term (proof : MathExpr)
   /-- Automation at this Proof IR node. Its `AutomationEvidence` and its proof term hold
   whatever detail exists; the step's `expansion?` is built from them when they suffice. -/
   | automation (node : Nat)
@@ -201,9 +204,8 @@ inductive StepKind where
   | contradiction
   /-- "Hence `P`", where `P` is the goal of the enclosing block. -/
   | conclude (goal : Claim)
-  /-- A Proof IR node that has no presentation yet, shown as the Lean the user wrote. Every
-  surface node starts out as one of these; translating a tactic means producing other steps
-  for it. -/
+  /-- A Proof IR node that has no presentation yet, shown as the Lean the user wrote.
+  Supported tactics produce other step kinds instead. -/
   | untranslated (node : Nat)
   deriving Repr
 

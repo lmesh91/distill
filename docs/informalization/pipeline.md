@@ -30,9 +30,9 @@ Only a presentation that [`verify`](#verify) accepts is rendered, so the English
 `present` builds the first Presentation IR of a proof. It says no more than the Proof IR does:
 
 - **Statement.** Each binder of the statement becomes an object in a group of its own, or a hypothesis if it is a proof of a proposition. They stay in the order they were written, except that a hypothesis which a later binder is stated with becomes a property of the object before it. The conclusion is the goal the proof starts with.
-- **Proof.** Each surface node becomes an `untranslated` step, in execution order. An `untranslated` step only names its node, and is shown as the Lean the user wrote. Its `evidence` is the part of the Lean proof the node is responsible for.
+- **Proof.** Resolved tactic details become mathematical steps, in execution order (see [Steps](#steps)). Unsupported shapes become `untranslated` steps and are shown as the Lean the user wrote. Each node's `evidence` is the part of the Lean proof it is responsible for, retained exactly once even when a tactic becomes several steps or contains a nested proof.
 
-Translating a tactic means giving its node steps of other kinds here (`fix`, `assume`, `derive`, …).
+Translating a tactic means giving its node steps of other kinds here (`fix`, `assume`, `derive`, …). Handlers read `TacticDetail`, hypothesis types and goals rather than parsing source strings. An unsupported shape or a handler that throws preserves the node as `untranslated`.
 
 ## Normalize
 
@@ -143,9 +143,21 @@ A library adds translators for its own definitions without changing Distill. Eac
 
 ### Steps
 
-Proof steps are still rendered by the fallback, which shows the Lean:
+The four tactics in the [demo inventory](demo-coverage.md) have presentations:
 
-> Apply `intro x hx`.
+| Tactic | Presentation | Example English |
+|---|---|---|
+| `intro` / `intros` | `fix` for objects, `assume` for propositions, in binder order. Membership in the immediately preceding object is attached as a property. | “Let $x \in A$.” / “Suppose that $p$.” |
+| `have h : P := term` | `derive` with the elaborated hypothesis type. | “We have that $x \in A$ by `hCA x hx`.” |
+| `have h : P := by …` | `claim` with a nested proof block. | “We claim that $x \in A$.” followed by the block's steps. |
+| `exact term` | `conclude` with the goal's target, preserving its notation even when the term's type is only definitionally equal. | “Thus $x \in A \cap B$ by `⟨ha, hb⟩`.” |
+| `ext` using `Distill.Set.ext` | `suffices` for the conjunction of the two new inclusion goals. | “By set extensionality, it suffices to show that $A \subseteq B$ and $B \subseteq A$.” |
+
+The extensionality handler checks the actual lemma and goal contexts; other `ext` lemmas and patterns stay as source. Applying `Set.ext` explicitly has the same presentation. Other `apply` and `refine` uses, destructuring introductions, and data-valued `have` statements retain the fallback.
+
+`Reason.term` holds an elaborated proof expression, rendered as a code citation. Explaining projections, constructor terms, lemma applications and implicit definition unfoldings belongs to term/definition translation (#93–95); tactic translation does not invent that reasoning. Explicit terms containing `sorry` or unfilled goals stay as source. A nested unfinished proof is still introduced as a claim, with its unfinished steps shown.
+
+Rendering walks nested claim blocks and retains each step's source node, so children appear at their own editor lines. Multiple steps from one `intro` share its line. Unknown step kinds keep the existing fallback (“Apply `…`.”). Combining steps into a polished whole-proof explanation remains #96.
 
 ## Verify
 

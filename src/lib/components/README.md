@@ -30,3 +30,40 @@ from. Vertical panes never shrink past their title bar.
 
 `goal`, `editor` and `output` are required. Headings rendered inside `brief` pick up the panel
 heading style.
+
+# ProofCheckStatus
+
+`ProofCheckStatus.svelte` shows where a "Check proof" request is (#57): waiting for a free Lean
+worker, checking (with a seconds counter), accepted, rejected with the reason, or an error. It
+renders nothing visible while idle, but keeps a hidden `role="status"` region mounted so screen
+readers announce each stage (title and detail) as it happens. Pair it with `createProofChecker` from `src/lib/levels/proofCheck.ts`,
+which calls `POST /api/submissions`, retries while Lean is busy (503 with `Retry-After`), and
+cancels an older check when a new one starts:
+
+```svelte
+<script lang="ts">
+	import ProofCheckStatus from '$lib/components/ProofCheckStatus.svelte';
+	import { createProofChecker, type ProofCheckState } from '$lib/levels/proofCheck';
+
+	let check = $state<ProofCheckState>({ kind: 'idle' });
+	const checker = createProofChecker({ onstate: (next) => (check = next) });
+</script>
+
+<button
+	class="button primary"
+	type="button"
+	disabled={check.kind === 'waiting' || check.kind === 'running'}
+	onclick={() => checker.check(data.level.slug, code)}
+>
+	Check proof
+</button>
+<ProofCheckStatus {check} />
+```
+
+`check()` resolves with the final state, so a page can react to an accepted proof (for example,
+open the post-completion dialog).
+
+The level page wires this into `LevelLayout`'s `actions` snippet (#56). It submits the current
+editor text and level slug, and disables the button while checking, loading another level, or
+the editor is empty. It calls `checker.cancel()` when the text or level changes and on page
+destruction, so pending retries stop and a verdict never refers to an older proof.
