@@ -8,23 +8,23 @@ Elaborating `Distill/Levels/Demo.lean` (its commands, imports already loaded): *
 
 Translation is everything after elaboration that `Distill.translate` does for the level. Threshold: no longer than elaborating the file.
 
-| Level | Translation (ms) | Within threshold |
-| --- | --- | --- |
-| `Distill.Levels.Demo.subset_rfl` | 1.57 | yes |
-| `Distill.Levels.Demo.inter_subset_left` | 1.97 | yes |
-| `Distill.Levels.Demo.inter_subset_right` | 1.39 | yes |
-| `Distill.Levels.Demo.subset_inter` | 2.64 | yes |
-| `Distill.Levels.Demo.inter_subset_inter_comm` | 2.21 | yes |
-| `Distill.Levels.Demo.inter_comm` | 1.42 | yes |
+| Level                                         | Translation (ms) | Within threshold |
+| --------------------------------------------- | ---------------- | ---------------- |
+| `Distill.Levels.Demo.subset_rfl`              | 1.57             | yes              |
+| `Distill.Levels.Demo.inter_subset_left`       | 1.97             | yes              |
+| `Distill.Levels.Demo.inter_subset_right`      | 1.39             | yes              |
+| `Distill.Levels.Demo.subset_inter`            | 2.64             | yes              |
+| `Distill.Levels.Demo.inter_subset_inter_comm` | 2.21             | yes              |
+| `Distill.Levels.Demo.inter_comm`              | 1.42             | yes              |
 
 ## Long proofs
 
 A generated proof alternating `have p : x ∈ A ∩ B := ⟨h, k⟩` and `have h : x ∈ A := p.left`. Threshold: doubling the length at most about doubles the translation time (ratio at most 2.50).
 
 | Steps | Translation (ms) | Lines of English |
-| --- | --- | --- |
-| 500 | 362.8 | 500 |
-| 1000 | 796.2 | 1000 |
+| ----- | ---------------- | ---------------- |
+| 500   | 362.8            | 500              |
+| 1000  | 796.2            | 1000             |
 
 Ratio 1000 / 500: **2.19** (within the threshold).
 

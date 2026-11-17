@@ -1,6 +1,7 @@
 # Intermediate Representations
 
 This file serves to document the intermediate representations used by Distill's informalization system.
+
 - The **Proof IR** describes every logical step of a proof in Lean. It stores the sequence of steps (tactics) that were used in the proof as well as all of the extra context created during the proof-checking process.
 - The **Presentation IR** describes every logical step of a written proof. Some Lean tactics may need multiple logical steps in the Presentation IR, or vice versa.
 
@@ -25,7 +26,7 @@ Before explaining the IRs, it is important to understand the basics of how mathe
 
 Everything inside of Lean has a type, including propositions. We can prove a proposition by constructing an object whose type is the statement we want to prove. For example, within the example proof, `hAB x hx.1` is a term of type `B x` (aka $x \in B$), and `⟨hBx, hx.2⟩` is a term of type `B x ∧ C x` (aka $x \in B \text{ and } x \in C$).
 
-However, for more complicated proofs, a term may end up becoming very long and difficult to understand. Therefore, proofs in Lean can be created using *tactics*, which are commands that tell the program how to construct a proof term and are designed to add a layer of abstraction which makes proofs easier to write. At each stage of a proof, there is a list of *goals* that we need to prove in order to complete the proof. These goals are *holes* in the proof term, which are the remaining things that need to be proved in order to fully create the term. Tactics are designed to fill in these holes with a term that may contain new holes, which create new goals. Our example proof starts with a single goal:
+However, for more complicated proofs, a term may end up becoming very long and difficult to understand. Therefore, proofs in Lean can be created using _tactics_, which are commands that tell the program how to construct a proof term and are designed to add a layer of abstraction which makes proofs easier to write. At each stage of a proof, there is a list of _goals_ that we need to prove in order to complete the proof. These goals are _holes_ in the proof term, which are the remaining things that need to be proved in order to fully create the term. Tactics are designed to fill in these holes with a term that may contain new holes, which create new goals. Our example proof starts with a single goal:
 
 ```
 α : Type
@@ -34,10 +35,12 @@ hAB : ∀ (x : α), A x → B x
 ⊢ ∀ (x : α), A x ∧ C x → B x ∧ C x
 ```
 
-The term next to the `⊢` is the *target*: we want to prove that $A\cap C\subseteq B\cap C$. The other terms are the *hypotheses*: that $\alpha$ is a type, $A,B,C$ are sets on that type, and $A\subseteq B$. Note that these are not all mathematical hypotheses; they also include objects such as the sets themselves and the type of their elements.
+The term next to the `⊢` is the _target_: we want to prove that $A\cap C\subseteq B\cap C$. The other terms are the _hypotheses_: that $\alpha$ is a type, $A,B,C$ are sets on that type, and $A\subseteq B$. Note that these are not all mathematical hypotheses; they also include objects such as the sets themselves and the type of their elements.
 
 Let's look at the tactics used in our example:
+
 - The `intro` tactic introduces new hypotheses based on the goal's type. In Lean, universal quantifiers and implications correspond to functions, so `intro x hx` creates a hypothesis `x` of type `α` and a hypothesis `hx` of `A x ∧ C x`. In an English proof, this would be analogous to saying something like "Let $x$ be an arbitrary element such that $x\in A\cap C$." After this tactic, `x` and `hx` were added as hypotheses, and the goal is now `B x ∧ C x`:
+
 ```
 α : Type
 A B C : α → Prop
@@ -46,7 +49,9 @@ x : α
 hx : A x ∧ C x
 ⊢ B x ∧ C x
 ```
+
 - The `have` tactic constructs a proof term for a given type that is added as a hypothesis. In this example we create a hypothesis `hBx` of type `B x`, and prove it using `hAB x hx.1`. We use `hx.1` to get the first element of the conjunction `A x ∧ C x`, and apply `x` and this element to `hAB` to construct a term of type `B x`. In an English proof, this would be analogous to saying something like "Since $A\subseteq B$ and $x\in A$, we have that $x\in B$." After this tactic, `hBx` was added as a hypothesis:
+
 ```
 α : Type
 A B C : α → Prop
@@ -56,10 +61,10 @@ hx : A x ∧ C x
 hBx : B x
 ⊢ B x ∧ C x
 ```
+
 - The `exact` tactic constructs a proof term for the goal itself. It uses the term `⟨hBx, hx.2⟩`, which uses `hBx` for the left side of the conjunction and the second element of `hx` for the right side of the conjunction. In an English proof, this would be analogous to saying something like "Since $x\in B$ and $x\in C$ (because $x\in A\cap C$), we have that $x\in B\cap C$ as desired. Thus $A\cap C\subseteq B\cap C$."
 
 There are powerful tactics in Lean besides those used in this proof. For instance, some tactics can split a goal into multiple goals (such as `induction`), apply combinations of other tactics (such as `repeat`), or use an advanced algorithm to try constructing a proof term (such as `grind`).
-
 
 ## Proof IR
 
@@ -87,7 +92,7 @@ structure Statement where
   conclusion : Expr
 ```
 
-The *binders* are what the statement declares before the colon (in our example, this is `α`, `A`, `B`, `C`, and `hAB`) while the conclusion is the initial goal (e.g. `∀ (x : α), A x ∧ C x → B x ∧ C x`). Note that only an ID for each binder is stored here; more information is stored in the hypotheses structure.
+The _binders_ are what the statement declares before the colon (in our example, this is `α`, `A`, `B`, `C`, and `hAB`) while the conclusion is the initial goal (e.g. `∀ (x : α), A x ∧ C x → B x ∧ C x`). Note that only an ID for each binder is stored here; more information is stored in the hypotheses structure.
 
 A `GoalInfo` holds the following information:
 
@@ -221,6 +226,7 @@ It stores the original Lean ID (`fvar`) and `name`, as well as its `type` and `v
 The `instances` is a list of expressions corresponding to instances satisfied by the object (e.g. "G is a finite group"), while the `properties` is a list of properties of the object that can be treated as adjectives (e.g. "p is prime"). During normalization, properties are moved to be within the MathObject they are describing, resulting in a more natural English translation.
 
 A `Block` is a sequence of steps, in the order they should appear in the English proof, that proves a goal (described in `goal?`).
+
 ```lean
 structure Block where
   goal? : Option Claim := none
@@ -244,25 +250,29 @@ The `id` is a unique ID for this step. The `kind` is one of many possible kinds 
 The `evidence` is the part of the Lean proof that the step presents: for each goal the step starts from, a proof term in which the goals it leaves to other steps are still metavariables (`fun x hx => ?g2 x hx` for `intro x hx`). Put together, the evidence of all steps is a proof of the statement, which is how a presentation is [verified](pipeline.md#verify). A pass that merges, splits or drops steps has to move their evidence along.
 
 Similarly to the `detail` information for tactics, there are many kinds of steps, and which ones are used is subject to change during the early development stages of Distill. Here is the initial list of `StepKind`s:
-| Kind | Meaning | English example | IR example | Usually comes from |
-|---|---|---|---|---|
-| `fix` | Introduce arbitrary objects | "Let $x \in A \cap C$." | `fix [x : α  with property f2: x ∈ A ∩ C]` | `intro x` on a `∀` goal |
-| `assume` | Assume facts, either to prove an implication or to derive a contradiction | "Suppose $E$ is open." | `assume [f1: IsOpen E] forImplication` | `intro h` on an `→` goal (`forImplication`) or a `¬` goal (`forContradiction`) |
-| `derive` | Conclude new facts from known ones (forward reasoning) | "Then $x \in A$ and $x \in C$." | `derive [f3: x ∈ A, f4: x ∈ C]  because fact f2` | `have`, or reading off part of a term such as `hx.1` |
-| `obtain` | Get objects and facts out of an existential or a structure | "Then there is an open set $U$ with $U \subseteq E$ and $x \in U$." | `obtain [U] [f5: U ⊆ E, f6: IsOpen U, f7: x ∈ U]  because lemma mem_interior, fact f4` | `obtain`, `rcases`, `cases` |
-| `claim` | State an intermediate result and prove it separately | "We claim $x \notin \operatorname{int} E$. *Proof.* …" | `claim f3: x ∉ interior E  proof Block [b1 …, b2 …]` | `have h : P := by …` |
-| `suffices` | Replace the goal with one that implies it (backward reasoning) | "It suffices to show $E \subseteq \operatorname{int} E$." | `suffices g2: E ⊆ interior E  because lemma subset_interior_iff_isOpen` | `apply`, `suffices`, `refine` |
-| `witness` | Choose a witness for an existential goal | "Take $N$; it remains to show $N \subseteq E$, $N$ is open, and $x \in N$." | `witness [N]  remaining (N ⊆ E ∧ IsOpen N ∧ x ∈ N)` | `use`, `exists`, `refine ⟨N, ?_⟩` |
-| `calc` | A chain of equalities or inequalities | "$q^2 = (\sqrt 2)^2 = 2$." | `calc result eR: ↑q ^ 2 = 2  links [↑q ^ 2 = √2 ^ 2 because fact e1, √2 ^ 2 = 2 because lemma Real.sq_sqrt]` | `calc`, or a sequence of `rw` rules |
-| `split` | Divide the proof into branches: the two directions of an iff, the parts of an "and", cases, or induction | "(⇒) … (⇐) …" | `split iff [Branch mp …, Branch mpr …]` | `constructor`, `cases`, `rcases … with h \| h`, `induction` |
-| `contradiction` | Derive a contradiction from the cited facts | "Then $y \in E$, but also $y \notin E$, a contradiction." | `contradiction  because fact f9, fact f10` | `exact absurd …`, `contradiction`, `omega` on a `False` goal |
-| `conclude` | State that the current goal has been reached | "Hence $A \cap C \subseteq B \cap C$." | `conclude f1` | usually added for readability; Lean has no matching step |
-| `untranslated` | A tactic that has no presentation yet, shown as the Lean the user wrote | "Apply `intro x hx`." | `untranslated #1` | any surface node; see [pipeline.md](pipeline.md) |
 
+| Kind            | Meaning                                                                                                  | English example                                                                            | IR example                                                                                                   | Usually comes from                                                                                                            |
+| --------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| `fix`           | Introduce arbitrary objects                                                                              | "Let $x \in A \cap C$."                                                                    | `fix [x : α  with property f2: x ∈ A ∩ C]`                                                                   | `intro x` on a `∀` goal                                                                                                       |
+| `assume`        | Assume facts, either to prove an implication or to derive a contradiction                                | "Suppose $E$ is open."                                                                     | `assume [f1: IsOpen E] forImplication`                                                                       | `intro h` on an `→` goal (`forImplication`) or a `¬` goal (`forContradiction`)                                                |
+| `derive`        | Conclude new facts from known ones (forward reasoning)                                                   | "Then $x \in A$ and $x \in C$."                                                            | `derive [f3: x ∈ A, f4: x ∈ C]  because fact f2`                                                             | `have`, or reading off part of a term such as `hx.1`                                                                          |
+| `obtain`        | Get objects and facts out of an existential or a structure                                               | "Then there is an open set $U$ with $U \subseteq E$ and $x \in U$."                        | `obtain [U] [f5: U ⊆ E, f6: IsOpen U, f7: x ∈ U]  because lemma mem_interior, fact f4`                       | `obtain`, `rcases`, `cases`                                                                                                   |
+| `claim`         | State an intermediate result and prove it separately                                                     | "We claim $x \notin \operatorname{int} E$. _Proof._ …"                                     | `claim f3: x ∉ interior E  proof Block [b1 …, b2 …]`                                                         | `have h : P := by …`                                                                                                          |
+| `suffices`      | Replace the goal with one that implies it (backward reasoning)                                           | "It suffices to show $E \subseteq \operatorname{int} E$."                                  | `suffices g2: E ⊆ interior E  because lemma subset_interior_iff_isOpen`                                      | `apply`, `suffices`, `refine`                                                                                                 |
+| `witness`       | Choose a witness for an existential goal                                                                 | "Take $N$; it remains to show $N \subseteq E$, $N$ is open, and $x \in N$."                | `witness [N]  remaining (N ⊆ E ∧ IsOpen N ∧ x ∈ N)`                                                          | `use`, `exists`, `refine ⟨N, ?_⟩`                                                                                             |
+| `calc`          | A chain of equalities or inequalities                                                                    | "$q^2 = (\sqrt 2)^2 = 2$."                                                                 | `calc result eR: ↑q ^ 2 = 2  links [↑q ^ 2 = √2 ^ 2 because fact e1, √2 ^ 2 = 2 because lemma Real.sq_sqrt]` | `calc`, or a sequence of `rw` rules                                                                                           |
+| `split`         | Divide the proof into branches: the two directions of an iff, the parts of an "and", cases, or induction | "(⇒) … (⇐) …"                                                                              | `split iff [Branch mp …, Branch mpr …]`                                                                      | `constructor`, `cases`, `rcases … with h \| h`, `induction`                                                                   |
+| `contradiction` | Derive a contradiction from the cited facts                                                              | "Then $y \in E$, but also $y \notin E$, a contradiction."                                  | `contradiction  because fact f9, fact f10`                                                                   | `exact absurd …`, `contradiction`, `omega` on a `False` goal                                                                  |
+| `conclude`      | State that the current goal has been reached                                                             | "Hence $A \cap C \subseteq B \cap C$."                                                     | `conclude f1`                                                                                                | usually added for readability; Lean has no matching step                                                                      |
+| `gap`           | A goal the Lean proof does not prove: unfinished, `sorry`, or an error                                   | "It remains to show that $x \in B$, which the Lean proof does not do yet."                 | `gap g3: x ∈ B  unfinished`                                                                                  | a goal without an assignment, `sorry`, error recovery                                                                         |
+| `untranslated`  | A tactic or term that has no presentation, shown as the Lean the user wrote with what it leaves to prove | "The Lean proof continues with the step `simp`, which is not translated into English yet." | `untranslated #1`                                                                                            | automation, a tactic without a recognizer, a term of a shape presentation cannot read; see [pipeline.md](pipeline.md#present) |
+
+A step's `reasons` say why it holds: a `fact` established earlier (by its id), a `lemma` (a theorem, with the objects it is applied to), a `definition` Lean unfolded, `automation` at a node, or a `term` quoted as Lean. Presentation produces the first three for every term it can read, so the English names facts, theorems and definitions rather than quoting Lean (see [pipeline.md](pipeline.md#steps)).
 
 ## Full Example
 
 Recall that this was our original example:
+
 ```lean
 theorem intersection_subset {α : Type}
     (A B C : α → Prop)
@@ -274,6 +284,7 @@ theorem intersection_subset {α : Type}
 ```
 
 The generated Proof IR would look something like:
+
 ```text
 ProofIR intersection_subset
   statement
@@ -305,6 +316,7 @@ ProofIR intersection_subset
 ```
 
 The generated Presentation IR would then look something like this, assuming that we decide to implement normalizers that convert this proof into one about sets:
+
 ```text
 Document
   PresentedDecl intersection_subset   role theorem
@@ -334,12 +346,12 @@ An English output from this Presentation IR could then look like:
 **Proof.** Let $x\in A\cap C$. Then $x\in A$ and $x\in C$. Since $A\subseteq B$, we have $x\in B$.
 Consequently $x\in B\cap C$, which proves $A\cap C\subseteq B\cap C$. $\square$
 
-
 ## General framework for informalization
 
 Informalization from Lean to English would be done in the following steps:
-1) Get the InfoTree of the Lean proof
-2) Use the InfoTree to create a Proof IR of the proof
-3) Use the Proof IR to create an initial Presentation IR of the proof
-4) During normalization, simplify the Presentation IR while preserving accuracy
-5) Use the Presentation IR to create a (possibly interactive) English + LaTeX output.
+
+1. Get the InfoTree of the Lean proof
+2. Use the InfoTree to create a Proof IR of the proof
+3. Use the Proof IR to create an initial Presentation IR of the proof
+4. During normalization, simplify the Presentation IR while preserving accuracy
+5. Use the Presentation IR to create a (possibly interactive) English + LaTeX output.

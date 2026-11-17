@@ -8,17 +8,17 @@ This file is the resume point after a context reset. Read "Status" first.
 
 ## Status
 
-| Phase | State |
-|---|---|
-| Setup 1: this file | done |
-| Setup 2: judge prompt committed (frozen) | done (9820c77) |
-| Setup 3: edge-case catalog | done (9aea9f4) |
-| Setup 4: held-out split committed | done (9aea9f4) |
-| #93 #95 #96 #97 (term-driven presentation, English reasons, fallback) | done, committed |
-| #89 #91 #94 | done, committed |
-| #103 #104 #105 | done, committed (benchmark results in docs/informalization/benchmark.md) |
-| Acceptance 2–9 | pending |
-| Final held-out evaluation | pending |
+| Phase                                                                 | State                                                                    |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| Setup 1: this file                                                    | done                                                                     |
+| Setup 2: judge prompt committed (frozen)                              | done (9820c77)                                                           |
+| Setup 3: edge-case catalog                                            | done (9aea9f4)                                                           |
+| Setup 4: held-out split committed                                     | done (9aea9f4)                                                           |
+| #93 #95 #96 #97 (term-driven presentation, English reasons, fallback) | done, committed                                                          |
+| #89 #91 #94                                                           | done, committed                                                          |
+| #103 #104 #105                                                        | done, committed (benchmark results in docs/informalization/benchmark.md) |
+| Acceptance 2–9                                                        | pending                                                                  |
+| Final held-out evaluation                                             | pending                                                                  |
 
 ## Starting point (what already exists)
 
@@ -42,9 +42,9 @@ is dropped (a blank result).
   that … . We need to show that … ." Done when a test prints every goal state of every demo
   proof and none contains Lean code. It is also what an unfinished proof's "it remains to
   show" text is written with.
-- **#93 Expressions and terms.** Proof *terms* get English: a hypothesis used as it is, a
+- **#93 Expressions and terms.** Proof _terms_ get English: a hypothesis used as it is, a
   hypothesis applied as a function (`hCA x hx`), projections (`h.left`, `hx.2`, `And.right
-  hx`), anonymous constructors and `And.intro`, lemma applications, `fun`, `have` inside
+hx`), anonymous constructors and `And.intro`, lemma applications, `fun`, `have` inside
   terms, and nested `by`. A term becomes presentation steps whose reasons are facts, lemmas
   and definitions, never quoted Lean. Every expression construct of demo-coverage.md and of
   the catalog renders as a formula or prose.
@@ -125,16 +125,16 @@ is dropped (a blank result).
 
 ### Code review, round 1 (high effort, whole branch against `main`)
 
-| # | Finding | Severity | Outcome |
-|---|---|---|---|
-| 1 | `judge.py` recorded a failed `claude` call (expired login, network) as a FAIL judgment | high | fixed: a failed call stops the run, and a preflight call checks the judge is reachable before anything is judged |
-| 2 | `recognizeShow` also matched `change … at h` | medium | fixed: a tactic with an `at` clause is not recognized, so it is shown as its Lean (fallback) |
-| 3 | The hypothesis table keeps one type per hypothesis, so a hypothesis changed in place (`change … at h`, same fvar) keeps its old type in later goals | medium | answered, not changed: this is how the Proof IR has always modelled hypotheses (one `HypInfo` per fvar); `change … at h` is now untranslated (2), so the English never relies on the stale type for it. Changing it needs per-goal hypothesis types in the IR, which no demo construct needs. |
-| 4 | `have h : t` without a value (two new goals) was recognized as a `.destruct` | low | fixed: recognized as `.have` whose value is the goal of proving `t` |
-| 5 | A definition was marked as already explained even when the step's sentence did not cite it | low | fixed: `stepText` keeps the mark only if the sentence contains the citation |
-| 6 | Coverage rebuilt the proof's context once per referenced constant | low | fixed: one `withContext` for all of them |
-| 7 | `sharedPrefix?` never matched an empty parent context | low | fixed |
-| 8 | `newHypsIn` stops at the last shared hypothesis instead of filtering the whole context | low | answered, not changed: it relies on the invariant documented on `sharedPrefix?` (tactics add hypotheses only at the end of a context; Lean's `LocalContext` appends, and tactics that reorder revert and reintroduce with new fvars). Filtering whole contexts per goal made long proofs quadratic (#105). |
+| #   | Finding                                                                                                                                             | Severity | Outcome                                                                                                                                                                                                                                                                                                    |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `judge.py` recorded a failed `claude` call (expired login, network) as a FAIL judgment                                                              | high     | fixed: a failed call stops the run, and a preflight call checks the judge is reachable before anything is judged                                                                                                                                                                                           |
+| 2   | `recognizeShow` also matched `change … at h`                                                                                                        | medium   | fixed: a tactic with an `at` clause is not recognized, so it is shown as its Lean (fallback)                                                                                                                                                                                                               |
+| 3   | The hypothesis table keeps one type per hypothesis, so a hypothesis changed in place (`change … at h`, same fvar) keeps its old type in later goals | medium   | answered, not changed: this is how the Proof IR has always modelled hypotheses (one `HypInfo` per fvar); `change … at h` is now untranslated (2), so the English never relies on the stale type for it. Changing it needs per-goal hypothesis types in the IR, which no demo construct needs.              |
+| 4   | `have h : t` without a value (two new goals) was recognized as a `.destruct`                                                                        | low      | fixed: recognized as `.have` whose value is the goal of proving `t`                                                                                                                                                                                                                                        |
+| 5   | A definition was marked as already explained even when the step's sentence did not cite it                                                          | low      | fixed: `stepText` keeps the mark only if the sentence contains the citation                                                                                                                                                                                                                                |
+| 6   | Coverage rebuilt the proof's context once per referenced constant                                                                                   | low      | fixed: one `withContext` for all of them                                                                                                                                                                                                                                                                   |
+| 7   | `sharedPrefix?` never matched an empty parent context                                                                                               | low      | fixed                                                                                                                                                                                                                                                                                                      |
+| 8   | `newHypsIn` stops at the last shared hypothesis instead of filtering the whole context                                                              | low      | answered, not changed: it relies on the invariant documented on `sharedPrefix?` (tactics add hypotheses only at the end of a context; Lean's `LocalContext` appends, and tactics that reorder revert and reintroduce with new fvars). Filtering whole contexts per goal made long proofs quadratic (#105). |
 
 ## Held-out evaluation
 
