@@ -206,7 +206,8 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
   let mut objects : Array MathExpr := #[]
   let mut head? : Option Name := none
   let mut type : Expr := default
-  -- What each premise proved on the way has to prove, as the function's type says.
+  -- What each premise that takes a proof of its own has to prove, as the function's type says
+  -- (a premise that a fact already proves is not left to show).
   let mut premises : Array Expr := #[]
   match fn with
   | .fvar h =>
@@ -221,7 +222,7 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
     -- The structure as Lean reads it: `x ∈ A ∧ x ∈ B` for `a : x ∈ A ∩ B`.
     let structure_ ← whnf (← inferType a)
     let (steps, f) ← premise a structure_
-    premises := premises.push structure_
+    unless steps.isEmpty do premises := premises.push structure_
     pre := steps
     reasons := #[.fact f.id]
     type ← inferType fn
@@ -240,7 +241,7 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
       | some (m, args) => remaining := remaining.push (m, args, d)
       | none =>
         let (steps, f) ← premise a d
-        premises := premises.push d
+        unless steps.isEmpty do premises := premises.push d
         pre := pre ++ steps
         reasons := reasons.push (.fact f.id)
     else if (← isClass? d).isNone then

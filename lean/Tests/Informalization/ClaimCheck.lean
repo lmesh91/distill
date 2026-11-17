@@ -65,3 +65,59 @@ info: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
 theorem conclude_check (A B : Set α) : A ∩ B ⊆ A := fun _ hx => hx.left
 
 end
+
+/-! A step that leaves one premise to show, next to one a hypothesis proves, states only the one
+it leaves. -/
+
+/--
+warning: declaration uses `sorry`
+---
+info: PresentedDecl leaves_check   role theorem
+  objects
+    {α} : Type u_1
+    {A}, {B}, {C} : Set α
+  hypotheses
+    f0: C ⊆ A   hyp hCA
+    f1: C ⊆ B   hyp hCB
+  conclusion
+    f2: C ⊆ A ∩ B
+  proof of ?g0
+    s4 suffices   origin inferred [#4]
+      f3: ∀ (x : α), x ∈ C → x ∈ A ∩ B
+      by definition Distill.Set.Subset
+      proves ?g0: fun x => ?g1 x
+    s5 fix   origin partOf [#4]
+      x : α   with f6: x ∈ C   hyp hx
+      proves ?g1: fun hx => ?g2 hx
+    s9 derive   origin partOf [#7]
+      f8: x ∈ A
+      by f0
+      by f6
+      by definition Distill.Set.Subset
+      proves ?g2: have ha := hCA x hx; ?g3 ha
+    s15 suffices   origin partOf [#19 #19]
+      f10: x ∈ B
+      by lemma And.intro x ∈ A x ∈ B
+      by f8
+      by definition Distill.Set.Intersection
+      by definition Distill.Set.mem
+    s12 gap sorry   origin partOf [#19]
+      f11: x ∈ B
+      proves ?g3: ⟨ha, sorry⟩
+English
+  Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in C$, $x \in A \cap B$.
+  2: Let $x \in C$.
+  3: Since $C \subseteq A$ and $x \in C$, we have $x \in A$ by the definition of subset.
+  4: Since $x \in A$, by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them) it suffices to show that $x \in B$.
+  4: It remains to show that $x \in B$: the Lean proof leaves this out with `sorry`.
+Verification
+  statement: identical to the original statement
+  proof: incomplete (the proof uses `sorry`)
+-/
+#guard_msgs in
+#informalize
+theorem leaves_check {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A ∩ B := by
+  intro x hx
+  have ha : x ∈ A := hCA x hx
+  exact ⟨ha, sorry⟩
