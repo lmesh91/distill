@@ -223,11 +223,13 @@ info: PresentedDecl folded   role theorem
   conclusion
     f2: x ∈ B
   proof of ?g0
-    s3 untranslated `exact h x hx`   origin direct [#4]
+    s3 conclude   origin direct [#4]
+      f4: x ∈ B
+      by h x hx
       proves ?g0: h x hx
 English
   Theorem. Let $A$ and $B$ be sets and let $x \in A$. If $A \subseteq B$, then $x \in B$.
-  2: Apply `exact h x hx`.
+  2: Thus $x \in B$ by `h x hx`.
 Verification
   statement: equivalent to the original statement (proof checked)
   proof: the steps rebuild a proof of the presented statement
@@ -302,14 +304,17 @@ info: PresentedDecl swapped   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 untranslated `intro x hx`   origin direct [#4]
+    s1 fix   origin direct [#4]
+      x : α   with f2: x ∈ A ∩ B   hyp hx
       proves ?g0: fun x hx => @?g2 x hx
-    s2 untranslated `exact hx.left`   origin direct [#7]
+    s3 conclude   origin direct [#7]
+      f4: x ∈ A
+      by hx.left
       proves ?g2: hx.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: Apply `intro x hx`.
-  3: Apply `exact hx.left`.
+  2: Let $x \in A \cap B$.
+  3: Thus $x \in A$ by `hx.left`.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -354,14 +359,17 @@ info: PresentedDecl unsupported   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 untranslated `intro x hx`   origin direct [#4]
+    s1 fix   origin direct [#4]
+      x : α   with f2: x ∈ A ∩ B   hyp hx
       proves ?g0: fun x hx => @?g2 x hx
-    s2 untranslated `exact hx.left`   origin direct [#7]
+    s3 conclude   origin direct [#7]
+      f4: x ∈ A
+      by hx.left
       proves ?g2: hx.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: Apply `intro x hx`.
-  3: Apply `exact hx.left`.
+  2: Let $x \in A \cap B$.
+  3: Thus $x \in A$ by `hx.left`.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement

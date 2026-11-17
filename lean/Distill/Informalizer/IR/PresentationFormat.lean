@@ -89,6 +89,36 @@ private def group (ir : ProofIR) (g : ObjectGroup) : MetaM String := do
   let with_ := if properties.isEmpty then "" else s!"   with {"; ".intercalate properties.toList}"
   return s!"{", ".intercalate (g.objects.toList.map name)} : {← mathExpr first.type}{value}{with_}"
 
+private partial def block (ir : ProofIR) (b : Block) (indent := "    ") : MetaM String := do
+  let mut out := ""
+  for s in b.steps do
+    out := out ++ s!"{indent}{step ir s}\n"
+    match s.kind with
+    | .fix objects =>
+      for o in objects do
+        out := out ++ s!"{indent}  {← group ir { objects := #[o] }}\n"
+    | .assume facts _ | .derive facts =>
+      for c in facts do
+        out := out ++ s!"{indent}  {← claim ir c}\n"
+    | .conclude c | .suffices c | .claim c _ =>
+      out := out ++ s!"{indent}  {← claim ir c}\n"
+    | _ => pure ()
+    for r in s.reasons do
+      match r with
+      | .term t => out := out ++ s!"{indent}  by {← mathExpr t}\n"
+      | .lemma n _ => out := out ++ s!"{indent}  by lemma {n}\n"
+      | _ => pure ()
+    for e in s.evidence do
+      let proof ← ir.withGoalContext e.goal (pp e.proof)
+      out := out ++ s!"{indent}  proves {← pp (.mvar e.goal)}: {proof}\n"
+    match s.kind with
+    | .claim _ proof => out := out ++ (← block ir proof (indent ++ "  "))
+    | .split _ branches =>
+      for branch in branches do
+        out := out ++ (← block ir branch.body (indent ++ "  "))
+    | _ => pure ()
+  return out
+
 /-- Formats `d`, the presentation of `ir`. Runs inside `ir.withContext`; with
 `goalName := ir.goalNumbering`, the goals in the steps' evidence are numbered as in `#proof_ir`. -/
 def format (d : PresentedDecl) (ir : ProofIR) : MetaM String := ir.withGoalContext ir.rootGoal do
@@ -101,11 +131,7 @@ def format (d : PresentedDecl) (ir : ProofIR) : MetaM String := ir.withGoalConte
     out := out ++ s!"    {← claim ir h}\n"
   out := out ++ s!"  conclusion\n    {← claim ir d.conclusion}\n"
   out := out ++ s!"  proof of {← pp (.mvar d.rootGoal)}\n"
-  for s in d.proof.steps do
-    out := out ++ s!"    {step ir s}\n"
-    for e in s.evidence do
-      let proof ← ir.withGoalContext e.goal (pp e.proof)
-      out := out ++ s!"      proves {← pp (.mvar e.goal)}: {proof}\n"
+  out := out ++ (← ir.withContext (block ir d.proof) (goalName := ir.goalNumbering))
   return out
 
 end Distill.Informalizer.IR.PresentedDecl
