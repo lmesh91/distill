@@ -63,6 +63,17 @@ export async function submitProof(
 	if (response.status === 404) throw new ProofCheckError('This level could not be found.');
 	if (response.status === 413) throw new ProofCheckError('Your proof is too long to check.');
 	if (response.status === 503) {
+		const body: unknown = await response.json().catch(() => null);
+		if (
+			body &&
+			typeof body === 'object' &&
+			'error' in body &&
+			body.error === 'Level verification is not configured'
+		) {
+			throw new ProofCheckError(
+				'Proof checking has not been set up for this level yet. The level author needs to finish its setup.'
+			);
+		}
 		throw new ProofCheckError('Proof checking is unavailable right now. Try again in a minute.');
 	}
 	throw new ProofCheckError('Could not check your proof. Try again.');
