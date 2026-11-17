@@ -18,7 +18,7 @@ alphabetical order. The caches are emptied first, since a cached result unfolds 
 def unfoldedIn {α : Type} (x : MetaM α) : MetaM (α × Array Name) := do
   let saved ← get
   try
-    withTheReader Core.Context ({ · with diag := true }) do
+    withOptions (diagnostics.set · true) do
       modify fun s => { s with cache := {}, diag := {} }
       let a ← x
       let names := (← get).diag.unfoldCounter.toList.map (·.1)

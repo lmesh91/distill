@@ -256,7 +256,7 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
     -- The goal rests on one fact that takes a proof of its own: say first what it takes, then
     -- prove it ("By extensionality, it suffices to show that …").
     if conclude then
-      if let #[{ kind := .claim claim body, id, origin, evidence, .. }] := pre then
+      if let #[{ kind := .claim claim body, origin, evidence, .. }] := pre then
         let rest := all.filter fun | .fact f _ => f != claim.id | _ => true
         let step := (← mkStep (.suffices claim) rest).about goal premises
         return (#[{ step with
