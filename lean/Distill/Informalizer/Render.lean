@@ -416,11 +416,15 @@ private structure Because where
   definitionsOnly : Bool := false
   automation : Bool := false
 
-/-- Whether `decl` is the only constructor of its type, like `And.intro`. -/
+/-- Whether `decl` is the only constructor of its type and all its fields are proofs, like
+`And.intro`: then its arguments are exactly what proving the goal needs. `Exists.intro` is not
+(choosing a witness is one-way), nor is `Or.inl`. -/
 private def isSoleConstructor (decl : Name) : RenderM Bool := do
   let some (.ctorInfo c) := (← getEnv).find? decl | return false
   let some (.inductInfo i) := (← getEnv).find? c.induct | return false
-  return i.ctors.length == 1
+  unless i.ctors.length == 1 do return false
+  forallTelescopeReducing c.type fun xs _ =>
+    (xs.extract c.numParams xs.size).allM fun x => do isProp (← inferType x)
 
 private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : Array Claim)
     (previous : Array Nat := #[]) : RenderM Because := do

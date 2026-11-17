@@ -121,6 +121,18 @@ hx`), anonymous constructors and `And.intro`, lemma applications, `fun`, `have` 
   goal contexts are read with Lean's `getLocalHyps`, and the hypothesis table only looks at each
   goal's new hypotheses. Ratio now about 2.2.
 
+## Checks (criterion 9)
+
+Run with Node 24 (the system Node 18 is too old for `npm run check` and the TypeScript tests).
+
+- `lake test`: passes.
+- `npm run check` (svelte-check and types): 0 errors, 0 warnings.
+- `npm test`: 101 pass, 34 fail. The same 34 fail on `main`; they need services that are not
+  running here. This branch does not change the frontend or the translation service.
+- `eslint`: 1 error, in `src/routes/app/levels/[slug]/+page.svelte`, which is also on `main`.
+- `prettier --check`: 19 files, none of them changed by this branch (all pre-existing on
+  `main`).
+
 ## Review findings and answers
 
 ### Code review, round 1 (high effort, whole branch against `main`)
@@ -135,6 +147,15 @@ hx`), anonymous constructors and `And.intro`, lemma applications, `fun`, `have` 
 | 6   | Coverage rebuilt the proof's context once per referenced constant                                                                                   | low      | fixed: one `withContext` for all of them                                                                                                                                                                                                                                                                   |
 | 7   | `sharedPrefix?` never matched an empty parent context                                                                                               | low      | fixed                                                                                                                                                                                                                                                                                                      |
 | 8   | `newHypsIn` stops at the last shared hypothesis instead of filtering the whole context                                                              | low      | answered, not changed: it relies on the invariant documented on `sharedPrefix?` (tactics add hypotheses only at the end of a context; Lean's `LocalContext` appends, and tactics that reorder revert and reintroduce with new fvars). Filtering whole contexts per goal made long proofs quadratic (#105). |
+
+### Code review, round 2 (changes since round 1)
+
+| Finding                                                                                                                                                                  | Outcome                                                              |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| The new "sole constructor" rule also let `Exists.intro` (one constructor, but a witness field) write "we need to show", which claims the choice of witness loses nothing | Fixed: every field of the constructor must be a proof.               |
+| `sorry` arguments are dropped by replacing the whole application, including its type                                                                                     | Answered: the type is the goal's target, which is already collected. |
+
+No high-severity findings remain.
 
 ### Design review (criterion 8)
 
