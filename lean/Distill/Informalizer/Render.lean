@@ -416,6 +416,12 @@ private structure Because where
   definitionsOnly : Bool := false
   automation : Bool := false
 
+/-- Whether `decl` is the only constructor of its type, like `And.intro`. -/
+private def isSoleConstructor (decl : Name) : RenderM Bool := do
+  let some (.ctorInfo c) := (← getEnv).find? decl | return false
+  let some (.inductInfo i) := (← getEnv).find? c.induct | return false
+  return i.ctors.length == 1
+
 private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : Array Claim)
     (previous : Array Nat := #[]) : RenderM Because := do
   -- An implication the step before just stated, applied to other facts here, is not listed
@@ -429,6 +435,10 @@ private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : A
   let mut cited : Array Text := #[]
   let mut definitions := #[]
   let mut automation := false
+  -- Whether a lemma is used that makes a `suffices` one-way, written or not. The constructor
+  -- of a type with one constructor (`And.intro`) is not: its arguments are exactly what is
+  -- needed. Any other (`Or.inl`) is.
+  let mut lemma := false
   for r in reasons do
     match r with
     | .fact id _ =>
@@ -439,6 +449,7 @@ private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : A
       unless isJustStatedImplication id do
         premises := premises.push (← listed (← instantiateMVars c.prop.expr))
     | .lemma decl args =>
+      unless ← isSoleConstructor decl do lemma := true
       if let some t ← citation decl (args.map (·.expr)) then cited := cited.push t
     | .definition decl => definitions := definitions.push decl
     | .term proof => cited := cited.push (← exprCode proof.expr)
@@ -448,7 +459,7 @@ private def because (pc : ProofContext) (reasons : Array Reason) (conclusion : A
   return {
     facts, premises := premises.toList, automation
     cited? := if all.isEmpty then none else some (Text.joinAnd all)
-    definitionsOnly := cited.isEmpty && premises.isEmpty && definitions?.isSome }
+    definitionsOnly := !lemma && cited.isEmpty && premises.isEmpty && definitions?.isSome }
 
 /-- An untranslated Lean step: what it is, and what it proves or leaves to prove. -/
 private def untranslatedText (ir : ProofIR) (n : Nat) : RenderM Text := do

@@ -84,7 +84,11 @@ def directConstants (ir : ProofIR) : MetaM (Array Name) := do
   let mut seen : NameSet := {}
   let mut out := #[]
   for e in exprs do
-    for n in (← instantiateMVars e).getUsedConstants do
+    -- A `sorry`'s arguments (its type, which is a goal already listed, and Lean's bookkeeping
+    -- for the error message, with `Lean.Name` and `Bool`) are not part of the proof.
+    let e := (← instantiateMVars e).replace fun s =>
+      if s.isAppOf ``sorryAx then some (mkConst ``sorryAx) else none
+    for n in e.getUsedConstants do
       unless seen.contains n do
         seen := seen.insert n
         out := out.push n

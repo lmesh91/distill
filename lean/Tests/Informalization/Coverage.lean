@@ -42,3 +42,18 @@ theorem twice_subset (A : Set α) : Twice A ⊆ A := by
 theorem by_trivial (A : Set α) (x : α) (h : x ∈ A) : x ∈ A := by
   trivial
 "
+
+/-! A `sorry`'s own arguments (`Lean.Name`, `Bool`, …) are not constants the proof uses. -/
+
+/--
+info: every construct has a translation
+-/
+#guard_msgs in
+#eval printCoverage "
+import Distill.Levels.Demo
+open Distill
+
+theorem with_sorry (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  sorry
+"

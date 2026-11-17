@@ -136,6 +136,53 @@ hx`), anonymous constructors and `And.intro`, lemma applications, `fun`, `have` 
 | 7   | `sharedPrefix?` never matched an empty parent context                                                                                               | low      | fixed                                                                                                                                                                                                                                                                                                      |
 | 8   | `newHypsIn` stops at the last shared hypothesis instead of filtering the whole context                                                              | low      | answered, not changed: it relies on the invariant documented on `sharedPrefix?` (tactics add hypotheses only at the end of a context; Lean's `LocalContext` appends, and tactics that reorder revert and reintroduce with new fvars). Filtering whole contexts per goal made long proofs quadratic (#105). |
 
+### Design review (criterion 8)
+
+- **First run, discarded.** The agent's worktree was created from `main` (95e109c), without
+  this branch's commits, so it reviewed the translator as it was before this work (for example,
+  it found no term handlers and "by `h`" in every proof). Its files (on branch
+  `worktree-agent-ae26f3c951885d994`) are not used. Rerun on a worktree of this branch
+  (`design-review-or`, from 5d39ab6).
+
+- **Second run** (branch `design-review-or`, commit 141f660, not merged). It added `Or`
+  (`cases`, `rcases`, `obtain`, `rintro` patterns, `match`, `Or.elim`, `left`, `right`) with no
+  change under `lean/Distill/` and no edit to an existing file. Files touched:
+  `lean/Tests/Extensibility/Or.lean` (a recognizer for `left`/`right`, silent citations for
+  `Or.inl`/`Or.inr`, term handlers for `Or.inl`/`Or.inr`, for case splits on `Or` and for
+  `Or.elim`) and `lean/Tests/Informalization/Or.lean` (10 goldens). Every golden gives complete
+  English with no Lean code, and verification passes. Example (`union_subset`): "Then
+  $x \in A$ or $x \in B$ by the definition of union. First, suppose that $x \in A$. Since
+  $A \subseteq C$ and $x \in A$, we conclude that $x \in C$ by the definition of subset. Now
+  suppose instead that $x \in B$. …"
+- **Was a recognizer plus a renderer enough?** Nearly: the recognizer was needed only for
+  `left`/`right`; the rest is term handlers (the presentation's extension point) and
+  translators. The wording of a case split ("First, suppose … / Now suppose instead …") is
+  fixed in `Render.lean` and cannot be changed by an extension.
+
+| Finding                                                                                                                                       | Outcome                                                                                                                                         |
+| --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| A silent lemma (`Or.inl`) left a `suffices` reading "by the definition of union, we need to show that $x \in A$", which claims an equivalence | Fixed: only definitions, or the sole constructor of a type (`And.intro`), allow "we need to show"; any other lemma gives "it suffices to show". |
+| Coverage reported `Lean.Name`, `Bool`, … for any `sorry`                                                                                      | Fixed: a `sorry`'s arguments are not counted; new case in `Tests/Informalization/Coverage.lean`.                                                |
+| `lake test` builds `Tests/HeldOut` (glob `Tests.+`)                                                                                           | Answered: the held-out entries are `.lean.txt` files, which are not Lean modules, so the glob does not build them.                              |
+| Case-split wording, `StepKind` and step rendering are closed; `split` renders no lead sentence                                                | Answered: a recorded limitation for future work (a step-sentence translator kind). The demo's case structure (`ext`) reads correctly.           |
+| Handler toolkit (`inBlock`, `premise`, `needsBlock`) private; evidence order undocumented                                                     | Answered: recorded for future work.                                                                                                             |
+| A recognizer's transparency depends on the detail kind                                                                                        | Answered: recorded for future work (let recognizers declare it).                                                                                |
+| Fallback is per declaration: one bad term handler quotes the whole proof                                                                      | Answered: the main risk for long LLM proofs; per-goal verification and fallback is the top recommendation below.                                |
+
+**Extensibility review (summary).** Reading proof terms is the strength: one handler on `Or`
+covered five tactic syntaxes and a hand-written `match`, and an unreadable goal falls back
+locally. Toward full Lean: recognizers are a whitelist (`exfalso`, `exists`, `specialize`,
+`by_cases` stay untranslated), several `TacticDetail` kinds have no producer, and `witness`,
+`calc` and `contradiction` have no renderer. Toward Mathlib: the vocabulary is keyed on
+`Distill.Set`, theorems without a registered citation are cited by statement, automation is
+quoted, and the unfold-tracking used for "by definition" has not been measured on
+typeclass-heavy terms. Toward long LLM proofs: verification failure falls back for the whole
+declaration. Ranked recommendations: (1) verify and fall back per goal; (2) open step rendering
+(a step-sentence translator, a lead sentence for `split`); (3) public handler toolkit with a
+documented evidence contract; (4) recognizers that declare transparency; (5) for Mathlib, a
+configurable vocabulary, cached unfold analysis, name-based citations, and an automation
+recognizer.
+
 ## Held-out evaluation
 
 (not run yet)
