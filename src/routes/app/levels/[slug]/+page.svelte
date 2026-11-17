@@ -4,6 +4,7 @@
 	import LeanEditor from '$lib/components/LeanEditor.svelte';
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
 	import LeanResults from '$lib/components/LeanResults.svelte';
+	import RichText from '$lib/components/RichText.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import ProofCheckStatus from '$lib/components/ProofCheckStatus.svelte';
 	import { createProofChecker, type ProofCheckState } from '$lib/levels/proofCheck';
@@ -144,15 +145,15 @@
 	{#snippet goal()}
 		{#if data.level.type === 'guided' && data.level.targetProof}
 			<p>Write Lean whose translation matches this proof:</p>
-			<blockquote class="target-proof">{data.level.targetProof}</blockquote>
+			<blockquote class="target-proof"><RichText text={data.level.targetProof} /></blockquote>
 		{:else}
-			<p class="statement">{data.level.statement}</p>
+			<div class="statement"><RichText text={data.level.statement} /></div>
 		{/if}
 	{/snippet}
 
 	{#snippet brief()}
 		<h2>Description</h2>
-		<p class="description">{data.level.description}</p>
+		<div class="description"><RichText text={data.level.description} /></div>
 	{/snippet}
 
 	{#snippet editor()}
@@ -197,11 +198,9 @@
 		<ol class="translation">
 			{#each translatedLines as { line, english }, index (index)}
 				<li>
-					<span class="line-number">{line + 1}</span
-					>{#each english as part, partIndex (partIndex)}{#if part.kind === 'code'}<code
-								>{part.text}</code
-							>{:else if part.kind === 'math'}<span class="math">${part.text}$</span
-							>{:else}{part.text}{/if}{/each}
+					<span class="line-number">{line + 1}</span><span class="english"
+						><RichText parts={english} /></span
+					>
 				</li>
 			{/each}
 		</ol>
@@ -236,6 +235,7 @@
 
 	.statement,
 	.description {
+		margin: 1em 0;
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
@@ -266,5 +266,10 @@
 		font-family: var(--font-body);
 		font-variant-numeric: tabular-nums;
 		text-align: right;
+	}
+
+	.english {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 </style>
