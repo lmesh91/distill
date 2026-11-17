@@ -17,19 +17,34 @@ open Distill.Informalizer.IR
 def visibleHyps (lctx : LocalContext) : Array LocalDecl :=
   lctx.foldl (init := #[]) fun acc d => if d.isImplementationDetail then acc else acc.push d
 
+/--
+The visible hypotheses of `lctx` that are not in `scope`, in order. Tactics only add hypotheses
+at the end of a context (and remove some), so the ones a goal adds to the context it came from
+are after the last one they share: this goes back from the end and stops there, which keeps it
+proportional to the number of new hypotheses rather than to the size of the context.
+-/
+def newHypsIn (scope lctx : LocalContext) : Array LocalDecl := Id.run do
+  let mut out := #[]
+  let mut i := lctx.decls.size
+  while i > 0 do
+    i := i - 1
+    let some d := lctx.decls[i]! | continue
+    if d.isImplementationDetail then continue
+    if scope.contains d.fvarId then break
+    out := out.push d
+  return out.reverse
+
 private structure InstContext where
   goals : Std.HashSet MVarId
   /-- The context of the goal the expression belongs to. -/
-  scope : Std.HashSet FVarId
+  scope : LocalContext
 
 private abbrev InstM := ReaderT InstContext <| StateRefT (Std.HashMap ExprStructEq Expr) MetaM
 
 /-- How goal `m` occurs in an expression: applied to its hypotheses that are not in scope (its
 new hypotheses), so that substituting for them, as tactics do, reaches the goal. -/
 private def goalOccurrence (m : MVarId) : InstM Expr := do
-  let scope := (← read).scope
-  let hyps := (visibleHyps (← m.getDecl).lctx).filter (!scope.contains ·.fvarId)
-  return mkAppN (.mvar m) (hyps.map (·.toExpr))
+  return mkAppN (.mvar m) ((newHypsIn (← read).scope (← m.getDecl).lctx).map (·.toExpr))
 
 mutual
   private partial def instGo (e : Expr) : InstM Expr := do
@@ -79,13 +94,15 @@ Metavariables that are not goals are resolved like `instantiateMVars` does, incl
 delayed-assignment placeholders `intro` and `have` create. Unassigned ones (e.g. in an
 unfinished proof) stay as they are.
 -/
-def instantiateExceptGoals (goals : Std.HashSet MVarId) (scope : Array FVarId) (e : Expr) :
+def instantiateExceptGoals (goals : Std.HashSet MVarId) (scope : LocalContext) (e : Expr) :
     MetaM Expr :=
-  (instGo e).run { goals, scope := .ofArray scope } |>.run' {}
+  (instGo e).run { goals, scope } |>.run' {}
 
-/-- The visible hypotheses of goal `g`. -/
-def goalContext (g : MVarId) : MetaM (Array FVarId) :=
-  return (visibleHyps (← g.getDecl).lctx).map (·.fvarId)
+/-- The visible hypotheses of goal `g`. Lean's `getLocalHyps` rather than `visibleHyps`: this
+runs for every goal on contexts that grow with the proof, and Lean's own functions are compiled
+while this library's may run in the interpreter. -/
+def goalContext (g : MVarId) : MetaM (Array FVarId) := do
+  return (← withLCtx (← g.getDecl).lctx #[] getLocalHyps).map Expr.fvarId!
 
 /-- What `g` is assigned in `mctx`; for a delayed assignment, the goal it waits for. -/
 def assignmentIn (mctx : MetavarContext) (g : MVarId) : Option Expr :=
@@ -128,7 +145,7 @@ proofs rather than their goals. This recovers the term with the goals in place f
 the node elaborated (`terms`, in which the `by` blocks are still metavariables): the first one
 that, fully instantiated, is the assigned proof. Returns `none` if there is none.
 -/
-private def proofWithNestedGoals (goals : Std.HashSet MVarId) (context : Array FVarId)
+private def proofWithNestedGoals (goals : Std.HashSet MVarId) (context : LocalContext)
     (g : MVarId) (terms : Array Expr) (nested : Array MVarId) : MetaM (Option Expr) := do
   let full ← instantiateMVars (.mvar g)
   for t in terms do
@@ -159,9 +176,9 @@ The fallback for nested goals whose `by` block left no term to recover them from
 `exact (by …)`, a `by` in a `rw` rule): replaces the proof of `h` in `proof` by `h`, if it
 occurs exactly once. Only for goals without new hypotheses, whose proof occurs as it is.
 -/
-private def foldByValue (proof : Expr) (context : Array FVarId) (h : MVarId) :
+private def foldByValue (proof : Expr) (context : LocalContext) (h : MVarId) :
     MetaM (Option Expr) := do
-  unless (← goalContext h).all context.contains do return none
+  unless (newHypsIn context (← h.getDecl).lctx).isEmpty do return none
   let v ← instantiateMVars (.mvar h)
   if v.hasMVar || occurrences proof v != 1 then return none
   return proof.replace fun e => if e == v then some (.mvar h) else none
@@ -235,27 +252,33 @@ def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
       let some i := assigner? nodes kids tops g | pure none
       let n := nodes[i]!
       -- Nodes are in pre-order, so those nested in `n` come right after it.
-      let inside := (nodes.extract (i + 1) nodes.size).takeWhile (n.contains ·)
+      let inside := Id.run do
+        let mut inside := #[]
+        for j in [i + 1:nodes.size] do
+          if !n.contains nodes[j]! then break
+          inside := inside.push nodes[j]!
+        return inside
       -- The value as the node assigned it: later `instantiateMVars` calls store instantiated
       -- versions, in which the goal's subgoals are already replaced by their proofs.
       let some v := assignmentIn n.info.mctxAfter g | pure none
-      let mut proof ← instantiateExceptGoals goalSet context v
+      let mut proof ← instantiateExceptGoals goalSet decl.lctx v
       -- Goals only seen inside the node that its proof does not mention.
       let mentioned := (proof.collectMVars {}).result
       let candidates := Std.HashSet.ofList (inside.toList.flatMap (·.info.goalsBefore))
-      let nested := goals.filter fun h => candidates.contains h && h != g &&
+      let nested := if candidates.isEmpty then #[] else goals.filter fun h =>
+        candidates.contains h && h != g &&
         !mentioned.contains h && (holders[h]?.any fun hs => hs.all (n.contains ·))
       if !nested.isEmpty then
         let terms := n.terms ++ inside.flatMap (·.terms)
-        if let some p ← proofWithNestedGoals goalSet context g terms nested then proof := p
+        if let some p ← proofWithNestedGoals goalSet decl.lctx g terms nested then proof := p
         for h in nested do
           unless (proof.collectMVars {}).result.contains h do
-            if let some p ← foldByValue proof context h then proof := p
+            if let some p ← foldByValue proof decl.lctx h then proof := p
       pure (some { node := n.id, proof : Assignment })
     table := table.insert g {
       mvarId := g
       tag := tags[g]?.getD decl.userName
-      target := ← instantiateExceptGoals goalSet context decl.type
+      target := ← instantiateExceptGoals goalSet decl.lctx decl.type
       context
       assignment? }
   -- Parents: the goal whose assignment contains this one.
@@ -282,30 +305,43 @@ def buildHyps (goals : Std.HashMap MVarId GoalInfo) (aliases : Array FVarAliasIn
   let goalSet := Std.HashSet.ofArray goals.keysArray
   let mut table : Std.HashMap FVarId HypInfo := {}
   for (g, gi) in goals do
-    for d in visibleHyps (← g.getDecl).lctx do
+    let lctx := (← g.getDecl).lctx
+    -- The hypotheses a goal has from its parent are the parent's to add.
+    let parentContext? := gi.parent? >>= goals.get? |>.map (·.context)
+    let added := match parentContext? with
+      | some pc => IR.addedHyps pc gi.context
+      | none => gi.context
+    for h in added do
+      let some d := lctx.find? h | continue
       if table.contains d.fvarId then continue
       let value? ← match d with
         | .ldecl (value := v) (nondep := false) .. =>
-          some <$> instantiateExceptGoals goalSet gi.context v
+          some <$> instantiateExceptGoals goalSet lctx v
         | _ => pure none
       let replaces? := aliases.find? (·.id == d.fvarId) |>.map fun a =>
         { previous := a.baseId, fromAlias := true : HypLineage }
       table := table.insert d.fvarId {
         fvarId := d.fvarId
         userName := d.userName
-        type := ← instantiateExceptGoals goalSet gi.context d.type
+        type := ← instantiateExceptGoals goalSet lctx d.type
         value?
         binderInfo := d.binderInfo
         replaces? }
   let exprs := goals.values.flatMap (fun gi => gi.assignment?.map (·.proof) |>.toList) ++
     table.values.flatMap (·.value?.toList)
   let used := exprs.foldl collectFVars {}
-  for (g, gi) in goals do
-    for d in (← g.getDecl).lctx do
-      if d.isAuxDecl && !table.contains d.fvarId && used.fvarSet.contains d.fvarId then
-        table := table.insert d.fvarId {
-          fvarId := d.fvarId, userName := d.userName, isRecursive := true
-          type := ← instantiateExceptGoals goalSet gi.context d.type }
+  -- The free variables the proof uses that are not hypotheses: looked up in each goal's context
+  -- (there are few of them, while a goal's context grows with the proof).
+  let missing := used.fvarIds.filter (!table.contains ·)
+  if !missing.isEmpty then
+    for (g, _) in goals do
+      let lctx := (← g.getDecl).lctx
+      for f in missing do
+        let some d := lctx.find? f | continue
+        if d.isAuxDecl && !table.contains f then
+          table := table.insert f {
+            fvarId := f, userName := d.userName, isRecursive := true
+            type := ← instantiateExceptGoals goalSet lctx d.type }
   return table
 
 /-- Whether a tactic's `at` clause names a hypothesis called `n`, or is `at *`. -/
@@ -330,13 +366,15 @@ def inferLineage (nodes : Array NodeFacts) (goals : Std.HashMap MVarId GoalInfo)
     let some p := gi.parent? | continue
     let some parent := goals[p]? | continue
     let steps := (makers[g]?.getD #[]).filter (·.info.goalsBefore.contains p)
-    let parentContext := Std.HashSet.ofArray parent.context
-    let context := Std.HashSet.ofArray gi.context
-    for h in gi.context do
+    if steps.isEmpty then continue
+    let added := addedHyps parent.context gi.context
+    if added.isEmpty then continue
+    for h in added do
       let some hi := hyps[h]? | continue
-      if hi.replaces?.isSome || parentContext.contains h then continue
+      if hi.replaces?.isSome then continue
       let name := hi.userName.eraseMacroScopes
       unless steps.any (atNames ·.info.stx name) do continue
+      let context := Std.HashSet.ofArray gi.context
       let previous? := parent.context.find? fun p =>
         !context.contains p && hyps[p]?.any (·.userName == hi.userName)
       if let some previous := previous? then

@@ -15,8 +15,8 @@ This file is the resume point after a context reset. Read "Status" first.
 | Setup 3: edge-case catalog | done (9aea9f4) |
 | Setup 4: held-out split committed | done (9aea9f4) |
 | #93 #95 #96 #97 (term-driven presentation, English reasons, fallback) | done, committed |
-| #89 #91 #94 | in progress |
-| #103 #104 #105 | pending |
+| #89 #91 #94 | done, committed |
+| #103 #104 #105 | done, committed (benchmark results in docs/informalization/benchmark.md) |
 | Acceptance 2–9 | pending |
 | Final held-out evaluation | pending |
 
@@ -107,6 +107,19 @@ is dropped (a blank result).
   no longer tested anything (verification trivially succeeded). The pass now recurses into
   nested blocks (`fakeBlock`). What the test asserts (verification rejects fake evidence and
   the step is skipped) is unchanged and passes.
+
+## Performance notes (#105)
+
+- The benchmark runs the translator the way the language server does: this library's code is
+  interpreted (no `precompileModules`), Lean's own functions are compiled. Loops of this
+  library's code over a goal's whole context therefore cost far more than Lean's.
+- Long proofs were quadratic (ratio 3.9 for 500 → 1000 steps). Every stage did work
+  proportional to a goal's whole context for each goal. Now: a goal's new hypotheses are found
+  in constant time when its context extends its parent's (`IR.sharedPrefix?`, relying on
+  tactics only adding hypotheses at the end of a context, with an exact fallback), local
+  contexts are built from the parent's, the proof term is filled top-down with one substitution,
+  goal contexts are read with Lean's `getLocalHyps`, and the hypothesis table only looks at each
+  goal's new hypotheses. Ratio now about 2.2.
 
 ## Review findings and answers
 

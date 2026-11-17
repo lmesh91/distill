@@ -34,8 +34,7 @@ def mainGoal? (r : RecognizerInput) : Option GoalInfo :=
 
 /-- Hypotheses in `after`'s context that `before`'s context does not have. -/
 def newHyps (before after : GoalInfo) : Array FVarId :=
-  let old := Std.HashSet.ofArray before.context
-  after.context.filter (!old.contains ·)
+  addedHyps before.context after.context
 
 /-- The tactic's main goal and its proof, if the tactic itself (or a node nested in it)
 assigned it. The goal table records the final assignment, which a later node may have made

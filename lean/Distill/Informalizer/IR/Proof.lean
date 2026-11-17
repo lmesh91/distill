@@ -276,6 +276,26 @@ structure ProofIR where
   hyps : Std.HashMap FVarId HypInfo
   deriving Inhabited, Repr
 
+/--
+How many hypotheses at the start of `child` are those of `parent`, if `child` is `parent` with
+hypotheses added at the end. Tactics only add hypotheses at the end of a context and remove
+some, so a goal's context is a part of its parent's, in the same order, followed by new ones.
+Then `parent` is a prefix of `child` exactly when its last hypothesis has the same position in
+both, which is checked in constant time: comparing whole contexts for each goal would take time
+quadratic in the length of a proof.
+-/
+def sharedPrefix? (parent child : Array FVarId) : Option Nat :=
+  if parent.size ≤ child.size && parent.back? == child[parent.size - 1]? then some parent.size
+  else none
+
+/-- The hypotheses of `child` that are not in `parent`, in order (see `sharedPrefix?`). -/
+def addedHyps (parent child : Array FVarId) : Array FVarId :=
+  match sharedPrefix? parent child with
+  | some n => child.extract n child.size
+  | none =>
+    let old := Std.HashSet.ofArray parent
+    child.filter (!old.contains ·)
+
 namespace ProofIR
 
 def node? (ir : ProofIR) (id : Nat) : Option TacticNode :=
@@ -315,9 +335,7 @@ def subgoals (ir : ProofIR) (g : MVarId) : Array MVarId :=
 def newHyps (ir : ProofIR) (g : MVarId) : Array FVarId :=
   match ir.goal? g with
   | none => #[]
-  | some gi =>
-    let parentCtx := Std.HashSet.ofArray ((gi.parent? >>= ir.goal?).map (·.context) |>.getD #[])
-    gi.context.filter (!parentCtx.contains ·)
+  | some gi => addedHyps ((gi.parent? >>= ir.goal?).map (·.context) |>.getD #[]) gi.context
 
 end ProofIR
 

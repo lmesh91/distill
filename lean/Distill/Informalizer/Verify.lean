@@ -320,8 +320,9 @@ private def checkProof (ir : ProofIR) (d : PresentedDecl) (original presented : 
       return .incomplete reason
   try
     -- Lean compiles recursive calls away, so there is no closed term to compare.
-    if term.hasAnyFVar (ir.recursiveHyps.contains ·) then
-      check (← mkLambdaFVars ((binders ++ ir.recursiveHyps).map .fvar) term)
+    let recursive := ir.recursiveHyps
+    if !recursive.isEmpty && term.hasAnyFVar (recursive.contains ·) then
+      check (← mkLambdaFVars ((binders ++ recursive).map .fvar) term)
       return (incomplete?.map .incomplete).getD .recursive
     let closed ← mkLambdaFVars (binders.map .fvar) term
     let (proof, statement) ← match statement with
