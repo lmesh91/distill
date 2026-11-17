@@ -45,6 +45,14 @@ private def mathMem : MathTranslator := fun r e => do
   unless e.isAppOfArity ``Membership.mem 5 do return none
   infixMath r "\\in" 50 51 51 (e.getArg! 4) (e.getArg! 3)
 
+/-- `¬ P`: `x \notin A` for a membership, `\neg P` otherwise. -/
+private def mathNot : MathTranslator := fun r e => do
+  unless e.isAppOfArity ``Not 1 do return none
+  if let some (set, x) := membership? e.appArg! then
+    return ← infixMath r "\\notin" 50 51 51 x set
+  let some p ← r.math e.appArg! | return none
+  return some { tex := s!"\\neg {p.at 40}", prec := 40 }
+
 /-- `{x | p x}`. -/
 private def mathSetOf : MathTranslator := fun r e => do
   unless e.isAppOfArity ``Distill.Set.mk 2 do return none
@@ -85,6 +93,7 @@ private def connective (c : Name) (word : String) : Name × Translator :=
 /-- The built-in translators, by head constant. Precedences are those of Lean's notations. -/
 def translators : List (Name × Translator) := [
   (``Membership.mem, .math mathMem),
+  (``Not, .math mathNot),
   (``Distill.Set.mk, .math mathSetOf),
   binary ``HasSubset.Subset 4 "\\subseteq" 50 51 51,
   setOperator ``Inter.inter "\\cap" 70,
@@ -94,7 +103,39 @@ def translators : List (Name × Translator) := [
   binary ``Or 2 "\\lor" 30 31 30,
   (``Distill.Set, .noun nounSet),
   connective ``And "and",
-  connective ``Or "or"
+  connective ``Or "or",
+  (``Distill.Set, .concept {
+    name := "set"
+    definition := "a set is a collection of elements, given by the condition for an element to belong to it" }),
+  (``Distill.Set.mem, .concept {
+    name := "set membership", background := true
+    definition := "an element belongs to a set if it satisfies the condition that defines the set" }),
+  (``Distill.Set.Subset, .concept {
+    name := "subset"
+    definition := "a set " ++ Text.math "A" ++ " is a subset of a set " ++ Text.math "B" ++
+      ", written " ++ Text.math "A \\subseteq B" ++ ", if every element of " ++ Text.math "A" ++
+      " is an element of " ++ Text.math "B" }),
+  (``Distill.Set.Intersection, .concept {
+    name := "intersection"
+    definition := "the intersection " ++ Text.math "A \\cap B" ++ " of two sets is the set of the elements that belong to both " ++
+      Text.math "A" ++ " and " ++ Text.math "B" }),
+  (``Distill.Set.Union, .concept {
+    name := "union"
+    definition := "the union " ++ Text.math "A \\cup B" ++ " of two sets is the set of the elements that belong to " ++
+      Text.math "A" ++ " or to " ++ Text.math "B" }),
+  (``Distill.Set.ext, .citation
+    "extensionality for sets (two sets are equal if each is a subset of the other)"),
+  -- From `P` and `Q`, `P ∧ Q`, and back: said without naming a rule.
+  (``And.intro, .silent),
+  (``And.left, .silent),
+  (``And.right, .silent),
+  -- Rules of logic every reader knows by name.
+  (``rfl, .citation "reflexivity of equality"),
+  (``Eq.refl, .citation "reflexivity of equality"),
+  (``Eq.symm, .citation "symmetry of equality"),
+  (``Eq.trans, .citation "transitivity of equality"),
+  (``funext, .citation "function extensionality (two functions are equal if they agree at every argument)"),
+  (``True.intro, .citation ("the fact that " ++ Text.code "True" ++ " always holds"))
 ]
 
 private def translatorsFor : Std.HashMap Name (List Translator) :=
@@ -151,6 +192,9 @@ partial def math (e : Expr) : RenderM (Option Math) := do
 $t$", or "terms of type `t`" if `t` has no formula either. -/
 partial def noun (t : Expr) : RenderM Noun := do
   let t := t.consumeMData
+  -- The elements of a type the text does not introduce have no name to go by.
+  if let .fvar f := t then
+    if (← read).plainElements && (← read).omitted.contains f then return { article := "an", singular := "element", plural := "elements" }
   if let .sort u := t then
     if u.isZero then return { singular := "proposition", plural := "propositions" }
     if u.dec.isSome then return { singular := "type", plural := "types" }

@@ -223,13 +223,14 @@ info: PresentedDecl folded   role theorem
   conclusion
     f2: x ∈ B
   proof of ?g0
-    s3 conclude   origin direct [#4]
-      f4: x ∈ B
-      by h x hx
+    s4 conclude   origin partOf [#4]
+      f3: x ∈ B
+      by f0
+      by f1
       proves ?g0: h x hx
 English
   Theorem. Let $A$ and $B$ be sets and let $x \in A$. If $A \subseteq B$, then $x \in B$.
-  2: Thus $x \in B$ by `h x hx`.
+  2: Since $A \subseteq B$ and $x \in A$, we conclude that $x \in B$.
 Verification
   statement: equivalent to the original statement (proof checked)
   proof: the steps rebuild a proof of the presented statement
@@ -266,10 +267,12 @@ info: PresentedDecl flipped   role theorem
     f2: C = A  ⟸ A = C  [Tests.flipEquations, proved]
   proof of ?g0
     s3 untranslated `rw [hAB, hBC]`   origin direct [#4]
-      proves ?g0: Eq.mpr (id (congrArg (fun _a => _a = C) hAB)) (Eq.mpr (id (congrArg (fun _a => B = _a) hBC)) (Eq.refl B))
+      proves ?g0: Eq.mpr (id (congrArg (fun _a => _a = C) hAB)) ?g1
+      proves ?g1: Eq.mpr (id (congrArg (fun _a => B = _a) hBC)) ?g2
+      proves ?g2: Eq.refl B
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $B = A$ and $B = C$, then $C = A$.
-  2: Apply `rw [hAB, hBC]`.
+  2: Lean proves $A = C$ here with the step `rw [hAB, hBC]`, which is not translated into English yet.
 Verification
   statement: equivalent to the original statement (proof checked)
   proof: the steps rebuild a proof of the presented statement
@@ -304,17 +307,29 @@ info: PresentedDecl swapped   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 fix   origin direct [#4]
-      x : α   with f2: x ∈ A ∩ B   hyp hx
-      proves ?g0: fun x hx => @?g2 x hx
-    s3 conclude   origin direct [#7]
-      f4: x ∈ A
-      by hx.left
+    s2 suffices   origin inferred [#4]
+      f1: ∀ (x : α), x ∈ A ∩ B → x ∈ A
+      by definition Distill.Set.Subset
+      proves ?g0: fun x => ?g1 x
+    s3 fix   origin partOf [#4]
+      x : α   with f4: x ∈ A ∩ B   hyp hx
+      proves ?g1: fun hx => ?g2 hx
+    s7 derive   origin partOf [#7]
+      f6: x ∈ A ∧ x ∈ B
+      by f4
+      by definition Distill.Set.Intersection
+      by definition Distill.Set.mem
+    s9 conclude   origin partOf [#7]
+      f8: x ∈ A
+      by lemma And.left x ∈ A x ∈ B
+      by f6
       proves ?g2: hx.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
+  2: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
-  3: Thus $x \in A$ by `hx.left`.
+  3: Then $x \in A$ and $x \in B$ by the definition of intersection.
+  3: In particular, $x \in A$.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -359,17 +374,29 @@ info: PresentedDecl unsupported   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 fix   origin direct [#4]
-      x : α   with f2: x ∈ A ∩ B   hyp hx
-      proves ?g0: fun x hx => @?g2 x hx
-    s3 conclude   origin direct [#7]
-      f4: x ∈ A
-      by hx.left
+    s2 suffices   origin inferred [#4]
+      f1: ∀ (x : α), x ∈ A ∩ B → x ∈ A
+      by definition Distill.Set.Subset
+      proves ?g0: fun x => ?g1 x
+    s3 fix   origin partOf [#4]
+      x : α   with f4: x ∈ A ∩ B   hyp hx
+      proves ?g1: fun hx => ?g2 hx
+    s7 derive   origin partOf [#7]
+      f6: x ∈ A ∧ x ∈ B
+      by f4
+      by definition Distill.Set.Intersection
+      by definition Distill.Set.mem
+    s9 conclude   origin partOf [#7]
+      f8: x ∈ A
+      by lemma And.left x ∈ A x ∈ B
+      by f6
       proves ?g2: hx.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
+  2: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
-  3: Thus $x \in A$ by `hx.left`.
+  3: Then $x \in A$ and $x \in B$ by the definition of intersection.
+  3: In particular, $x \in A$.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -404,14 +431,20 @@ theorem swapped_by_sorry (A B : Set α) : A ∩ B ⊆ A := sorry
 end
 
 section
+/-- `b` with the evidence of every finished step, at any depth, replaced by something that
+proves nothing. -/
+partial def fakeBlock (b : Block) : Block := { b with steps := b.steps.map fun s =>
+  let s := { s with evidence := s.evidence.map fun (e : Evidence) =>
+    if e.proof.hasSorry || e.proof.hasExprMVar then e else { e with proof := mkNatLit 37 } }
+  match s.kind with
+  | .split k bs => { s with kind := .split k (bs.map fun br => { br with body := fakeBlock br.body }) }
+  | .claim c p => { s with kind := .claim c (fakeBlock p) }
+  | _ => s }
+
 /-- Replaces the evidence of every finished step by something that proves nothing. -/
 @[local distill_normalizer] def fakeEvidence : Pass where
   name := `Tests.fakeEvidence
-  run d := do
-    let steps := d.proof.steps.map fun s => { s with
-      evidence := s.evidence.map fun e =>
-        if e.proof.hasSorry || e.proof.hasExprMVar then e else { e with proof := mkNatLit 37 } }
-    return { d with proof.steps := steps }
+  run d := return { d with proof := fakeBlock d.proof }
 
 /-! Even in an unfinished proof, what the steps do prove is checked. -/
 /--

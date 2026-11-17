@@ -85,6 +85,13 @@ def format (ir : ProofIR) (lineOffset : Nat := 0) : MetaM String := do
       | .term .apply e => return s!"apply {← pp g? e}"
       | .term .refine e => return s!"refine {← pp g? e}"
       | .unrecognized => return "unrecognized"
+      | .constructor => return "constructor"
+      | .destruct source? bs => do
+        let source ← match source? with
+          | some e => pure s!" {← pp g? e}"
+          | none => pure ""
+        let parts := bs.toList.map fun b => s!"{goalLabel b.goal} [{hypList ir b.newHyps}]"
+        return s!"destruct{source} ⟶ {", ".intercalate parts}"
       | _ => return "<detail>"
     let mut out := s!"ProofIR {ir.decl}{if ir.isDeclBody then "" else "   (a `by` block inside it)"}\n"
     out := out ++ "  statement\n"

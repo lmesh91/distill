@@ -39,7 +39,7 @@ copy of the tactic's evidence. -/
 /--
 info: 2: Suppose that $p$.
 2: Suppose that $q$.
-3: Thus $p$ by `hp`.
+3: We already know that $p$, which is what we needed to show.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -52,7 +52,7 @@ example (p q : Prop) : p → q → p := by
 /--
 info: 2: Let $p$ be a proposition.
 2: Suppose that $p$.
-3: Thus $p$ by `hp`.
+3: We already know that $p$, which is what we needed to show.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -64,9 +64,8 @@ example : ∀ p : Prop, p → p := by
 /-! Nested claims keep their proofs inside the claim and render each child at its own line. -/
 /--
 info: 2: We claim that $p$.
-3: We have that $p$ by `hp`.
-4: Thus $p$ by `h'`.
-5: Thus $p$ by `h`.
+4: We already know this.
+5: We already know that $p$, which is what we needed to show.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -80,8 +79,7 @@ example (p : Prop) (hp : p) : p := by
 /-! A proposition not covered by expression translation is still a meaningful tactic step,
 with the complete proposition quoted as Lean. -/
 /--
-info: 2: We have that `n + 1 > 0` by `h`.
-3: Thus `n + 1 > 0` by `hn`.
+info: 3: We already know that `n + 1 > 0`, which is what we needed to show.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -92,9 +90,10 @@ example (n : Nat) (h : n + 1 > 0) : n + 1 > 0 := by
 
 /-! Unsupported tactics remain visible between translated steps. -/
 /--
-info: 2: Apply `constructor`.
-3: Thus $p$ by `hp`.
-4: Apply `apply hq`.
+info: 3: First, we show that $p$.
+3: We already know this.
+4: Next, we show that $q$.
+4: We already know this.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -106,8 +105,9 @@ example (p q : Prop) (hp : p) (hq : q) : p ∧ q := by
 
 /-! `ext` on functions uses a different lemma and must not claim mutual set inclusion. -/
 /--
-info: 2: Apply `ext n`.
-3: Thus `f n = f n` by `rfl`.
+info: 2: By function extensionality (two functions are equal if they agree at every argument), it suffices to show that for every term $x$ of type `Nat`, `f x = f x`.
+2: Let $n$ be a term of type `Nat`.
+3: We conclude that `f n = f n` by reflexivity of equality.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -118,8 +118,8 @@ example (f : Nat → Nat) : f = f := by
 
 /-! Pattern introduction has no supported detail; it must not invent assumptions. -/
 /--
-info: 2: Apply `intro ⟨hp, hq⟩`.
-3: Thus $p$ by `hp`.
+info: 2: Suppose that $p$ and $q$.
+3: In particular, $p$.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -130,8 +130,9 @@ theorem tactic_pattern (p q : Prop) : p ∧ q → p := by
 
 /-! A data-valued `have` is not a proved proposition. -/
 /--
-info: 2: Apply `have n : Nat := 1`.
-3: Thus `True` by `True.intro`.
+info: 2: The Lean proof continues with the step `have n : Nat := 1`, which is not translated into English yet. After it, it remains to show that `True`.
+2: Let $n$ be a term of type `Nat`.
+3: We conclude that `True` by the fact that `True` always holds.
 proof: the steps rebuild a proof of the presented statement
 -/
 #guard_msgs in
@@ -144,7 +145,7 @@ example : True := by
 /--
 warning: declaration uses `sorry`
 ---
-info: 2: Apply `exact sorry`.
+info: 2: It remains to show that $p$: the Lean proof leaves this out with `sorry`.
 proof: incomplete (the proof uses `sorry`)
 -/
 #guard_msgs in
@@ -155,8 +156,10 @@ example (p : Prop) : p := by
 /--
 warning: declaration uses `sorry`
 ---
-info: 2: Apply `have hp : p := sorry`.
-3: Thus $p$ by `hp`.
+info: 2: We claim that $p$.
+2: The Lean proof leaves this out with `sorry`.
+2: We go on as if this were proved.
+3: We already know that $p$, which is what we needed to show.
 proof: incomplete (the proof uses `sorry`)
 -/
 #guard_msgs in
@@ -169,8 +172,9 @@ example (p : Prop) : p := by
 warning: declaration uses `sorry`
 ---
 info: 2: We claim that $p$.
-3: Apply `sorry`.
-4: Thus $p$ by `hp`.
+3: The Lean proof leaves this out with `sorry`.
+2: We go on as if this were proved.
+4: We already know that $p$, which is what we needed to show.
 proof: incomplete (the proof uses `sorry`)
 -/
 #guard_msgs in

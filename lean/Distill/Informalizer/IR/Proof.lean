@@ -190,7 +190,7 @@ inductive TacticDetail where
   /-- `intro`, `intros`, `rintro x y`: the hypotheses introduced, in order. -/
   | intro (hyps : Array FVarId)
   /-- `rcases`, `obtain`, `rintro ⟨…⟩`, `cases`. `source?` is the destructured term, `none`
-  when it was the goal's premise (`rintro`). -/
+  when it was the goal's premise (`rintro`) or the recognizer did not resolve it. -/
   | destruct (source? : Option Expr) (branches : Array DestructBranch)
   /-- `induction`. Branches as for `destruct`. -/
   | induction (target : Expr) (branches : Array DestructBranch)

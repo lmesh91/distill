@@ -29,15 +29,20 @@ structure TranslateParams where
 /-- The English of one proof, line by line. `env` is the environment after its declaration. -/
 def lineTranslations (env : Environment) (p : Informalized) : Array LineTranslation := Id.run do
   let mut out := #[]
+  let nameLine? := (declRangeExt.find? (asyncMode := .local) env p.ir.decl).map
+    (·.selectionRange.pos.line)
   if let some statement := p.english.statement? then
     -- The line of the declaration's name, or of the proof if it has none (`example`).
-    let nameLine? := (declRangeExt.find? (asyncMode := .local) env p.ir.decl).map
-      (·.selectionRange.pos.line)
     if let some line := nameLine? <|> nodeLine? p.ir 0 then
       out := out.push { line := line - 1, english := statement }
+  -- A step that no tactic stands for (the conclusion of a split, what is left to prove) is shown
+  -- with the step before it, or else where the proof starts.
+  let mut last? := (nodeLine? p.ir 0 <|> nameLine?).map (· - 1)
   for s in p.english.steps do
-    if let some line := stepLine? p.ir s then
-      out := out.push { line := line - 1, english := s.text }
+    let line? := (stepLine? p.ir s).map (· - 1) <|> last?
+    if let some line := line? then
+      out := out.push { line, english := s.text }
+      last? := some line
   return out
 
 /-- The English of the proofs in the InfoTree of one elaborated command. -/

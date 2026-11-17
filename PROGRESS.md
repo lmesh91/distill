@@ -11,10 +11,11 @@ This file is the resume point after a context reset. Read "Status" first.
 | Phase | State |
 |---|---|
 | Setup 1: this file | done |
-| Setup 2: judge prompt committed (frozen) | pending |
-| Setup 3: edge-case catalog | pending |
-| Setup 4: held-out split committed | pending |
-| #89 #91 #93 #94 #95 #96 #97 | pending |
+| Setup 2: judge prompt committed (frozen) | done (9820c77) |
+| Setup 3: edge-case catalog | done (9aea9f4) |
+| Setup 4: held-out split committed | done (9aea9f4) |
+| #93 #95 #96 #97 (term-driven presentation, English reasons, fallback) | done, committed |
+| #89 #91 #94 | in progress |
 | #103 #104 #105 | pending |
 | Acceptance 2–9 | pending |
 | Final held-out evaluation | pending |
@@ -92,7 +93,17 @@ is dropped (a blank result).
 
 ## Edits to existing tests
 
-(none yet)
+- **Goldens regenerated** (expected text only, inputs and assertions unchanged) in
+  `Tests/Extraction/{Extensibility,Robustness,Shapes}.lean` (the Proof IR printer now prints
+  `constructor` and `destruct … ⟶ …` instead of `<detail>`) and
+  `Tests/Informalization/{DemoLevels,Extensibility,Pipeline,Tactics}.lean` (new English and
+  new Presentation IR). Every diff was read and is the intended new wording.
+- **`Tests/Informalization/Extensibility.lean`, `fakeEvidence` pass.** The pass rewrote
+  evidence only on top-level steps. Evidence for a goal now lives on the step that finishes
+  that goal, often inside a split or claim block, so the pass changed nothing and the test
+  no longer tested anything (verification trivially succeeded). The pass now recurses into
+  nested blocks (`fakeBlock`). What the test asserts (verification rejects fake evidence and
+  the step is skipped) is unchanged and passes.
 
 ## Review findings and answers
 

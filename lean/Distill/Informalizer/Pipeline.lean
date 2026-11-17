@@ -99,13 +99,20 @@ def commandContext? (tree : InfoTree) (env? : Option Environment := none) : Opti
     some { ci with env := env?.getD (ci.cmdEnv?.getD ci.env), mctx := {} }
   | _ => none
 
+/-- What is shown for a proof the pipeline failed on: that it is not translated, and its Lean. -/
+def untranslated (ir : ProofIR) : Informalized :=
+  let nodes := if ir.nodes.isEmpty then #[] else #[0]
+  { ir, presented := default, verification? := none, skipped := #[]
+    english := { statement? := none, steps := #[{ step := 0, nodes, text := renderUntranslated ir nodes }] } }
+
 /-- Informalizes every proof in the InfoTree of an elaborated command. Like extraction, it does
-not fail because of the proofs it is given: a proof that cannot be informalized is left out. -/
+not fail because of the proofs it is given: a proof the pipeline fails on is shown as
+`untranslated`. -/
 def informalizeTree (tree : InfoTree) (env? : Option Environment := none) :
     IO (Array Informalized) := do
   let some ctx := commandContext? tree env? | return #[]
   let proofs ← try extractProofs tree catch _ => pure #[]
-  proofs.filterMapM fun ir => do
-    try return some (← ctx.runMetaM {} (informalize ir)) catch _ => return none
+  proofs.mapM fun ir => do
+    try ctx.runMetaM {} (informalize ir) catch _ => return untranslated ir
 
 end Distill.Informalizer

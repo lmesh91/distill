@@ -42,6 +42,10 @@ private structure WalkState where
   proofs : Array RawProof := #[]
   /-- The proof being collected, if the walk is inside one. -/
   current? : Option RawProof := none
+  /-- The declarations the command names, with the context they were named in. Those that no
+  proof in the tree is of had a body Lean could not read (`theorem t : P` with nothing after
+  it). -/
+  declared : Array (ContextInfo × Name) := #[]
 
 private abbrev WalkM := StateT WalkState IO
 
@@ -117,6 +121,7 @@ private partial def walk (ctx? : Option ContextInfo) (body? : Option Syntax) (pa
             modify ({ · with current? := some {
               nodes := #[{ ctx, info := root, path, parent? := none }], aliases := #[]
               isDeclBody := true, isTermProof := true } })
+
     | .ofTacticInfo ti, some ctx =>
       if (← get).current?.isNone then
         -- Only `by` blocks start a proof. Other tactic infos outside one (e.g. from `decreasing_by`
@@ -131,7 +136,9 @@ private partial def walk (ctx? : Option ContextInfo) (body? : Option Syntax) (pa
             | some p => nodes.modify p fun n => { n with children := n.children.push idx }
             | none => nodes }
         parent? := some idx
-    | .ofTermInfo ti, _ =>
+    | .ofTermInfo ti, ctx? =>
+      if let (true, some ctx, some c) := (ti.isBinder, ctx?, ti.expr.constName?) then
+        modify fun s => { s with declared := s.declared.push (ctx, c) }
       if let (some p, false) := (parent?, ti.isBinder) then
         modifyCurrent fun proof =>
           { proof with nodes := proof.nodes.modify p fun n => { n with terms := n.terms.push ti.expr } }
@@ -148,9 +155,10 @@ private partial def walk (ctx? : Option ContextInfo) (body? : Option Syntax) (pa
         modify fun s => { s with proofs := s.proofs.push (finishProof proof), current? := none }
     if isBody then modify ({ · with current? := outer })
 
-/-- The proofs in a command's InfoTree. -/
-def collectProofs (tree : InfoTree) : IO (Array RawProof) := do
+/-- The proofs in a command's InfoTree, and the declarations it names, with the context to look
+them up in. -/
+def collectProofs (tree : InfoTree) : IO (Array RawProof × Array (ContextInfo × Name)) := do
   let ((), s) ← (walk none none #[] none tree).run {}
-  return s.proofs
+  return (s.proofs, s.declared)
 
 end Distill.Informalizer.Extract

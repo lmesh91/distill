@@ -1,6 +1,6 @@
 import Distill.Informalizer.IR.Context
 import Distill.Informalizer.IR.Presentation
-import Distill.Definitions.Sets
+import Distill.Informalizer.Present.Term
 
 /-!
 # Presentation: Proof IR ⟶ Presentation IR
@@ -11,8 +11,10 @@ import Distill.Definitions.Sets
   a proof of a proposition, in the order they were written. The conclusion is the goal of the
   proof. A hypothesis that a later binder is stated with (`(h : 0 < n) (i : Fin' n h)`) has to
   come before that binder, so it becomes a property of the object before it.
-* **Proof.** Supported tactic details become mathematical steps, with the part of the Lean
-  proof they are responsible for as their `evidence`. Other nodes stay `untranslated`.
+* **Proof.** The proof terms the tactics built are read as mathematical steps
+  (`Distill.Informalizer.Present.Term`), each with the part of the Lean proof it is responsible
+  for as its `evidence`. The term of a tactic that is not known to say everything in it, and a
+  term that cannot be read, stay `untranslated`; a goal nothing proves is a `gap`.
 
 Normalization (`Distill.Informalizer.Normalize`) then makes it read like mathematics.
 -/
@@ -64,110 +66,50 @@ private def nodeEvidence (ir : ProofIR) : Std.HashMap Nat (Array Evidence) := Id
       out := out.insert o ((out.getD o #[]).push { goal := g, proof })
   return out
 
-private structure StepState where
-  nextId : Nat
-  visited : Std.HashSet Nat := {}
-
-private abbrev PresentM := StateT StepState MetaM
-
-private def freshId : PresentM Nat := do
-  let id := (← get).nextId
-  modify fun s => { s with nextId := id + 1 }
-  return id
-
-private def hypClaim (ir : ProofIR) (h : FVarId) : PresentM Claim := do
-  let some hi := ir.hyp? h | throwError "missing hypothesis"
-  return { id := ← freshId, prop := { expr := hi.type }, hyp? := some h }
-
-private def mathObject (ir : ProofIR) (h : FVarId) : MetaM MathObject := do
-  let some hi := ir.hyp? h | throwError "missing object"
-  return {
-    fvar := h, name := hi.userName, type := { expr := hi.type }
-    value? := hi.value?.map ({ expr := · }), binderInfo := hi.binderInfo }
-
-/-- Tactic intent comes from resolved details and goals, never from parsing tactic text.
-An unsupported shape keeps its source. Every surface node's evidence is used exactly once,
-including when an introduction becomes several steps or a `have` contains a nested proof. -/
-private partial def presentNode (ir : ProofIR) (evidence : Std.HashMap Nat (Array Evidence))
-    (n : TacticNode) : PresentM (Array ProofStep) := do
-  if (← get).visited.contains n.id then return #[]
-  modify fun s => { s with visited := s.visited.insert n.id }
-  let id ← freshId
-  let base : ProofStep := {
-    id, kind := .untranslated n.id
+/-- The presentation of last resort: every surface node as the Lean it is, in source order. -/
+private def quotedSteps (ir : ProofIR) (nextId : Nat) : Array ProofStep :=
+  let evidence := nodeEvidence ir
+  ir.surfaceNodes.mapIdx fun i n => {
+    id := nextId + i, kind := .untranslated n.id
     origin := { relation := .direct, nodes := #[n.id] }
     evidence := evidence.getD n.id #[] }
-  -- Restore state as well as content if a handler cannot describe the whole node.
-  let saved ← get
-  try
-    match n.detail with
-    | .intro hyps =>
-      if hyps.isEmpty then return #[base]
-      let mut kinds : Array StepKind := #[]
-      for h in hyps do
-        let some hi := ir.hyp? h | throwError "missing introduced hypothesis"
-        if ← isProp hi.type then
-          let c ← hypClaim ir h
-          -- Keep a newly introduced element and its membership together: "Let x ∈ A".
-          if let some (set, .fvar x) := membership? hi.type then
-            if let some (.fix os) := kinds.back? then
-              if let some o := os.back? then
-                if o.fvar == x && !set.containsFVar x then
-                  kinds := kinds.set! (kinds.size - 1)
-                    (.fix (os.set! (os.size - 1) { o with properties := o.properties.push c }))
-                  continue
-          kinds := kinds.push (.assume #[c] .forImplication)
-        else
-          kinds := kinds.push (.fix #[← mathObject ir h])
-      let mut steps := #[]
-      for i in [:kinds.size] do
-        let stepId ← if i == 0 then pure id else freshId
-        steps := steps.push { base with
-          id := stepId
-          kind := kinds[i]!
-          origin := { base.origin with
-            relation := if kinds.size == 1 then .direct else .partOf, hyps }
-          evidence := if i == 0 then base.evidence else #[] }
-      return steps
-    | .have h term? proofGoal? =>
-      let some hi := ir.hyp? h | return #[base]
-      unless ← isProp hi.type do return #[base]
-      let fact ← hypClaim ir h
-      if let some g := proofGoal? then
-        let some gi := ir.goal? g | return #[base]
-        unless ← isDefEq gi.target hi.type do return #[base]
-        let mut steps := #[]
-        for child in ir.nestedSurface n.id do
-          steps := steps ++ (← presentNode ir evidence child)
-        return #[{ base with kind := .claim fact { goal? := some fact, steps } }]
-      if let some term := term? then
-        -- A term with a nested `by` or a sorry has not yet established the claim.
-        if term.hasExprMVar || term.hasSorry then return #[base]
-        return #[{ base with kind := .derive #[fact], reasons := #[.term { expr := term }] }]
-      return #[base]
-    | .term mode term =>
-      let some g := n.goalsBefore[0]? >>= ir.goal? | return #[base]
-      unless ← isProp g.target do return #[base]
-      if term.hasSorry then return #[base]
-      if mode == .exact && !term.hasExprMVar then
-        let goal : Claim := { id := ← freshId, prop := { expr := g.target } }
-        return #[{ base with kind := .conclude goal, reasons := #[.term { expr := term }] }]
-      -- The demo's extensionality lemma reduces set equality to mutual inclusion.
-      -- Inspect the resolved lemma, so other `ext` lemmas are not mislabeled.
-      if mode == .apply && term.isAppOfArity ``Distill.Set.ext 5 then
-        let goals := n.goalsAfter.filter (!n.goalsBefore.contains ·)
-        if let #[g₁, g₂] := goals then
-          let some a := ir.goal? g₁ | return #[base]
-          let some b := ir.goal? g₂ | return #[base]
-          unless a.context == g.context && b.context == g.context do return #[base]
-          let goal : Claim := {
-            id := ← freshId, prop := { expr := mkApp2 (mkConst ``And) a.target b.target } }
-          return #[{ base with kind := .suffices goal, reasons := #[.lemma ``Distill.Set.ext] }]
-      return #[base]
-    | _ => return #[base]
-  catch _ =>
-    set saved
-    return #[base]
+
+/-- The steps of the proof of `ir`, and the variables only they have. `facts` are the
+hypotheses of the statement. -/
+private def proofSteps (ir : ProofIR) (nextId : Nat) (facts : Array Claim) :
+    MetaM (Array ProofStep × Array LocalDecl) := do
+  let init : Present.State := {
+    nextId
+    facts := facts.foldl (init := {}) fun m c => match c.hyp? with
+      | some h => m.insert h { id := c.id, prop := c.prop.expr }
+      | none => m }
+  let run : Present.PresentM (Array ProofStep) := do
+    let mut steps ← Present.goalSteps ir.rootGoal ir.statement.conclusion
+    -- A tactic that proved nothing the steps account for (it ran after the proof was over, or
+    -- on a goal another step swallowed) is still shown.
+    let s ← get
+    for n in ir.surfaceNodes do
+      unless s.used.contains n.id || s.reported.contains n.id do
+        if n.goalsBefore.isEmpty then
+          steps := steps.push {
+            id := ← Present.freshId, kind := .untranslated n.id
+            origin := { relation := .direct, nodes := #[n.id] } }
+    -- Evidence no step took: the proof ended in a goal that needed no words.
+    let pending := (← get).pending
+    let waiting := (← get).pendingNodes.filter fun n => !steps.any (·.origin.nodes.contains n)
+    unless pending.isEmpty && waiting.isEmpty do
+      match steps.back? with
+      | some last => steps := steps.pop.push { last with
+          evidence := last.evidence ++ pending
+          origin := { last.origin with nodes := last.origin.nodes ++ waiting } }
+      | none =>
+        steps := #[{
+          id := ← Present.freshId, kind := .untranslated 0
+          origin := { relation := .direct, nodes := if ir.nodes.isEmpty then #[] else #[0] }
+          evidence := pending }]
+    return steps
+  let (steps, s) ← (run.run { ir, owner := owners ir }).run init
+  return (steps, s.locals)
 
 /-- The Presentation IR of `ir` before normalization. Runs inside `ir.withContext`. -/
 def present (ir : ProofIR) : MetaM PresentedDecl := do
@@ -194,14 +136,11 @@ def present (ir : ProofIR) : MetaM PresentedDecl := do
         value? := hi.value?.map ({ expr := · }), binderInfo := hi.binderInfo }] }
   let conclusion : Claim := { id := nextId, prop := { expr := ir.statement.conclusion } }
   nextId := nextId + 1
-  let evidence := nodeEvidence ir
-  let (steps, _) ← (do
-    let mut steps := #[]
-    for n in ir.surfaceNodes do
-      steps := steps ++ (← presentNode ir evidence n)
-    pure steps : PresentM (Array ProofStep)).run { nextId }
+  let facts := hypotheses ++ objects.flatMap (·.objects.flatMap (·.properties))
+  let (steps, locals) ← tryCatchRuntimeEx (proofSteps ir nextId facts) fun _ =>
+    pure (quotedSteps ir nextId, #[])
   return {
     decl := ir.decl, role := declRole ir.decl, objects, hypotheses, conclusion
-    rootGoal := ir.rootGoal, proof := { goal? := some conclusion, steps } }
+    rootGoal := ir.rootGoal, proof := { goal? := some conclusion, steps }, locals }
 
 end Distill.Informalizer

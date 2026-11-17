@@ -175,6 +175,16 @@ inductive SplitKind where
   | induction (on : MathExpr)
   deriving Inhabited, Repr
 
+/-- Why a part of a proof is missing. -/
+inductive GapCause where
+  /-- Nothing proves the goal yet: the proof stops before it. -/
+  | unfinished
+  /-- The user wrote `sorry`. -/
+  | sorry
+  /-- Lean reported an error where the goal should have been proved. -/
+  | error
+  deriving Inhabited, Repr, BEq
+
 mutual
 
 /-- The mathematical content of a step. -/
@@ -207,6 +217,8 @@ inductive StepKind where
   /-- A Proof IR node that has no presentation yet, shown as the Lean the user wrote.
   Supported tactics produce other step kinds instead. -/
   | untranslated (node : Nat)
+  /-- A goal that the Lean proof does not prove: "It remains to show `P`." -/
+  | gap (goal : Claim) (cause : GapCause)
   deriving Repr
 
 /-- One link `aᵢ₋₁ Rᵢ aᵢ` of a calculation. -/
@@ -277,13 +289,25 @@ structure PresentedDecl where
   /-- The Lean goal that `proof` proves; the steps' `evidence` starts from it. -/
   rootGoal : MVarId
   proof : Block
-  deriving Inhabited, Repr
+  /-- Variables the steps mention that no goal of the Proof IR has in its context: those bound
+  inside a proof term (`fun x hx => …` with no tactic block under it). They are declared, in
+  this order, wherever the steps' expressions are type-checked or printed
+  (`PresentedDecl.withLocals`). -/
+  locals : Array LocalDecl := #[]
+  deriving Inhabited
 
 /-- A document: several related declarations in presentation order. A proof that relies on
 an earlier declaration of the same document cites it with `Reason.lemma`, which lets a
 renderer write "by the lemma" instead of a Lean name. -/
 structure Document where
   decls : Array PresentedDecl
-  deriving Inhabited, Repr
+  deriving Inhabited
+
+open Meta in
+/-- Runs `x` with the variables that only the presentation has (`PresentedDecl.locals`) added to
+the local context. -/
+def PresentedDecl.withLocals (d : PresentedDecl) (x : MetaM α) : MetaM α := do
+  let lctx := d.locals.foldl (fun lctx l => lctx.addDecl l) (← getLCtx)
+  withLCtx lctx (← getLocalInstances) x
 
 end Distill.Informalizer.IR
