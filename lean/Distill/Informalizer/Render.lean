@@ -390,11 +390,20 @@ def definitionsText (decls : Array Name) : RenderM (Option Text) := do
   if decls.isEmpty then return none
   let concepts ← decls.filterMapM fun d => Render.renderer.phrase? Concept (mkConst d)
   let named := if concepts.any (!·.background) then concepts.filter (!·.background) else concepts
-  let names := named.foldl (init := #[]) fun acc c => if acc.contains c.name then acc else acc.push c.name
-  return some <| match names.toList with
+  let named := named.foldl (init := #[]) fun acc c =>
+    if acc.any (·.name == c.name) then acc else acc.push c
+  -- The first time a definition is used, the text says what it is.
+  let mut parts : List Text := []
+  for c in named do
+    if (← get).defined.contains c.name then
+      parts := parts ++ [Text.plain c.name]
+    else
+      modify fun s => { s with defined := s.defined.insert c.name }
+      parts := parts ++ [c.name ++ " (" ++ c.definition ++ ")"]
+  return some <| match parts with
     | [] => "definition"
-    | [one] => s!"the definition of {one}"
-    | several => "the definitions of " ++ Text.joinAnd (several.map Text.plain)
+    | [one] => "the definition of " ++ one
+    | several => "the definitions of " ++ Text.joinAnd several
 
 /-- The reasons of a step, sorted: the facts it follows from, what it holds by, and whether it
 only says what an untranslated Lean step did. -/

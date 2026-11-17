@@ -27,7 +27,7 @@ info: PresentedDecl Distill.Levels.Demo.subset_rfl   role theorem
       proves ?g2: hx
 English
   Theorem. Let $A$ be a set. Then $A \subseteq A$.
-  34: By the definition of subset, we need to show that for every $x \in A$, $x \in A$.
+  34: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A$, $x \in A$.
   34: Let $x \in A$.
   37: We already know that $x \in A$, which is what we needed to show.
 Verification
@@ -61,9 +61,9 @@ PresentedDecl Distill.Levels.Demo.inter_subset_left   role theorem
       proves ?g3: h.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  41: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
+  41: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
   41: Let $x \in A \cap B$.
-  43: Then $x \in A$ and $x \in B$ by the definition of intersection.
+  43: Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
   45: In particular, $x \in A$.
 Verification
   statement: identical to the original statement
@@ -95,9 +95,9 @@ PresentedDecl Distill.Levels.Demo.inter_subset_right   role theorem
       proves ?g2: hx.right
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B$.
-  49: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in B$.
+  49: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in B$.
   49: Let $x \in A \cap B$.
-  52: Then $x \in A$ and $x \in B$ by the definition of intersection.
+  52: Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
   52: In particular, $x \in B$.
 Verification
   statement: identical to the original statement
@@ -141,11 +141,11 @@ PresentedDecl Distill.Levels.Demo.subset_inter   role theorem
       proves ?g4: ⟨ha, hb⟩
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
-  56: By the definition of subset, we need to show that for every $x \in C$, $x \in A \cap B$.
+  56: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in C$, $x \in A \cap B$.
   56: Let $x \in C$.
   61: Since $C \subseteq A$ and $x \in C$, we have $x \in A$ by the definition of subset.
   62: Since $C \subseteq B$ and $x \in C$, we have $x \in B$ by the definition of subset.
-  64: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection.
+  64: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -237,25 +237,25 @@ info: [{"text": "Apply ", "kind": "text"},
 /-! The level page shows this next to the editor. -/
 /--
 info: 31: Theorem. Let $A$ be a set. Then $A \subseteq A$.
-34: By the definition of subset, we need to show that for every $x \in A$, $x \in A$.
+34: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A$, $x \in A$.
 34: Let $x \in A$.
 37: We already know that $x \in A$, which is what we needed to show.
 40: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-41: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
+41: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
 41: Let $x \in A \cap B$.
-43: Then $x \in A$ and $x \in B$ by the definition of intersection.
+43: Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
 45: In particular, $x \in A$.
 48: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B$.
-49: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in B$.
+49: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in B$.
 49: Let $x \in A \cap B$.
-52: Then $x \in A$ and $x \in B$ by the definition of intersection.
+52: Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
 52: In particular, $x \in B$.
 55: Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
-56: By the definition of subset, we need to show that for every $x \in C$, $x \in A \cap B$.
+56: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in C$, $x \in A \cap B$.
 56: Let $x \in C$.
 61: Since $C \subseteq A$ and $x \in C$, we have $x \in A$ by the definition of subset.
 62: Since $C \subseteq B$ and $x \in C$, we have $x \in B$ by the definition of subset.
-64: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection.
+64: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
 67: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq B \cap A$.
 69: We have $A \cap B \subseteq A$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq A$.
 70: We have $A \cap B \subseteq B$ by the theorem that for all sets $A$ and $B$, $A \cap B \subseteq B$.

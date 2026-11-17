@@ -174,6 +174,8 @@ structure RenderContext where
 structure RenderState where
   /-- The local variables the text written so far names. -/
   mentioned : FVarIdSet := {}
+  /-- The concepts (`Concept.name`) whose definition the text has already given. -/
+  defined : Std.HashSet String := {}
 
 abbrev RenderM := ReaderT RenderContext (StateRefT RenderState MetaM)
 

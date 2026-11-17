@@ -326,9 +326,9 @@ info: PresentedDecl swapped   role theorem
       proves ?g2: hx.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
-  3: Then $x \in A$ and $x \in B$ by the definition of intersection.
+  3: Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
   3: In particular, $x \in A$.
 Verification
   statement: identical to the original statement
@@ -393,9 +393,9 @@ info: PresentedDecl unsupported   role theorem
       proves ?g2: hx.left
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
-  3: Then $x \in A$ and $x \in B$ by the definition of intersection.
+  3: Then $x \in A$ and $x \in B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
   3: In particular, $x \in A$.
 Verification
   statement: identical to the original statement

@@ -52,12 +52,12 @@ info: PresentedDecl nested   role theorem
       proves ?g4: ⟨ha, hCB x hx⟩
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
-  2: By the definition of subset, we need to show that for every $x \in C$, $x \in A \cap B$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in C$, $x \in A \cap B$.
   2: Let $x \in C$.
   3: We claim that $x \in A$.
   4: This follows from $C \subseteq A$ and $x \in C$ by the definition of subset.
   5: Since $C \subseteq B$ and $x \in C$, we have $x \in B$ by the definition of subset.
-  5: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection.
+  5: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -179,7 +179,7 @@ info: PresentedDecl unfinished   role theorem
       proves ?g2: sorry
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
   3: It remains to show that $x \in A$: the Lean proof leaves this out with `sorry`.
 Verification
@@ -219,7 +219,7 @@ info: PresentedDecl failing   role theorem
       f6: x ∈ A
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
-  2: By the definition of subset, we need to show that for every $x \in A \cap B$, $x \in A$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
   2: It remains to show that $x \in A$, which the Lean proof does not do yet.
 Verification

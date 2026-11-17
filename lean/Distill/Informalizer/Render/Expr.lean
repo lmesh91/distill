@@ -110,19 +110,17 @@ def translators : List (Name × Translator) := [
   (``Distill.Set.mem, .concept {
     name := "set membership", background := true
     definition := "an element belongs to a set if it satisfies the condition that defines the set" }),
+  -- Definitions are worded without letters: they are given in the middle of a proof, whose own
+  -- sets may be called `A` and `B`.
   (``Distill.Set.Subset, .concept {
     name := "subset"
-    definition := "a set " ++ Text.math "A" ++ " is a subset of a set " ++ Text.math "B" ++
-      ", written " ++ Text.math "A \\subseteq B" ++ ", if every element of " ++ Text.math "A" ++
-      " is an element of " ++ Text.math "B" }),
+    definition := "one set is a subset of another if every element of the first is an element of the second" }),
   (``Distill.Set.Intersection, .concept {
     name := "intersection"
-    definition := "the intersection " ++ Text.math "A \\cap B" ++ " of two sets is the set of the elements that belong to both " ++
-      Text.math "A" ++ " and " ++ Text.math "B" }),
+    definition := "the intersection of two sets consists of the elements that belong to both of them" }),
   (``Distill.Set.Union, .concept {
     name := "union"
-    definition := "the union " ++ Text.math "A \\cup B" ++ " of two sets is the set of the elements that belong to " ++
-      Text.math "A" ++ " or to " ++ Text.math "B" }),
+    definition := "the union of two sets consists of the elements that belong to at least one of them" }),
   (``Distill.Set.ext, .citation
     "extensionality for sets (two sets are equal if each is a subset of the other)"),
   -- From `P` and `Q`, `P ∧ Q`, and back: said without naming a rule.
