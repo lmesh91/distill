@@ -729,8 +729,9 @@ def renderQuoted (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
     | some info => pure (some ((s!"{roleLabel d.role}. " : Text) ++ (← exprCode info.type) ++ "."))
     | none => pure none
   -- One sentence for a tactic, however many steps it was presented as.
-  let steps := (quotedBlock ir d.proof).foldl (init := #[]) fun acc s =>
-    if acc.any (·.nodes == s.nodes) then acc else acc.push s
+  let steps := (quotedBlock ir d.proof).foldl (init := (#[], ({} : Std.HashSet (Array Nat))))
+    (fun (acc, seen) s => if seen.contains s.nodes then (acc, seen) else (acc.push s, seen.insert s.nodes))
+    |>.1
   let steps := if steps.isEmpty then
       #[{ step := 0, nodes := #[], text := renderUntranslated ir #[] }]
     else steps

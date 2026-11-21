@@ -238,6 +238,7 @@ metavariable context.
 def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
     MetaM (Std.HashMap MVarId GoalInfo) := do
   let goalSet := Std.HashSet.ofArray goals
+  let goalIndex : Std.HashMap MVarId Nat := goals.zipIdx.foldl (init := {}) fun m (g, i) => m.insert g i
   let (kids, tops) := nesting nodes
   let tags := firstTags nodes
   -- The nodes each goal is a goal before, in order.
@@ -264,10 +265,13 @@ def buildGoals (nodes : Array NodeFacts) (goals : Array MVarId) :
       let mut proof ← instantiateExceptGoals goalSet decl.lctx v
       -- Goals only seen inside the node that its proof does not mention.
       let mentioned := (proof.collectMVars {}).result
-      let candidates := Std.HashSet.ofList (inside.toList.flatMap (·.info.goalsBefore))
-      let nested := if candidates.isEmpty then #[] else goals.filter fun h =>
-        candidates.contains h && h != g &&
-        !mentioned.contains h && (holders[h]?.any fun hs => hs.all (n.contains ·))
+      -- In the order the goals came, without visiting every goal of the proof.
+      let candidates := inside.foldl (init := (#[], ({} : Std.HashSet MVarId))) fun acc m =>
+        m.info.goalsBefore.foldl (init := acc) fun (out, seen) h =>
+          if seen.contains h then (out, seen) else (out.push h, seen.insert h)
+      let nested := candidates.1.filter (fun h => goalSet.contains h && h != g && !mentioned.contains h &&
+          (holders[h]?.any fun hs => hs.all (n.contains ·)))
+        |>.qsort (fun a b => goalIndex.getD a 0 < goalIndex.getD b 0)
       if !nested.isEmpty then
         let terms := n.terms ++ inside.flatMap (·.terms)
         if let some p ← proofWithNestedGoals goalSet decl.lctx g terms nested then proof := p

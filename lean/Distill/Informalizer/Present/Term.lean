@@ -139,8 +139,8 @@ private partial def explainFun (n : Name) (b : Expr) (bi : BinderInfo) (goal : E
   unless goal.isForall do
     let (unfolded, defs) ← whnfWithDefinitions goal
     unless unfolded.isForall do throwError "a function proves {goal}"
+    pre := #[(← mkStep (.suffices (← newClaim unfolded)) (defs.map .definition) .inferred).about goal]
     goal := unfolded
-    pre := #[(← mkStep (.suffices (← newClaim goal)) (defs.map .definition) .inferred).about goal]
   let .forallE _ d body _ := goal | unreachable!
   openBinder n d b (bi := bi) fun x b => do
     let intro ← introduce x d
@@ -152,6 +152,15 @@ private partial def explainHave (n : Name) (t v b goal : Expr) : PresentM (Array
   let (steps, fact) ← premise v t
   openBinder n t b fun x b => do
     modify fun s => { s with facts := s.facts.insert x.fvarId! fact }
+    -- The claim that states the `have` is about its hypothesis, which `verify` checks it states.
+    let h := x.fvarId!
+    let steps := if (← read).ir.hyp? h |>.isNone then steps else steps.map fun s =>
+      let tag (c : Claim) := if c.id == fact.id && c.prop.expr == fact.prop && c.hyp?.isNone
+        then { c with hyp? := some h } else c
+      match s.kind with
+      | .derive cs => { s with kind := .derive (cs.map tag) }
+      | .claim c p => { s with kind := .claim (tag c) p }
+      | _ => s
     return steps ++ (← explain b goal)
 
 /-- The steps that make `prop`, which `v` proves, a fact: a claim with its proof if `v` is a proof
@@ -175,10 +184,13 @@ partial def establish (v prop : Expr) : PresentM (Array ProofStep × Fact) := do
     | some #[] => return (#[], f)
     | some defs =>
       -- Said once: the next use of `h` as `prop` cites this step.
+      let views := ((← get).views[h]?).getD #[]
+      if let some v := views.find? (·.prop == prop) then return (#[], v)
       let c ← newClaim prop
-      modify fun s => { s with facts := s.facts.insert h { f with id := c.id, prop } }
+      let view : Fact := { id := c.id, prop }
+      modify fun s => { s with views := s.views.insert h (views.push view) }
       let step ← mkStep (.derive #[c]) (#[.fact f.id] ++ defs.map .definition)
-      return (#[step], { id := c.id, prop })
+      return (#[step], view)
     | none => throwError "{v} does not prove {prop}"
   -- A part of a known structure is known with it: `h.left` for `h : P ∧ Q` cites `h`.
   if let .const c _ := v.getAppFn then
@@ -261,7 +273,8 @@ partial def justify (e goal : Expr) (conclude : Bool) : PresentM (Array ProofSte
         let step := (← mkStep (.suffices claim) rest).about goal premises
         return (#[{ step with
           evidence := evidence ++ step.evidence
-          origin := { step.origin with nodes := origin.nodes ++ step.origin.nodes } }] ++
+          origin := { step.origin with
+            nodes := origin.nodes ++ step.origin.nodes.filter (!origin.nodes.contains ·) } }] ++
           body.steps, fact)
     let kind := if conclude then StepKind.conclude c else .derive #[c]
     let step ← mkStep kind all

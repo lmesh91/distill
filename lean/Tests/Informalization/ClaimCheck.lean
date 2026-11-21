@@ -1,8 +1,9 @@
 import Distill.Informalizer.Frontend
 import Distill.Definitions.Sets
 
-/-! Verification checks what a step says a hypothesis or its goal is (PR #193 review): a pass
-that makes such a claim say something else is skipped, although the evidence still adds up. -/
+/-! Verification checks what a step says a hypothesis (introduced or from a `have`) or its goal
+is (PR #193 review): a pass that makes such a claim say something else is skipped, although the
+evidence still adds up. -/
 
 open Lean Meta
 open Distill
@@ -90,12 +91,12 @@ info: PresentedDecl leaves_check   role theorem
       x : α   with f6: x ∈ C   hyp hx
       proves ?g1: fun hx => ?g2 hx
     s9 derive   origin partOf [#7]
-      f8: x ∈ A
+      f8: x ∈ A   hyp ha
       by f0
       by f6
       by definition Distill.Set.Subset
       proves ?g2: have ha := hCA x hx; ?g3 ha
-    s15 suffices   origin partOf [#19 #19]
+    s15 suffices   origin partOf [#19]
       f10: x ∈ B
       by lemma And.intro x ∈ A x ∈ B
       by f8
@@ -121,3 +122,33 @@ theorem leaves_check {A B C : Set α} (hCA : C ⊆ A) (hCB : C ⊆ B) : C ⊆ A 
   intro x hx
   have ha : x ∈ A := hCA x hx
   exact ⟨ha, sorry⟩
+
+/-- `b` with every derived fact that is a Lean hypothesis (a `have`) stating `True` instead. -/
+partial def haveTrue (b : Block) : Block := { b with steps := b.steps.map fun s =>
+  let wrong (c : Claim) : Claim := if c.hyp?.isSome then { c with prop := { expr := mkConst ``True } } else c
+  match s.kind with
+  | .derive cs => { s with kind := .derive (cs.map wrong) }
+  | .claim c p => { s with kind := .claim (wrong c) (haveTrue p) }
+  | .split k bs => { s with kind := .split k (bs.map fun br => { br with body := haveTrue br.body }) }
+  | _ => s }
+
+section
+
+/-- Says that every `have` proves `True`. -/
+@[local distill_normalizer] def havesTrue : Pass where
+  name := `Tests.havesTrue
+  run d := return { d with proof := haveTrue d.proof }
+
+/--
+info: Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
+  statement: identical to the original statement
+  skipped Tests.havesTrue: a step states True for the hypothesis `h`, which is x ∈ A ∧ x ∈ B
+-/
+#guard_msgs in
+#informalize_statement
+theorem have_check (A B : Set α) : A ∩ B ⊆ A := by
+  intro x hx
+  have h : x ∈ A ∧ x ∈ B := hx
+  exact h.left
+
+end

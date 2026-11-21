@@ -47,6 +47,10 @@ structure Context where
 structure State where
   nextId : Nat
   facts : Std.HashMap FVarId Fact := {}
+  /-- Each fact as it was restated by definitions where it was used ("$x \in A$ and $x \in B$" for
+  `hx : x ∈ A ∩ B`), so that the restatement is said once. The fact itself keeps its own
+  statement. -/
+  views : Std.HashMap FVarId (Array Fact) := {}
   /-- `PresentedDecl.locals`. -/
   locals : Array LocalDecl := #[]
   /-- The Lean proofs of the goals read since the last step; the next step carries them. -/

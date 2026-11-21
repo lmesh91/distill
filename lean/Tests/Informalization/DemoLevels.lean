@@ -49,7 +49,7 @@ PresentedDecl Distill.Levels.Demo.inter_subset_left   role theorem
       x : α   with f4: x ∈ A ∩ B   hyp hx
       proves ?g1: fun hx => ?g2 hx
     s7 derive   origin partOf [#7]
-      f6: x ∈ A ∧ x ∈ B
+      f6: x ∈ A ∧ x ∈ B   hyp h
       by f4
       by definition Distill.Set.Intersection
       by definition Distill.Set.mem
@@ -120,13 +120,13 @@ PresentedDecl Distill.Levels.Demo.subset_inter   role theorem
       x : α   with f6: x ∈ C   hyp hx
       proves ?g1: fun hx => ?g2 hx
     s9 derive   origin partOf [#7]
-      f8: x ∈ A
+      f8: x ∈ A   hyp ha
       by f0
       by f6
       by definition Distill.Set.Subset
       proves ?g2: have ha := hCA x hx; ?g3 ha
     s11 derive   origin partOf [#19]
-      f10: x ∈ B
+      f10: x ∈ B   hyp hb
       by f1
       by f6
       by definition Distill.Set.Subset
@@ -158,11 +158,11 @@ PresentedDecl Distill.Levels.Demo.inter_subset_inter_comm   role theorem
     f0: A ∩ B ⊆ B ∩ A
   proof of ?g0
     s2 derive   origin partOf [#4]
-      f1: A ∩ B ⊆ A
+      f1: A ∩ B ⊆ A   hyp hA
       by lemma Distill.Levels.Demo.inter_subset_left α A B
       proves ?g0: have hA := inter_subset_left A B; ?g1 hA
     s4 derive   origin partOf [#16]
-      f3: A ∩ B ⊆ B
+      f3: A ∩ B ⊆ B   hyp hB
       by lemma Distill.Levels.Demo.inter_subset_right α A B
       proves ?g1: have hB := inter_subset_right A B; ?g2 hB
     s6 conclude   origin partOf [#28]

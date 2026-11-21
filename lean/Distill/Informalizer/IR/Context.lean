@@ -118,7 +118,9 @@ def withContext (ir : ProofIR) (x : MetaM α) (goalName : MVarId → Name := fun
             | some n => gi.context.extract 0 n
             | none => gi.context.filter (!new.contains ·)
         let type ← mkForallFVars (new.map .fvar) gi.target
-        let ginsts := if insts.isEmpty then #[] else insts.filter (outer.contains ·.fvar.fvarId!)
+        let ginsts := if insts.isEmpty then #[] else
+          let outerSet := Std.HashSet.ofArray outer
+          insts.filter (outerSet.contains ·.fvar.fvarId!)
         let outerLCtx := extend outer (gi.parent? >>= full.get?)
         modifyMCtx (·.addExprMVarDecl g (goalName g) outerLCtx ginsts type .syntheticOpaque 0)
         full := full.insert g (gi.context, extend gi.context (some (outer, outerLCtx)))
@@ -130,7 +132,9 @@ def withGoalContext (ir : ProofIR) (g : MVarId) (x : MetaM α) : MetaM α := do
   let some gi := ir.goal? g | x
   let insts ← do
     let all ← getLocalInstances
-    pure <| if all.isEmpty then all else all.filter (gi.context.contains ·.fvar.fvarId!)
+    if all.isEmpty then pure all else
+      let ctx := Std.HashSet.ofArray gi.context
+      pure <| all.filter (ctx.contains ·.fvar.fvarId!)
   -- The goal's metavariable is declared in its context without its new hypotheses, which come
   -- last.
   let lctx := match (← getMCtx).findDecl? g with

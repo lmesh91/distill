@@ -29,7 +29,7 @@ info: PresentedDecl nested   role theorem
       x : α   with f6: x ∈ C   hyp hx
       proves ?g1: fun hx => ?g2 hx
     s11 claim   origin partOf [#7]
-      f8: x ∈ A
+      f8: x ∈ A   hyp ha
       s10 conclude   origin partOf [#23 #7]
         f9: x ∈ A
         by f0
