@@ -50,8 +50,14 @@ hypotheses of each goal in `goalOrder`, then the references to the declaration b
 def hypOrder (ir : ProofIR) : Array FVarId := Id.run do
   let mut seen : Std.HashSet FVarId := {}
   let mut out := #[]
+  -- A goal's context is its parent's and its new hypotheses, and parents usually come first.
+  let mut done : Std.HashSet MVarId := {}
   for g in ir.goalOrder do
-    for h in ir.statement.binders ++ (ir.goal? g |>.map (·.context) |>.getD #[]) do
+    let parentDone := (ir.goal? g >>= (·.parent?)).any done.contains
+    done := done.insert g
+    let hs := if parentDone then ir.newHyps g
+      else ir.statement.binders ++ (ir.goal? g |>.map (·.context) |>.getD #[])
+    for h in hs do
       unless seen.contains h || !ir.hyps.contains h do
         seen := seen.insert h
         out := out.push h
@@ -63,11 +69,17 @@ private def addHyp (lctx : LocalContext) (h : HypInfo) : LocalContext :=
   | none =>
     lctx.mkLocalDecl h.fvarId h.userName h.type h.binderInfo (if h.isRecursive then .auxDecl else .default)
 
-private def goalLCtx (ir : ProofIR) (hs : Array FVarId) : LocalContext :=
-  (hs ++ ir.recursiveHyps).foldl (init := {}) fun lctx h =>
+/-- `lctx` with the hypotheses `hs` added. -/
+private def addHyps (ir : ProofIR) (lctx : LocalContext) (hs : Array FVarId) : LocalContext :=
+  hs.foldl (init := lctx) fun lctx h =>
     match ir.hyps[h]? with
     | some hi => addHyp lctx hi
     | none => lctx
+
+/-- The local context of the hypotheses `hs`, after the references to the declaration being
+defined. -/
+private def goalLCtx (ir : ProofIR) (hs : Array FVarId) : LocalContext :=
+  ir.addHyps (ir.addHyps {} ir.recursiveHyps) hs
 
 /--
 Runs `x` with every hypothesis of `ir` in the local context and every goal declared as a
@@ -76,6 +88,10 @@ declared the way it occurs in its parent's proof: in the parent's context, as a 
 new hypotheses (`?g1 : ∀ x, x ∈ A` for `fun x => ?g1 x`). `goalName` sets the user name of
 each goal's metavariable, which is what the pretty printer shows (`?name`); by default it is the
 goal's tag.
+
+A goal's context is usually its parent's with a few hypotheses more, so it is built from the
+parent's rather than from nothing: a proof of `n` steps has `n` goals with contexts of up to
+`n` hypotheses, and building each from nothing would take time quadratic in `n`.
 -/
 def withContext (ir : ProofIR) (x : MetaM α) (goalName : MVarId → Name := fun g =>
     (ir.goal? g).map (·.tag) |>.getD .anonymous) : MetaM α := do
@@ -85,21 +101,54 @@ def withContext (ir : ProofIR) (x : MetaM α) (goalName : MVarId → Name := fun
     let insts ← order.filterMapM fun h => do
       return (← isClass? ir.hyps[h]!.type).map ({ className := ·, fvar := .fvar h })
     withLCtx lctx insts do
+      let empty := ir.addHyps {} ir.recursiveHyps
+      -- The local context of each goal's whole context, for its subgoals to start from.
+      let mut full : Std.HashMap MVarId (Array FVarId × LocalContext) := {}
+      let extend (hs : Array FVarId) : Option (Array FVarId × LocalContext) → LocalContext
+        | some (pre, l) => match sharedPrefix? pre hs with
+          | some n => ir.addHyps l (hs.extract n hs.size)
+          | none => ir.addHyps empty hs
+        | none => ir.addHyps empty hs
       for g in ir.goalOrder do
         let gi := ir.goals[g]!
         let new := if g == ir.rootGoal then #[] else ir.newHyps g
-        let outer := gi.context.filter (!new.contains ·)
+        let parentCtx := (gi.parent? >>= ir.goal?).map (·.context) |>.getD #[]
+        let outer := if new.isEmpty then gi.context
+          else match sharedPrefix? parentCtx gi.context with
+            | some n => gi.context.extract 0 n
+            | none => gi.context.filter (!new.contains ·)
         let type ← mkForallFVars (new.map .fvar) gi.target
-        let ginsts := insts.filter (outer.contains ·.fvar.fvarId!)
-        modifyMCtx (·.addExprMVarDecl g (goalName g) (ir.goalLCtx outer) ginsts type .syntheticOpaque 0)
+        let ginsts := if insts.isEmpty then #[] else
+          let outerSet := Std.HashSet.ofArray outer
+          insts.filter (outerSet.contains ·.fvar.fvarId!)
+        let outerLCtx := extend outer (gi.parent? >>= full.get?)
+        modifyMCtx (·.addExprMVarDecl g (goalName g) outerLCtx ginsts type .syntheticOpaque 0)
+        full := full.insert g (gi.context, extend gi.context (some (outer, outerLCtx)))
       x
 
 /-- Runs `x` (inside `withContext`) in the local context of goal `g`, where its target and the
 expressions of its hypotheses make sense. -/
 def withGoalContext (ir : ProofIR) (g : MVarId) (x : MetaM α) : MetaM α := do
   let some gi := ir.goal? g | x
-  let insts := (← getLocalInstances).filter (gi.context.contains ·.fvar.fvarId!)
-  withLCtx (ir.goalLCtx gi.context) insts x
+  let insts ← do
+    let all ← getLocalInstances
+    if all.isEmpty then pure all else
+      let ctx := Std.HashSet.ofArray gi.context
+      pure <| all.filter (ctx.contains ·.fvar.fvarId!)
+  -- The goal's metavariable is declared in its context without its new hypotheses, which come
+  -- last.
+  let lctx := match (← getMCtx).findDecl? g with
+    | some decl => Id.run do
+      let mut extra := #[]
+      let mut i := gi.context.size
+      while i > 0 do
+        i := i - 1
+        let h := gi.context[i]!
+        if decl.lctx.contains h then break
+        extra := extra.push h
+      return ir.addHyps decl.lctx extra.reverse
+    | none => ir.goalLCtx gi.context
+  withLCtx lctx insts x
 
 /-- The hypotheses introduced on the way from the goal `ancestor` down to `g`, a goal in its
 proof: the `newHyps` of the goals after `ancestor` on that way, outermost first. For a goal that
@@ -115,45 +164,74 @@ def hypsSince (ir : ProofIR) (ancestor g : MVarId) : Array FVarId := Id.run do
     | none => break
   return ir.newHyps g
 
-mutual
-  /-- `fillGoal` for a goal `g` reached from `first?` (or asked for itself), where `seen` are
-  the goals on the way. -/
-  private partial def fillFrom (ir : ProofIR) (proof? : MVarId → Option Expr) (strict : Bool)
-      (first? : Option MVarId) (seen : Std.HashSet MVarId) (g : MVarId) : Option Expr := do
-    if seen.contains g then none
-    fillSubgoals ir proof? strict (first?.getD g) g (seen.insert g) (← proof? g)
+/-- What the hypotheses introduced since the first goal stand for: a term, and the number of
+binders it was written under. -/
+private abbrev FillSubst := Std.HashMap FVarId (Expr × Nat)
 
-  /-- `e`, a part of the proof of `g`, with the goals in it replaced by their proofs. -/
-  private partial def fillSubgoals (ir : ProofIR) (proof? : MVarId → Option Expr) (strict : Bool)
-      (first g : MVarId) (seen : Std.HashSet MVarId) (e : Expr) : Option Expr := do
-    let fillSubgoals := fillSubgoals ir proof? strict first g seen
-    if !e.hasExprMVar then return e
-    if let .mvar m := e.getAppFn then
-      if ir.goals.contains m then
-        let args ← e.getAppArgs.mapM fillSubgoals
-        let new := ir.hypsSince g m
-        if args.size < new.size then none
-        match fillFrom ir proof? strict first seen m with
-        | some sub =>
-          -- Most goals introduce nothing, and then their proof goes in as it is: substituting
-          -- would walk through all of it, once for every goal above.
-          if new.isEmpty then return sub.beta args
-          return ((sub.abstract (new.map .fvar)).instantiateRevRange 0 new.size args).beta
-            (args.extract new.size args.size)
-        | none =>
-          if strict then none
-          -- The hypotheses between the first goal and `g` are still variables here; they become
-          -- terms as this proof is put into the proofs of the goals above.
-          return mkAppN (.mvar m) ((ir.hypsSince first g).map .fvar ++ args)
-    match e with
-    | .app f x => return .app (← fillSubgoals f) (← fillSubgoals x)
-    | .lam n d b bi => return .lam n (← fillSubgoals d) (← fillSubgoals b) bi
-    | .forallE n d b bi => return .forallE n (← fillSubgoals d) (← fillSubgoals b) bi
-    | .letE n t v b nd => return .letE n (← fillSubgoals t) (← fillSubgoals v) (← fillSubgoals b) nd
-    | .mdata d b => return .mdata d (← fillSubgoals b)
-    | .proj s i b => return .proj s i (← fillSubgoals b)
-    | _ => return e
-end
+/-- `e` with the hypotheses of `subst` replaced by their terms, where `e` is under `depth`
+binders. -/
+private def substHyps (subst : FillSubst) (depth : Nat) (e : Expr) : Expr :=
+  if subst.isEmpty || !e.hasFVar then e
+  else (go 0 e).run' {}
+where
+  /-- `e` under `off` binders more than `depth`; cached, as terms share subterms. -/
+  go (off : Nat) (e : Expr) : StateM (Std.HashMap (Expr × Nat) Expr) Expr := do
+    if !e.hasFVar then return e
+    if let some r := (← get)[(e, off)]? then return r
+    let r ← match e with
+      | .fvar f => pure <| match subst[f]? with
+        | some (t, d) => t.liftLooseBVars 0 (depth + off - d)
+        | none => e
+      | .app f a => return e.updateApp! (← go off f) (← go off a)
+      | .lam _ d b _ => return e.updateLambdaE! (← go off d) (← go (off + 1) b)
+      | .forallE _ d b _ => return e.updateForallE! (← go off d) (← go (off + 1) b)
+      | .letE _ t v b _ => return e.updateLetE! (← go off t) (← go off v) (← go (off + 1) b)
+      | .mdata _ b => return e.updateMData! (← go off b)
+      | .proj _ _ b => return e.updateProj! (← go off b)
+      | _ => pure e
+    modify (·.insert (e, off) r)
+    return r
+
+/--
+`e`, a part of the proof of `g` that is under `depth` binders of the whole term, with the goals
+in it replaced by their proofs and the hypotheses of `subst` by their terms.
+
+It works from the top down: a goal's proof goes in with the hypotheses it introduces replaced by
+the terms its parent applies it to (`fun x => ?g1 x`: `x` by the variable of the `fun`), and
+each proof is walked once. Putting the subgoals' proofs in first and then replacing the
+hypotheses would walk through the whole proof below each goal again, which takes time quadratic
+in the length of the proof.
+-/
+private partial def fillTopDown (ir : ProofIR) (proof? : MVarId → Option Expr) (strict : Bool)
+    (first g : MVarId) (seen : Std.HashSet MVarId) (subst : FillSubst) (depth : Nat) (e : Expr) :
+    Option Expr := do
+  let fill := fillTopDown ir proof? strict first g seen subst
+  if !e.hasExprMVar then return substHyps subst depth e
+  if let .mvar m := e.getAppFn then
+    if ir.goals.contains m then
+      let args ← e.getAppArgs.mapM (fill depth)
+      let new := ir.hypsSince g m
+      if args.size < new.size then none
+      if seen.contains m then none
+      match proof? m with
+      | some p =>
+        let subst' := (new.zip args).foldl (init := subst) fun s (h, a) => s.insert h (a, depth)
+        let sub ← fillTopDown ir proof? strict first m (seen.insert m) subst' depth p
+        return sub.beta (args.extract new.size args.size)
+      | none =>
+        if strict then none
+        -- The hypotheses since the first goal are terms by now.
+        let since := (ir.hypsSince first g).map fun h => substHyps subst depth (.fvar h)
+        return mkAppN (.mvar m) (since ++ args)
+  match e with
+  | .app f x => return .app (← fill depth f) (← fill depth x)
+  | .lam n d b bi => return .lam n (← fill depth d) (← fill (depth + 1) b) bi
+  | .forallE n d b bi => return .forallE n (← fill depth d) (← fill (depth + 1) b) bi
+  | .letE n t v b nd =>
+    return .letE n (← fill depth t) (← fill depth v) (← fill (depth + 1) b) nd
+  | .mdata d b => return .mdata d (← fill depth b)
+  | .proj s i b => return .proj s i (← fill depth b)
+  | _ => return substHyps subst depth e
 
 /--
 The proof of `g` according to `proof?`, with the goals in it replaced by their proofs in turn.
@@ -166,8 +244,8 @@ substituted for the hypotheses. A goal that stays a metavariable is applied the 
 counting from `g`.
 -/
 def fillGoal (ir : ProofIR) (proof? : MVarId → Option Expr) (strict : Bool) (g : MVarId) :
-    Option Expr :=
-  fillFrom ir proof? strict none {} g
+    Option Expr := do
+  fillTopDown ir proof? strict g g {g} {} 0 (← proof? g)
 
 /-- The proof term that the assignments from `g` down add up to, or `none` if a goal on the way
 is unassigned (or, in a malformed IR, mentions itself). -/

@@ -125,7 +125,7 @@ successfully. Acceptance requires all of the following:
   JSON-like compiler output fails closed rather than silently hiding diagnostics.
 - The required name exists and is a theorem with exactly the challenge's type,
   including its binders and universe parameters.
-- Lean 4.35.0's `lake comparator` confirms that the definitions behind the target
+- Lean 4.36.0's `lake comparator` confirms that the definitions behind the target
   statement match the challenge, that the proof uses only `propext`, `Quot.sound`,
   and `Classical.choice`, and that independent kernel replay accepts the export.
 - No new axiom declarations appear relative to the challenge's trusted environment,
@@ -168,7 +168,7 @@ Use Node 24, Linux, [elan](https://github.com/leanprover/elan), and Bubblewrap 0
 (`bwrap` on PATH), with unprivileged user namespaces enabled. Install Bubblewrap
 with `sudo apt-get install bubblewrap` on Ubuntu/Debian. In `lean/`, run `lake build`
 to build the trusted imports and `distill-verifier` helper with the pinned Lean
-4.35.0 toolchain. Start the app from the repository root, or set `LEAN_PROJECT_DIR`
+4.36.0 toolchain. Start the app from the repository root, or set `LEAN_PROJECT_DIR`
 to the absolute project directory. On macOS/Windows, run the backend in a Linux VM
 or WSL2. The backend requires a Node host and cannot run on an edge runtime.
 

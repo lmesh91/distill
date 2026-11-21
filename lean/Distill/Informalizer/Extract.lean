@@ -204,8 +204,40 @@ def extractProof (raw : RawProof) : IO ProofIR := do
       statement := { binders := rootInfo.context, conclusion := rootInfo.target }
       rootGoal, nodes, goals, hyps }
 
+/-- The Proof IR of a declaration whose proof is missing: its statement, and the goal of proving
+it, which nothing proves. `none` unless the declaration states a proposition. -/
+def unprovedProof (decl : Name) : MetaM (Option ProofIR) := do
+  let some info := (← getEnv).find? decl | return none
+  -- Only a body that error recovery made up: other proofs are in the tree.
+  let .thmInfo thm := info | return none
+  let v := thm.value.consumeMData
+  unless v.isAppOf ``sorryAx && v.getAppNumArgs ≥ 2 && v.getArg! 1 == mkConst ``Bool.true do
+    return none
+  forallTelescope info.type fun xs body => do
+    unless ← isProp body do return none
+    let mut hyps : Std.HashMap FVarId HypInfo := {}
+    for x in xs do
+      let d ← x.fvarId!.getDecl
+      hyps := hyps.insert d.fvarId {
+        fvarId := d.fvarId, userName := d.userName, type := d.type, binderInfo := d.binderInfo }
+    let context := xs.map (·.fvarId!)
+    let goal : GoalInfo := { mvarId := termProofGoal, tag := .anonymous, target := body, context }
+    return some {
+      decl, isDeclBody := true, statement := { binders := context, conclusion := body }
+      rootGoal := termProofGoal, nodes := #[], goals := ({} : Std.HashMap _ _).insert termProofGoal goal
+      hyps }
+
 /-- The Proof IR of every proof in an InfoTree. -/
 def extractProofs (tree : InfoTree) : IO (Array ProofIR) := do
-  (← collectProofs tree).mapM extractProof
+  let (proofs, declared) ← collectProofs tree
+  let proofs ← proofs.mapM extractProof
+  let mut unproved := #[]
+  for (ctx, decl) in declared do
+    if proofs.any (·.decl == decl) || unproved.any (·.decl == decl) then continue
+    -- The declaration is in the environment after the command, not in the one it was named in.
+    let ctx := { ctx with env := ctx.cmdEnv?.getD ctx.env, mctx := {} }
+    if let some ir ← (try ctx.runMetaM {} (unprovedProof decl) catch _ => pure none) then
+      unproved := unproved.push ir
+  return proofs ++ unproved
 
 end Distill.Informalizer.Extract

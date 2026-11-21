@@ -34,8 +34,7 @@ def mainGoal? (r : RecognizerInput) : Option GoalInfo :=
 
 /-- Hypotheses in `after`'s context that `before`'s context does not have. -/
 def newHyps (before after : GoalInfo) : Array FVarId :=
-  let old := Std.HashSet.ofArray before.context
-  after.context.filter (!old.contains ·)
+  addedHyps before.context after.context
 
 /-- The tactic's main goal and its proof, if the tactic itself (or a node nested in it)
 assigned it. The goal table records the final assignment, which a later node may have made
@@ -52,23 +51,38 @@ def newGoals (r : RecognizerInput) : List GoalInfo :=
 
 end RecognizerInput
 
+/-- `obtain ⟨ha, hb⟩ := h`, `rcases`, `rintro` and `intro` with patterns, `cases`, `match`: one
+branch for every goal the tactic leaves, with what it adds to the context there. The term it
+destructures is not resolved (`source? := none`): it is in the goal's proof term, which is what
+presentation reads. -/
+def recognizeDestruct : Recognizer := fun r => do
+  let some (before, _) := r.ownAssignment? | return none
+  return some <| .destruct none <| r.newGoals.toArray.map fun g =>
+    { goal := g.mvarId, newHyps := RecognizerInput.newHyps before g }
+
 /-- `intro x y`, `intros`: the hypotheses added to the goal. Patterns (`intro ⟨ha, hb⟩`)
-destructure as well, which `.intro` does not describe, so they are left unrecognized. -/
+destructure as well, so they are a `.destruct`. -/
 def recognizeIntro : Recognizer := fun r => do
   let simple (arg : Syntax) := arg.isIdent || arg.isOfKind ``Lean.Parser.Term.hole
-  unless r.info.stx[1].getArgs.all simple do return none
+  unless r.info.stx[1].getArgs.all simple do return ← recognizeDestruct r
   let some before := r.mainGoal? | return none
   let [after] := r.newGoals | return none
   return some (.intro (RecognizerInput.newHyps before after))
 
 /--
-`have h : t := e` and `have h : t := by tac`. The proof term of the goal is `have h : t := v; ?body`;
-`v` is `e`, or the goal `tac` proves.
+`have h : t := e`, `have h : t := by tac` and `have h : t` (which leaves the goal `t` before the
+rest of the proof). The proof term of the goal is `have h : t := v; ?body`; `v` is `e`, or the
+goal of proving `t`.
 -/
 def recognizeHave : Recognizer := fun r => do
   let some (before, proof) := r.ownAssignment? | return none
-  let [body] := r.newGoals | return none
-  let #[hyp] := RecognizerInput.newHyps before body | return none
+  let body? := match r.newGoals with
+    | [body] => some body
+    | [claim, body] => if (RecognizerInput.newHyps before claim).isEmpty then some body else none
+    | _ => none
+  let some body := body? | return ← recognizeDestruct r
+  -- `have ⟨ha, hb⟩ := h` destructures.
+  let #[hyp] := RecognizerInput.newHyps before body | return ← recognizeDestruct r
   let value? := match proof.consumeMData with
     | .letE _ _ v _ _ => some v
     | .app (.app (.app (.app (.const ``letFun _) _) _) v) _ => some v
@@ -84,15 +98,28 @@ def recognizeTerm (mode : TermMode) : Recognizer := fun r => do
   return some (.term mode proof)
 
 /--
-`ext` without patterns: it applies the extensionality lemma for the goal's type and leaves
-the lemma's premises as goals, like `apply` would. With patterns it also introduces
-hypotheses, which this does not describe yet.
+`ext`: it applies the extensionality lemma for the goal's type and leaves the lemma's premises
+as goals, like `apply` would. With patterns (`ext x hx`) it also introduces hypotheses; they are
+binders in the term, like those of `refine fun x hx => ?_`.
 -/
 def recognizeExt : Recognizer := fun r => do
-  if r.info.stx[1].getNumArgs != 0 then return none
-  let some (before, proof) := r.ownAssignment? | return none
-  if r.newGoals.any fun g => (RecognizerInput.newHyps before g).size > 0 then return none
+  let some (_, proof) := r.ownAssignment? | return none
   return some (.term .apply proof)
+
+/-- `constructor`: the goals it leaves are the node's `goalsAfter`. -/
+def recognizeConstructor : Recognizer := fun r => do
+  let some _ := r.ownAssignment? | return none
+  return some .constructor
+
+/-- `show t`, `change t`: the goal restated, which is `refine (?_ : t)`. Not `change … at h`. -/
+def recognizeShow : Recognizer := fun r => do
+  -- `change … at h` changes a hypothesis, which this does not describe.
+  if (r.info.stx.find? (·.isOfKind ``Lean.Parser.Tactic.location)).isSome then return none
+  let some (before, proof) := r.ownAssignment? | return none
+  let [after] := r.newGoals | return none
+  unless (RecognizerInput.newHyps before after).isEmpty && after.context.size == before.context.size do
+    return none
+  return some (.term .refine proof)
 
 /-- The built-in recognizers, by syntax kind. -/
 def recognizers : Std.HashMap SyntaxNodeKind Recognizer := .ofList [
@@ -102,6 +129,17 @@ def recognizers : Std.HashMap SyntaxNodeKind Recognizer := .ofList [
   (``Lean.Parser.Tactic.exact, recognizeTerm .exact),
   (``Lean.Parser.Tactic.apply, recognizeTerm .apply),
   (``Lean.Parser.Tactic.refine, recognizeTerm .refine),
+  (``Lean.Parser.Tactic.refine', recognizeTerm .refine),
+  -- `assumption` is `exact h` for the hypothesis it finds.
+  (``Lean.Parser.Tactic.assumption, recognizeTerm .exact),
+  (``Lean.Parser.Tactic.obtain, recognizeDestruct),
+  (``Lean.Parser.Tactic.rcases, recognizeDestruct),
+  (``Lean.Parser.Tactic.rintro, recognizeDestruct),
+  (``Lean.Parser.Tactic.cases, recognizeDestruct),
+  (``Lean.Parser.Tactic.match, recognizeDestruct),
+  (``Lean.Parser.Tactic.constructor, recognizeConstructor),
+  (``Lean.Parser.Tactic.show, recognizeShow),
+  (``Lean.Parser.Tactic.change, recognizeShow),
   (``Lean.Elab.Tactic.Ext.ext, recognizeExt)
 ]
 

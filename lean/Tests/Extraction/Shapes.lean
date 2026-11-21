@@ -226,14 +226,14 @@ info: ProofIR intro_pattern
       #1 structural [by]  1:51–1:53  ?g0 ⟶ —
         #2 structural [Lean.Parser.Tactic.tacticSeq]  2:2–3:10  ?g0 ⟶ —
           #3 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:2–3:10  ?g0 ⟶ —
-            #4 surface `intro x ⟨ha, hb⟩`  2:2–2:18  ?g0 ⟶ ?g4   [unrecognized]
+            #4 surface `intro x ⟨ha, hb⟩`  2:2–2:18  ?g0 ⟶ ?g4   [destruct ⟶ ?g4 [[x, ha, hb]]]
               #5 inner `intro x`  2:2–2:9  ?g0 ⟶ ?g1
               #6 inner `⟨ha, hb⟩`  2:10–2:18  ?g1 ⟶ ?g4
                 #7 inner `intro  h  ;  match  @  h  with  | ⟨ha, …`  synthetic 2:10–2:18  ?g1 ⟶ ?g4
                   #8 inner `intro  h`  synthetic 2:10–2:18  ?g1 ⟶ ?g2   [intro [h✝]]
                     #9 inner `intro  h`  synthetic 2:10–2:18  ?g1 ⟶ ?g2
                   #10 inner `;`  synthetic 2:10–2:18  ?g2 ⟶ ?g2
-                  #11 inner `match  @  h  with  | ⟨ha, hb⟩`  synthetic 2:10–2:18  ?g2 ⟶ ?g3
+                  #11 inner `match  @  h  with  | ⟨ha, hb⟩`  synthetic 2:10–2:18  ?g2 ⟶ ?g3   [destruct ⟶ ?g3 [[ha, hb]]]
                     #12 inner `refine  no_implicit_lambda%  match  @  …`  synthetic 2:10–2:18  ?g2 ⟶ ?g3
                       #13 inner `refine  no_implicit_lambda%  match  @  …`  synthetic 2:10–2:18  ?g2 ⟶ ?g3   [refine match h✝ with | ⟨ha, hb⟩ => ?g3 ha hb]
                   #14 inner `;`  synthetic 2:10–2:18  ?g3 ⟶ ?g3
@@ -597,7 +597,7 @@ info: ProofIR cases_or
       #1 structural [by]  1:53–1:55  ?g0 ⟶ —
         #2 structural [Lean.Parser.Tactic.tacticSeq]  2:2–4:29  ?g0 ⟶ —
           #3 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:2–4:29  ?g0 ⟶ —
-            #4 surface `cases h with`  2:2–4:29  ?g0 ⟶ —   [unrecognized]
+            #4 surface `cases h with`  2:2–4:29  ?g0 ⟶ —   [destruct ⟶ ]
               #5 inner `cases h with`  2:2–2:14  ?g0 ⟶ —
                 #6 inner `| inl hp =>`  3:2–3:13  ?g1 ⟶ —
                   #7 structural [Lean.Parser.Tactic.tacticSeq]  3:14–3:29  ?g1 ⟶ —

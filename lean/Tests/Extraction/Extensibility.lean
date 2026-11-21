@@ -44,7 +44,7 @@ info: ProofIR library_tactics
       #1 structural [by]  1:66–1:68  ?g0 ⟶ —
         #2 structural [Lean.Parser.Tactic.tacticSeq]  2:2–5:20  ?g0 ⟶ —
           #3 structural [Lean.Parser.Tactic.tacticSeq1Indented]  2:2–5:20  ?g0 ⟶ —
-            #4 surface `constructor`  2:2–2:13  ?g0 ⟶ ?g1 ?g2   [unrecognized]
+            #4 surface `constructor`  2:2–2:13  ?g0 ⟶ ?g1 ?g2   [constructor]
             #5 structural [Lean.cdot]  3:2–4:33  ?g1 ?g2 ⟶ ?g2
               #6 structural [Lean.cdotTk]  3:2–3:3  ?g1 ?g2 ⟶ ?g1
               #7 structural [Lean.Parser.Tactic.tacticSeq]  3:4–4:33  ?g1 ⟶ —
@@ -67,7 +67,7 @@ info: ProofIR library_tactics
                             #24 inner `first  |  assumption  |  trivial`  synthetic 5:13–5:20  ?g2 ⟶ —
                               #25 inner `assumption`  synthetic 5:13–5:20  ?g2 ⟶ —
                                 #26 inner `assumption`  synthetic 5:13–5:20  ?g2 ⟶ —
-                                  #27 inner `assumption`  synthetic 5:13–5:20  ?g2 ⟶ —
+                                  #27 inner `assumption`  synthetic 5:13–5:20  ?g2 ⟶ —   [exact hq]
   goals
     ?g0 ⊢ p ∧ q   ctx [p, q, hp, hq]
         assigned by #4: ⟨?g1, ?g2⟩

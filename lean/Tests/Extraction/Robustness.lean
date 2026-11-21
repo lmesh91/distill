@@ -137,7 +137,7 @@ info: ProofIR with_constructor
             #4 surface `intro x hx`  2:2–2:12  ?g0 ⟶ ?g2   [intro [x, hx]]
               #5 inner `intro x`  2:2–2:9  ?g0 ⟶ ?g1
               #6 inner `hx`  2:10–2:12  ?g1 ⟶ ?g2
-            #7 surface `constructor`  3:2–3:13  ?g2 ⟶ ?g3 ?g4   [unrecognized]
+            #7 surface `constructor`  3:2–3:13  ?g2 ⟶ ?g3 ?g4   [constructor]
             #8 structural [Lean.cdot]  4:2–4:12  ?g3 ?g4 ⟶ ?g4
               #9 structural [Lean.cdotTk]  4:2–4:3  ?g3 ?g4 ⟶ ?g3
               #10 structural [Lean.Parser.Tactic.tacticSeq]  4:4–4:12  ?g3 ⟶ —

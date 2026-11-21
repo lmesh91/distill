@@ -21,26 +21,43 @@ info: PresentedDecl nested   role theorem
   conclusion
     f2: C ⊆ A ∩ B
   proof of ?g0
-    s3 fix   origin direct [#4]
-      x : α   with f4: x ∈ C   hyp hx
-      proves ?g0: fun x hx => @?g2 x hx
-    s5 claim   origin direct [#7]
-      f6: x ∈ A   hyp ha
-      proves ?g2: have ha := ?g3; ?g4 ha
-      s7 conclude   origin direct [#23]
-        f8: x ∈ A
-        by hCA x hx
+    s4 suffices   origin inferred [#4]
+      f3: ∀ (x : α), x ∈ C → x ∈ A ∩ B
+      by definition Distill.Set.Subset
+      proves ?g0: fun x => ?g1 x
+    s5 fix   origin partOf [#4]
+      x : α   with f6: x ∈ C   hyp hx
+      proves ?g1: fun hx => ?g2 hx
+    s11 claim   origin partOf [#7]
+      f8: x ∈ A   hyp ha
+      s10 conclude   origin partOf [#23 #7]
+        f9: x ∈ A
+        by f0
+        by f6
+        by definition Distill.Set.Subset
+        proves ?g2: have ha := ?g3; ?g4 ha
         proves ?g3: hCA x hx
-    s9 conclude   origin direct [#24]
-      f10: x ∈ A ∩ B
-      by ⟨ha, hCB x hx⟩
+    s13 derive   origin partOf [#24]
+      f12: x ∈ B
+      by f1
+      by f6
+      by definition Distill.Set.Subset
+    s15 conclude   origin partOf [#24]
+      f14: x ∈ A ∩ B
+      by lemma And.intro x ∈ A x ∈ B
+      by f8
+      by f12
+      by definition Distill.Set.Intersection
+      by definition Distill.Set.mem
       proves ?g4: ⟨ha, hCB x hx⟩
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in C$, $x \in A \cap B$.
   2: Let $x \in C$.
   3: We claim that $x \in A$.
-  4: Thus $x \in A$ by `hCA x hx`.
-  5: Thus $x \in A \cap B$ by `⟨ha, hCB x hx⟩`.
+  4: This follows from $C \subseteq A$ and $x \in C$ by the definition of subset.
+  5: Since $C \subseteq B$ and $x \in C$, we have $x \in B$ by the definition of subset.
+  5: Since $x \in A$ and $x \in B$, we conclude that $x \in A \cap B$ by the definition of intersection (the intersection of two sets consists of the elements that belong to both of them).
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -64,16 +81,19 @@ info: PresentedDecl _example   role example
   conclusion
     f2: p ∧ q
   proof of ?g0
-    s3 untranslated `⟨hp, by exact hq⟩`   origin direct [#0]
+    s5 suffices   origin partOf [#0]
+      f4: q
+      by lemma And.intro p q
+      by f0
       proves ?g0: ⟨hp, ?g1⟩
-    s4 conclude   origin direct [#5]
-      f5: q
-      by hq
+    s7 conclude   origin partOf [#5]
+      f6: q
+      by f1
       proves ?g1: hq
 English
   Example. Let $p$ and $q$ be propositions. If $p$ and $q$, then $p$ and $q$.
-  1: Apply `⟨hp, by exact hq⟩`.
-  1: Thus $q$ by `hq`.
+  1: Since $p$, it suffices to show that $q$.
+  1: We already know that $q$, which is what we needed to show.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -92,18 +112,19 @@ info: PresentedDecl no_binders   role theorem
   proof of ?g0
     s1 fix   origin partOf [#4]
       p : Prop
-      proves ?g0: fun p hp => @?g2 p hp
+      proves ?g0: fun p => ?g1 p
     s3 assume   origin partOf [#4]
       f2: p   hyp hp
-    s4 conclude   origin direct [#7]
-      f5: p
-      by hp
+      proves ?g1: fun hp => ?g2 hp
+    s5 conclude   origin partOf [#7]
+      f4: p
+      by f2
       proves ?g2: hp
 English
   Theorem. For every proposition $p$, if $p$, then $p$.
   2: Let $p$ be a proposition.
   2: Suppose that $p$.
-  3: Thus $p$ by `hp`.
+  3: We already know that $p$, which is what we needed to show.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -125,7 +146,7 @@ info: PresentedDecl positive   role theorem
     s1 untranslated `decide`   origin direct [#4]
       proves ?g0: of_decide_eq_true (id (Eq.refl true))
 English
-  1: Apply `decide`.
+  1: Lean proves `1 > 0` here with the step `decide`, which is not translated into English yet.
 Verification
   statement: identical to the original statement
   proof: the steps rebuild a proof of the presented statement
@@ -146,15 +167,21 @@ info: PresentedDecl unfinished   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 fix   origin direct [#4]
-      x : α   with f2: x ∈ A ∩ B   hyp hx
-      proves ?g0: fun x hx => @?g2 x hx
-    s3 untranslated `sorry`   origin direct [#7]
+    s2 suffices   origin inferred [#4]
+      f1: ∀ (x : α), x ∈ A ∩ B → x ∈ A
+      by definition Distill.Set.Subset
+      proves ?g0: fun x => ?g1 x
+    s3 fix   origin partOf [#4]
+      x : α   with f4: x ∈ A ∩ B   hyp hx
+      proves ?g1: fun hx => ?g2 hx
+    s7 gap sorry   origin partOf [#7]
+      f6: x ∈ A
       proves ?g2: sorry
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
-  3: Apply `sorry`.
+  3: It remains to show that $x \in A$: the Lean proof leaves this out with `sorry`.
 Verification
   statement: identical to the original statement
   proof: incomplete (the proof uses `sorry`)
@@ -181,12 +208,20 @@ info: PresentedDecl failing   role theorem
   conclusion
     f0: A ∩ B ⊆ A
   proof of ?g0
-    s1 fix   origin direct [#4]
-      x : α   with f2: x ∈ A ∩ B   hyp hx
-      proves ?g0: fun x hx => @?g2 x hx
+    s2 suffices   origin inferred [#4]
+      f1: ∀ (x : α), x ∈ A ∩ B → x ∈ A
+      by definition Distill.Set.Subset
+      proves ?g0: fun x => ?g1 x
+    s3 fix   origin partOf [#4]
+      x : α   with f4: x ∈ A ∩ B   hyp hx
+      proves ?g1: fun hx => ?g2 hx
+    s7 gap unfinished   origin partOf [#4]
+      f6: x ∈ A
 English
   Theorem. Let $A$ and $B$ be sets. Then $A \cap B \subseteq A$.
+  2: By the definition of subset (one set is a subset of another if every element of the first is an element of the second), we need to show that for every $x \in A \cap B$, $x \in A$.
   2: Let $x \in A \cap B$.
+  2: It remains to show that $x \in A$, which the Lean proof does not do yet.
 Verification
   statement: identical to the original statement
   proof: incomplete (no step proves ?g2)
@@ -245,13 +280,15 @@ info: PresentedDecl with_passes   role theorem
   conclusion
     f3: C ⊆ A ∩ B
   proof of ?g0
-    s4 conclude   origin direct [#4]
-      f5: C ⊆ A ∩ B
-      by subset_inter hCA hCB
+    s5 conclude   origin partOf [#4]
+      f4: C ⊆ A ∩ B
+      by lemma Distill.Levels.Demo.subset_inter α A B C
+      by f0
+      by f1
       proves ?g0: subset_inter hCA hCB
 English
   Theorem. Let $A$, $B$ and $C$ be sets. If $A \subseteq B$, $C \subseteq B$ and $C \subseteq A$, then $C \subseteq A \cap B$.
-  2: Thus $C \subseteq A \cap B$ by `subset_inter hCA hCB`.
+  2: Since $C \subseteq A$ and $C \subseteq B$, we conclude that $C \subseteq A \cap B$ by the previously proved theorem that for all sets $A$, $B$ and $C$, if $C \subseteq A$ and $C \subseteq B$, then $C \subseteq A \cap B$.
 Verification
   statement: equivalent to the original statement (proof checked)
   proof: the steps rebuild a proof of the presented statement
@@ -282,19 +319,26 @@ info: PresentedDecl failing_bullet   role theorem
   conclusion
     f2: p ∧ q
   proof of ?g0
-    s3 untranslated `constructor`   origin direct [#4]
-      proves ?g0: ⟨?g1, ?g2⟩
-    s4 conclude   origin direct [#14]
-      f5: q
-      by hq
-      proves ?g2: hq
+    s10 split   origin partOf [#4]
+      branch f4: p
+        s6 gap error   origin partOf [#4]
+          f5: p
+          proves ?g0: ⟨?g1, ?g2⟩
+          proves ?g1: sorry
+      branch f7: q
+        s9 conclude   origin partOf [#14]
+          f8: q
+          by f1
+          proves ?g2: hq
 English
   Theorem. Let $p$ and $q$ be propositions. If $q$ and $p$, then $p$ and $q$.
-  2: Apply `constructor`.
-  4: Thus $q$ by `hq`.
+  2: First, we show that $p$.
+  2: Lean reports an error here, so this is not proved yet.
+  4: Next, we show that $q$.
+  4: We already know this.
 Verification
   statement: equivalent to the original statement (proof checked)
-  proof: incomplete (no step proves ?g1)
+  proof: incomplete (the proof uses `sorry`)
   skipped Tests.failingPass: not applicable
   skipped Tests.dropLastHypothesis: hq is missing from the presented statement
 -/
@@ -326,17 +370,28 @@ info: PresentedDecl quoted   role theorem
   conclusion
     f0: True
   proof of ?g0
-    s1 fix   origin direct [#4]
-      x : α   with f2: x ∈ A ∩ B   hyp hx
-      proves ?g0: fun x hx => @?g2 x hx
-    s3 conclude   origin direct [#7]
-      f4: x ∈ A
-      by hx.left
+    s1 untranslated `intro x hx`   origin direct [#4]
+      proves ?g0: fun x => ?g1 x
+      proves ?g1: fun hx => ?g2 hx
+    s2 fix   origin partOf [#4]
+      x : α
+    s4 derive   origin partOf [#4]
+      f3: x ∈ A ∩ B   hyp hx
+      by automation #4
+    s6 derive   origin partOf [#7]
+      f5: x ∈ A ∧ x ∈ B
+      by f3
+      by definition Distill.Set.Intersection
+      by definition Distill.Set.mem
+    s8 conclude   origin partOf [#7]
+      f7: x ∈ A
+      by lemma And.left x ∈ A x ∈ B
+      by f5
       proves ?g2: hx.left
 English
   Theorem. `∀ {α : Type u_1} (A B : Set α), A ∩ B ⊆ A`.
-  2: Apply `intro x hx`.
-  3: Apply `exact hx.left`.
+  2: The Lean proof continues with `intro x hx`.
+  3: The Lean proof continues with `exact hx.left`.
 Verification
   statement: NOT VERIFIED: the Proof IR does not have the statement of the declaration
   proof: NOT VERIFIED: the steps prove a different statement

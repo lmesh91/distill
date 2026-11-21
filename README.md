@@ -68,5 +68,5 @@ Run `npm run test` to run all tests. This requires Node 24 and `lake` on your PA
 
 The Lean side has its own tests: run `lake test` in `lean/`.
 
-Submissions use Lean 4.35.0’s `lake comparator` to check the required theorem against a trusted level challenge. Level authors must configure the `verification` field described in the API documentation; existing levels without it return 503 when submitted. Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
+Submissions use Lean 4.36.0’s `lake comparator` to check the required theorem against a trusted level challenge. Level authors must configure the `verification` field described in the API documentation; existing levels without it return 503 when submitted. Code submissions use a separate HTTP API. See the [API documentation](docs/api/README.md)
 for setup, request and response formats, limits, and testing.

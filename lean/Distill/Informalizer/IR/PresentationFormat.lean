@@ -54,6 +54,9 @@ private def kindName : StepKind → String
   | .contradiction => "contradiction"
   | .conclude .. => "conclude"
   | .untranslated .. => "untranslated"
+  | .gap _ .unfinished => "gap unfinished"
+  | .gap _ .sorry => "gap sorry"
+  | .gap _ .error => "gap error"
 
 private def step (ir : ProofIR) (s : ProofStep) : String :=
   let detail := match s.kind with
@@ -100,14 +103,18 @@ private partial def block (ir : ProofIR) (b : Block) (indent := "    ") : MetaM 
     | .assume facts _ | .derive facts =>
       for c in facts do
         out := out ++ s!"{indent}  {← claim ir c}\n"
-    | .conclude c | .suffices c | .claim c _ =>
+    | .conclude c | .suffices c | .claim c _ | .gap c _ =>
       out := out ++ s!"{indent}  {← claim ir c}\n"
     | _ => pure ()
     for r in s.reasons do
       match r with
       | .term t => out := out ++ s!"{indent}  by {← mathExpr t}\n"
-      | .lemma n _ => out := out ++ s!"{indent}  by lemma {n}\n"
-      | _ => pure ()
+      | .lemma n args =>
+        let args ← args.toList.mapM (mathExpr ·)
+        out := out ++ s!"{indent}  by lemma {" ".intercalate (toString n :: args)}\n"
+      | .fact id _ => out := out ++ s!"{indent}  by f{id}\n"
+      | .definition n => out := out ++ s!"{indent}  by definition {n}\n"
+      | .automation n => out := out ++ s!"{indent}  by automation #{n}\n"
     for e in s.evidence do
       let proof ← ir.withGoalContext e.goal (pp e.proof)
       out := out ++ s!"{indent}  proves {← pp (.mvar e.goal)}: {proof}\n"
@@ -115,7 +122,13 @@ private partial def block (ir : ProofIR) (b : Block) (indent := "    ") : MetaM 
     | .claim _ proof => out := out ++ (← block ir proof (indent ++ "  "))
     | .split _ branches =>
       for branch in branches do
-        out := out ++ (← block ir branch.body (indent ++ "  "))
+        let goal ← match branch.body.goal? with
+          | some c => pure s!" {← claim ir c}"
+          | none => pure ""
+        out := out ++ s!"{indent}  branch{goal}\n"
+        for c in branch.assumptions do
+          out := out ++ s!"{indent}    assuming {← claim ir c}\n"
+        out := out ++ (← block ir branch.body (indent ++ "    "))
     | _ => pure ()
   return out
 
@@ -131,7 +144,7 @@ def format (d : PresentedDecl) (ir : ProofIR) : MetaM String := ir.withGoalConte
     out := out ++ s!"    {← claim ir h}\n"
   out := out ++ s!"  conclusion\n    {← claim ir d.conclusion}\n"
   out := out ++ s!"  proof of {← pp (.mvar d.rootGoal)}\n"
-  out := out ++ (← ir.withContext (block ir d.proof) (goalName := ir.goalNumbering))
+  out := out ++ (← ir.withContext (d.withLocals (block ir d.proof)) (goalName := ir.goalNumbering))
   return out
 
 end Distill.Informalizer.IR.PresentedDecl

@@ -63,7 +63,8 @@ def checkProofTerm (env : Environment) (ir : IR.ProofIR) : IO String := do
       | return "no declaration to compare with"
     let rebuilt ← mkLambdaFVars (ir.statement.binders.map .fvar) t
     -- Lean compiles recursive calls away, so there is nothing to compare them with.
-    if t.hasAnyFVar (ir.recursiveHyps.contains ·) then
+    let recursive := ir.recursiveHyps
+    if !recursive.isEmpty && t.hasAnyFVar (recursive.contains ·) then
       -- The recursive references come after the binders their types mention.
       try check (← mkLambdaFVars ((ir.statement.binders ++ ir.recursiveHyps).map .fvar) t) catch e => return s!"DIFFERS: ill-typed: {← e.toMessageData.toString}"
       return "type-checks (not compared: the proof is recursive)"
@@ -72,7 +73,7 @@ def checkProofTerm (env : Environment) (ir : IR.ProofIR) : IO String := do
       return "rebuilds the declaration's proof term up to β-reduction"
     -- Without proof irrelevance, any two proofs of a theorem's statement would be equal.
     try check rebuilt catch e => return s!"DIFFERS: ill-typed: {← e.toMessageData.toString}"
-    if ← withoutProofIrrelevance (isDefEq rebuilt value) then
+    if ← withoutProofIrrelevance (withNewMCtxDepth (isDefEq rebuilt value)) then
       return "definitionally equal to the declaration's proof term"
     return "DIFFERS from the declaration's proof term"
 

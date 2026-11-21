@@ -45,6 +45,14 @@ private def mathMem : MathTranslator := fun r e => do
   unless e.isAppOfArity ``Membership.mem 5 do return none
   infixMath r "\\in" 50 51 51 (e.getArg! 4) (e.getArg! 3)
 
+/-- `¬ P`: `x \notin A` for a membership, `\neg P` otherwise. -/
+private def mathNot : MathTranslator := fun r e => do
+  unless e.isAppOfArity ``Not 1 do return none
+  if let some (set, x) := membership? e.appArg! then
+    return ← infixMath r "\\notin" 50 51 51 x set
+  let some p ← r.math e.appArg! | return none
+  return some { tex := s!"\\neg {p.at 40}", prec := 40 }
+
 /-- `{x | p x}`. -/
 private def mathSetOf : MathTranslator := fun r e => do
   unless e.isAppOfArity ``Distill.Set.mk 2 do return none
@@ -85,6 +93,7 @@ private def connective (c : Name) (word : String) : Name × Translator :=
 /-- The built-in translators, by head constant. Precedences are those of Lean's notations. -/
 def translators : List (Name × Translator) := [
   (``Membership.mem, .math mathMem),
+  (``Not, .math mathNot),
   (``Distill.Set.mk, .math mathSetOf),
   binary ``HasSubset.Subset 4 "\\subseteq" 50 51 51,
   setOperator ``Inter.inter "\\cap" 70,
@@ -94,11 +103,45 @@ def translators : List (Name × Translator) := [
   binary ``Or 2 "\\lor" 30 31 30,
   (``Distill.Set, .noun nounSet),
   connective ``And "and",
-  connective ``Or "or"
+  connective ``Or "or",
+  (``Distill.Set, .concept {
+    name := "set"
+    definition := "a set is a collection of elements, given by the condition for an element to belong to it" }),
+  (``Distill.Set.mem, .concept {
+    name := "set membership", background := true
+    definition := "an element belongs to a set if it satisfies the condition that defines the set" }),
+  -- Definitions are worded without letters: they are given in the middle of a proof, whose own
+  -- sets may be called `A` and `B`.
+  (``Distill.Set.Subset, .concept {
+    name := "subset"
+    definition := "one set is a subset of another if every element of the first is an element of the second" }),
+  (``Distill.Set.Intersection, .concept {
+    name := "intersection"
+    definition := "the intersection of two sets consists of the elements that belong to both of them" }),
+  (``Distill.Set.Union, .concept {
+    name := "union"
+    definition := "the union of two sets consists of the elements that belong to at least one of them" }),
+  (``Distill.Set.ext, .citation
+    "extensionality for sets (two sets are equal if each is a subset of the other)"),
+  -- From `P` and `Q`, `P ∧ Q`, and back: said without naming a rule.
+  (``And.intro, .silent),
+  (``And.left, .silent),
+  (``And.right, .silent),
+  -- Rules of logic every reader knows by name.
+  (``rfl, .citation "reflexivity of equality"),
+  (``Eq.refl, .citation "reflexivity of equality"),
+  (``Eq.symm, .citation "symmetry of equality"),
+  (``Eq.trans, .citation "transitivity of equality"),
+  (``funext, .citation "function extensionality (two functions are equal if they agree at every argument)"),
+  (``True.intro, .citation ("the fact that " ++ Text.code "True" ++ " always holds"))
 ]
 
 private def translatorsFor : Std.HashMap Name (List Translator) :=
   translators.foldl (init := {}) fun m (c, t) => m.insert c (m.getD c [] ++ [t])
+
+/-- Whether some translator, built in or registered, writes the constant `c` in English. -/
+def hasTranslator (c : Name) : CoreM Bool := do
+  return !(translatorAttribute.getValues (← getEnv) c).isEmpty || translatorsFor.contains c
 
 /-- `p₁ → … → pₙ → q` as `(#[p₁, …, pₙ], q)`, for as long as the `pᵢ` are propositions. -/
 private partial def premises (e : Expr) (acc : Array Expr := #[]) : MetaM (Array Expr × Expr) := do
@@ -151,6 +194,9 @@ partial def math (e : Expr) : RenderM (Option Math) := do
 $t$", or "terms of type `t`" if `t` has no formula either. -/
 partial def noun (t : Expr) : RenderM Noun := do
   let t := t.consumeMData
+  -- The elements of a type the text does not introduce have no name to go by.
+  if let .fvar f := t then
+    if (← read).plainElements && (← read).omitted.contains f then return { article := "an", singular := "element", plural := "elements" }
   if let .sort u := t then
     if u.isZero then return { singular := "proposition", plural := "propositions" }
     if u.dec.isSome then return { singular := "type", plural := "types" }

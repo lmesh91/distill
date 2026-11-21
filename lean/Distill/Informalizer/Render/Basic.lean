@@ -131,6 +131,26 @@ structure Prose where
   disjunction : Bool := false
   deriving Inhabited, Repr, TypeName
 
+/-- A definition as a reader knows it, for the constant that is the definition: what "by the
+definition of …" names, and what the definition says. -/
+structure Concept where
+  /-- "subset", in "by the definition of subset". -/
+  name : String
+  /-- The definition as a sentence, without a final period. -/
+  definition : Text
+  /-- Whether the definition is only named when no other is: Lean unfolds set membership
+  whenever it unfolds `∩`, and "by the definition of intersection" says enough. -/
+  background : Bool := false
+  deriving Inhabited, Repr, TypeName
+
+/-- A theorem as a proof cites it, for the constant that is the theorem: "by *extensionality for
+sets*". A theorem without one is cited by its statement. -/
+structure Citation where
+  /-- What follows "by". Empty for a rule of logic that a written proof uses without naming it
+  (`And.intro`: from `P` and `Q`, `P ∧ Q`). -/
+  text : Text
+  deriving Inhabited, Repr, TypeName
+
 /-- Whether the clauses can be listed with "and": "P, Q and R". -/
 def Prose.joinable (ps : List Prose) : Bool :=
   ps.all (·.simple) && (ps.length ≤ 1 || ps.all (!·.disjunction))
@@ -142,6 +162,10 @@ structure RenderContext where
   anything optional that would mention one: a set is "a set", not "a set of elements of
   $\alpha$", when `α` is implicit. -/
   omitted : FVarIdSet := {}
+  /-- Whether an element of an omitted type is called just an "element" rather than making
+  the text introduce its type. In proofs, where the statement already said what the objects
+  are; a statement introduces the type instead. -/
+  plainElements : Bool := false
   /-- The object whose property is being written, when a property is. A translator for
   adjectives or accessories has to return `none` unless the proposition is about this object:
   `Injective f` makes `f` "injective", and nothing else. -/
@@ -150,6 +174,8 @@ structure RenderContext where
 structure RenderState where
   /-- The local variables the text written so far names. -/
   mentioned : FVarIdSet := {}
+  /-- The concepts (`Concept.name`) whose definition the text has already given. -/
+  defined : Std.HashSet String := {}
 
 abbrev RenderM := ReaderT RenderContext (StateRefT RenderState MetaM)
 
@@ -218,6 +244,15 @@ def adjective (f : Renderer → Expr → RenderM (Option Adjective)) : Translato
 
 /-- Writes a property of `RenderContext.subject?` as an accessory. -/
 def accessory (f : Renderer → Expr → RenderM (Option Accessory)) : Translator := .of f
+
+/-- Names the definition the translator is registered for. -/
+def concept (c : Concept) : Translator := .of fun _ _ => pure (some c)
+
+/-- Says how the theorem the translator is registered for is cited. -/
+def citation (text : Text) : Translator := .of fun _ _ => pure (some ({ text } : Citation))
+
+/-- For a rule of logic that is used without being named. -/
+def silent : Translator := citation .empty
 
 end Translator
 
