@@ -31,7 +31,7 @@
 		{:else if indicator.icon === 'saved'}
 			<path d="M3 8.5 6.5 12 13 4.5" />
 		{:else if indicator.icon === 'error'}
-			<circle class="badge" cx="8" cy="8" r="7" />
+			<circle class="disc" cx="8" cy="8" r="7" />
 			<path class="mark" d="M8 4v5" />
 			<circle class="dot" cx="8" cy="11.75" r="1" />
 		{:else}
@@ -53,10 +53,8 @@
 		align-items: center;
 		gap: 6px;
 		min-width: 0;
-		color: #767676;
-		font:
-			400 12px / 1.4 system-ui,
-			sans-serif;
+		color: var(--color-text-subtle);
+		font: var(--weight-regular) var(--text-xs) / 1.4 var(--font-body);
 		white-space: nowrap;
 	}
 
@@ -70,7 +68,7 @@
 	}
 
 	.saving .icon {
-		color: #555;
+		color: var(--color-text-muted);
 		animation: spin 0.8s linear infinite;
 	}
 
@@ -79,21 +77,21 @@
 	}
 
 	.saved .icon {
-		color: #1a7f37;
+		color: var(--color-success);
 	}
 
 	.error {
-		color: #b42318;
+		color: var(--color-error);
 	}
 
-	.error .badge,
+	.error .disc,
 	.error .dot {
 		fill: currentColor;
 		stroke: none;
 	}
 
 	.error .mark {
-		stroke: #fff;
+		stroke: var(--color-on-status);
 	}
 
 	.time {

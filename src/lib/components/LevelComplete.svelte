@@ -50,13 +50,13 @@
 	{@render details?.()}
 
 	{#if !nextLevelSlug}
-		<p class="end">That's the last level on this path. Pick another one from the map.</p>
+		<p class="end">That's the last level on this path. Pick another one from the level list.</p>
 	{/if}
 
 	<div class="actions">
 		<button type="button" class="button" onclick={retry}>Retry</button>
 		{#if nextLevelSlug}
-			<a class="button" href={resolve('/app')}>Back to map</a>
+			<a class="button" href={resolve('/app')}>All levels</a>
 			<a
 				class="button primary"
 				href={resolve('/app/levels/[slug]', { slug: nextLevelSlug })}
@@ -66,35 +66,41 @@
 				Next level <span aria-hidden="true">→</span>
 			</a>
 		{:else}
-			<a class="button primary" href={resolve('/app')} bind:this={primary}>Back to map</a>
+			<a class="button primary" href={resolve('/app')} bind:this={primary}>All levels</a>
 		{/if}
 	</div>
 </dialog>
 
 <style>
+	/* buttons use the design system's .button and .button.primary */
 	.level-complete {
 		box-sizing: border-box;
 		width: min(30rem, calc(100vw - 2rem));
-		padding: 1.75rem;
-		border: 2px solid #333;
-		border-radius: 10px;
-		color: #333;
+		padding: var(--space-6);
+		border: var(--border-width) solid var(--color-border);
+		border-radius: var(--radius-lg);
+		background: var(--color-surface);
+		box-shadow: var(--shadow-pixel);
+		color: var(--color-text);
 		text-align: center;
 	}
 
 	.level-complete::backdrop {
-		background: rgb(0 0 0 / 0.4);
+		background: rgb(0 0 0 / 0.5);
 	}
 
 	h2 {
-		margin: 0 0 0.5rem;
-		font-size: 1.75rem;
+		margin: 0 0 var(--space-2);
+		font-family: var(--font-display);
+		font-size: var(--text-3xl);
+		font-weight: 400;
+		line-height: 1;
 	}
 
 	.subtitle,
 	.end {
-		margin: 0 0 1.25rem;
-		color: #555;
+		margin: 0 0 var(--space-5);
+		color: var(--color-text-muted);
 		line-height: 1.5;
 	}
 
@@ -102,36 +108,6 @@
 		display: flex;
 		flex-wrap: wrap;
 		justify-content: center;
-		gap: 0.75rem;
-	}
-
-	.button {
-		padding: 0.625rem 1.125rem;
-		border: 2px solid #333;
-		border-radius: 6px;
-		background: #fff;
-		color: #333;
-		font: inherit;
-		font-weight: 600;
-		text-decoration: none;
-		cursor: pointer;
-	}
-
-	.button:hover {
-		background: #f3f3f3;
-	}
-
-	.button.primary {
-		background: #333;
-		color: #fff;
-	}
-
-	.button.primary:hover {
-		background: #4a4a4a;
-	}
-
-	.button:focus-visible {
-		outline: 2px solid #1f6feb;
-		outline-offset: 2px;
+		gap: var(--space-3);
 	}
 </style>
