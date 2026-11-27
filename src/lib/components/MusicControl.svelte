@@ -1,16 +1,34 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
-	import { getMusicPlayer } from '$lib/audio/player';
+	import { getMusicPlayer, getSoundEffects } from '$lib/audio/player';
+	import type { SoundEffects } from '$lib/audio/sfx';
 	import { defaultMusicSettings, type MusicPlayer, type MusicState } from '$lib/audio/music';
 
 	// null until mounted, since the server can't know the visitor's saved settings
 	let player = $state<MusicPlayer | null>(null);
 	let music = $state<MusicState | null>(null);
+	// interface sounds (#21) get their own switch here, so music and effects can be muted apart
+	let effects = $state<SoundEffects | null>(null);
+	let effectsOn = $state(true);
 
 	onMount(() => {
 		player = getMusicPlayer();
-		return player.subscribe((next) => (music = next));
+		effects = getSoundEffects();
+		effects.preload();
+		const stopMusic = player.subscribe((next) => (music = next));
+		const stopEffects = effects.subscribe((enabled) => (effectsOn = enabled));
+		return () => {
+			stopMusic();
+			stopEffects();
+		};
 	});
+
+	function toggleEffects() {
+		if (!effects) return;
+		effects.setEnabled(!effectsOn);
+		// a click when they come back on, so the user hears what they turned on
+		effects.play('click');
+	}
 
 	const silent = $derived(!music || music.muted || music.volume === 0);
 	const label = $derived(silent ? 'Turn music on' : 'Mute music');
@@ -23,7 +41,7 @@
 	}
 </script>
 
-<div class="music" role="group" aria-label="Background music">
+<div class="music" role="group" aria-label="Sound">
 	<button
 		class="button ghost small"
 		type="button"
@@ -58,6 +76,30 @@
 		aria-valuetext={silent ? 'muted' : `${percent}%`}
 		disabled={!player}
 	/>
+	<button
+		class="button ghost small"
+		class:off={!effectsOn}
+		type="button"
+		onclick={toggleEffects}
+		aria-label="Sound effects"
+		aria-pressed={effectsOn}
+		title={effectsOn ? 'Turn sound effects off' : 'Turn sound effects on'}
+		disabled={!effects}
+	>
+		<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
+			<!-- a pixel bell -->
+			<path
+				class="bell"
+				d="M7 2h2v1H7zM6 3h4v1H6zM5 4h6v6H5zM4 10h8v1H4zM3 11h10v1H3zM7 12h2v2H7z"
+			/>
+			{#if !effectsOn}
+				<!-- a slash for off -->
+				<path
+					d="M1 1h2v1H1zM2 2h2v1H2zM3 3h2v1H3zM4 4h2v1H4zM5 5h2v1H5zM6 6h2v1H6zM7 7h2v1H7zM8 8h2v1H8zM9 9h2v1H9zM10 10h2v1h-2zM11 11h2v1h-2zM12 12h2v1h-2zM13 13h2v1h-2z"
+				/>
+			{/if}
+		</svg>
+	</button>
 </div>
 
 <style>
@@ -74,6 +116,11 @@
 
 	svg {
 		fill: currentColor;
+	}
+
+	/* the bell fades behind the slash when effects are off */
+	.off .bell {
+		opacity: 0.4;
 	}
 
 	.volume {
