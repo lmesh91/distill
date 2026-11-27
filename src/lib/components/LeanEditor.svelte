@@ -5,6 +5,7 @@
 	import { defaultKeymap, history, historyKeymap, indentWithTab } from '@codemirror/commands';
 	import { indentUnit } from '@codemirror/language';
 	import { connectLean, type Diagnostic, type LineTranslation } from '$lib/lean/client';
+	import { lean } from '$lib/lean/language';
 	import { changeKeepsLines, nearestFreeLine } from '$lib/levels/lockedLines';
 
 	let {
@@ -109,6 +110,8 @@
 			selection: { anchor: start ? doc.line(start.line).from : 0 },
 			extensions: [
 				lineNumbers(),
+				// syntax colors (#69), from the --color-code-* tokens so they follow the theme
+				lean(),
 				locked,
 				keepLocked,
 				skipLocked,

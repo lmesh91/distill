@@ -24,6 +24,16 @@
 	--color-page: #faf8f3; /* page background, like notebook paper */
 	--color-surface: #ffffff; /* panels, cards, the editor */
 	--color-surface-sunken: #f1eee6; /* title bars, gutters, code blocks */
+
+	/* lean syntax colors for the code editor (#69); each passes 4.5:1 on surface and sunken */
+	--color-code-keyword: #7438c9;
+	--color-code-tactic: #165c9c;
+	--color-code-comment: #5f5f69;
+	--color-code-string: #116329;
+	--color-code-number: #9a4b00;
+	--color-code-operator: #a1350c;
+	--color-code-type: #0e6b6b;
+	--color-code-sorry: #7f5600;
 	--color-border: var(--color-ink);
 	--color-border-subtle: #d8d4c8; /* dividers inside panels */
 	--color-shadow: var(--color-ink); /* the solid pixel shadows */
@@ -130,6 +140,14 @@
 	--color-error-soft: #3a1714;
 	--color-neutral: #9a988f;
 	--shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+	--color-code-keyword: #c4a7ff;
+	--color-code-tactic: #6aaeea;
+	--color-code-comment: #94928b;
+	--color-code-string: #7ee2a8;
+	--color-code-number: #f0b072;
+	--color-code-operator: #ff9e7a;
+	--color-code-type: #5fd4cf;
+	--color-code-sorry: #e3b341;
 
 	color-scheme: dark;
 }
@@ -159,6 +177,14 @@
 		--color-error-soft: #3a1714;
 		--color-neutral: #9a988f;
 		--shadow-popover: 0 8px 24px rgb(0 0 0 / 0.5);
+		--color-code-keyword: #c4a7ff;
+		--color-code-tactic: #6aaeea;
+		--color-code-comment: #94928b;
+		--color-code-string: #7ee2a8;
+		--color-code-number: #f0b072;
+		--color-code-operator: #ff9e7a;
+		--color-code-type: #5fd4cf;
+		--color-code-sorry: #e3b341;
 
 		color-scheme: dark;
 	}
