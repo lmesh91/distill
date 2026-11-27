@@ -133,7 +133,14 @@ test('an accepted attempt completes the level once and clears the error', async 
 	assert.deepEqual(rest, {
 		upsert: true,
 		returnDocument: 'after',
-		projection: { _id: 0, status: 1, attemptCount: 1, completedAt: 1 }
+		projection: {
+			_id: 0,
+			status: 1,
+			attemptCount: 1,
+			completedAt: 1,
+			startedAt: 1,
+			solveAttemptCount: 1
+		}
 	});
 	const set = setOf(update) as Record<string, { $ifNull?: unknown[] }>;
 	assert.equal(set.status, 'completed');
@@ -142,6 +149,10 @@ test('an accepted attempt completes the level once and clears the error', async 
 	assert.deepEqual(set.attemptCount, { $add: [{ $ifNull: ['$attemptCount', 0] }, 1] });
 	assert.equal(set.lastAttemptedAt && '$literal' in set.lastAttemptedAt, true);
 	assert.deepEqual(set.currentCode, { $literal: '$status' });
+	// the score keeps the attempt count from the first solve
+	assert.deepEqual(set.solveAttemptCount, {
+		$ifNull: ['$solveAttemptCount', { $add: [{ $ifNull: ['$attemptCount', 0] }, 1] }]
+	});
 });
 
 test('a rejected attempt never completes or downgrades the level', async () => {
@@ -152,6 +163,7 @@ test('a rejected attempt never completes or downgrades the level', async () => {
 		$cond: [{ $eq: ['$status', 'completed'] }, 'completed', 'in_progress']
 	});
 	assert.equal('completedAt' in set, false);
+	assert.equal('solveAttemptCount' in set, false);
 	assert.deepEqual(set.currentError, { $literal: 'Type mismatch' });
 });
 

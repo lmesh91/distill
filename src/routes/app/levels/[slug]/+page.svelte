@@ -10,6 +10,7 @@
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import ProofCheckStatus from '$lib/components/ProofCheckStatus.svelte';
 	import { createProofChecker, type ProofCheckState } from '$lib/levels/proofCheck';
+	import { formatDuration, levelScore, type LevelScore } from '$lib/levels/score';
 	import type { Diagnostic, LineTranslation } from '$lib/lean/client';
 	import {
 		createAutosaver,
@@ -31,6 +32,8 @@
 	let showCompletion = $state(false);
 	// set once a check is accepted here, so the completed note shows without reloading the page
 	let solvedNow = $state(false);
+	// the score from the accepted check, shown in the completion dialog
+	let score = $state<LevelScore | null>(null);
 	const completed = $derived(data.completed || solvedNow);
 	let saveState = $state<SaveState>({ kind: 'idle' });
 	// true while SvelteKit loads another level and its saved code
@@ -40,6 +43,7 @@
 		onstate: (next) => {
 			check = next;
 			if (next.kind === 'accepted') {
+				score = levelScore(next.result.progress);
 				solvedNow = true;
 				showCompletion = true;
 			}
@@ -79,6 +83,7 @@
 		translationError = false;
 		showCompletion = false;
 		solvedNow = false;
+		score = null;
 	});
 
 	// starts the level over from its starter code
@@ -246,7 +251,26 @@
 	title={data.level.title}
 	nextLevelSlug={data.nextLevelSlug}
 	onretry={retry}
-/>
+>
+	{#snippet details()}
+		{#if score && (score.attempts !== null || score.seconds !== null)}
+			<dl class="score">
+				{#if score.attempts !== null}
+					<div>
+						<dt>Attempts</dt>
+						<dd>{score.attempts}</dd>
+					</div>
+				{/if}
+				{#if score.seconds !== null}
+					<div>
+						<dt>Time</dt>
+						<dd>{formatDuration(score.seconds)}</dd>
+					</div>
+				{/if}
+			</dl>
+		{/if}
+	{/snippet}
+</LevelComplete>
 
 <style>
 	.check-proof {
@@ -279,6 +303,37 @@
 		margin: 1em 0;
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
+	}
+
+	/* the score in the completion dialog: one tile per stat */
+	.score {
+		display: flex;
+		justify-content: center;
+		gap: var(--space-3);
+		margin: 0 0 var(--space-5);
+	}
+
+	.score div {
+		min-width: 6.5rem;
+		padding: var(--space-2) var(--space-3);
+		border: var(--border-width) solid var(--color-border);
+		border-radius: var(--radius);
+		background: var(--color-surface-sunken);
+	}
+
+	.score dt {
+		color: var(--color-text-muted);
+		font-size: var(--text-xs);
+		font-weight: var(--weight-bold);
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+	}
+
+	.score dd {
+		margin: 0;
+		font-family: var(--font-display);
+		font-size: var(--text-2xl);
+		line-height: 1.1;
 	}
 
 	.completed {

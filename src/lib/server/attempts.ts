@@ -16,7 +16,10 @@ export interface RecordAttemptInput {
 	result: VerificationResult;
 }
 
-export type AttemptProgress = Pick<UserLevelProgress, 'status' | 'attemptCount' | 'completedAt'>;
+export type AttemptProgress = Pick<
+	UserLevelProgress,
+	'status' | 'attemptCount' | 'completedAt' | 'startedAt' | 'solveAttemptCount'
+>;
 
 const duplicateKeyErrorCode = 11000;
 
@@ -42,16 +45,20 @@ export async function recordAttempt(
 	{ userId, levelId, source, result }: RecordAttemptInput
 ): Promise<AttemptProgress> {
 	const now = new Date();
+	// every field in a $set stage reads the document as it was before the stage
+	const newAttemptCount = { $add: [{ $ifNull: ['$attemptCount', 0] }, 1] };
 	const set: Record<string, unknown> = {
 		// $literal: user code may start with `$`, which a pipeline would read as a field path
 		currentCode: { $literal: source },
-		attemptCount: { $add: [{ $ifNull: ['$attemptCount', 0] }, 1] },
+		attemptCount: newAttemptCount,
 		lastAttemptedAt: { $literal: now },
 		startedAt: { $ifNull: ['$startedAt', { $literal: now }] }
 	};
 	if (result.accepted) {
 		set.status = 'completed';
 		set.completedAt = { $ifNull: ['$completedAt', { $literal: now }] };
+		// the score counts attempts up to the first solve, so later checks don't change it
+		set.solveAttemptCount = { $ifNull: ['$solveAttemptCount', newAttemptCount] };
 		set.currentError = '$$REMOVE';
 	} else {
 		set.status = { $cond: [{ $eq: ['$status', 'completed'] }, 'completed', 'in_progress'] };
@@ -75,7 +82,14 @@ export async function recordAttempt(
 		const updated = await progress.findOneAndUpdate({ userId, levelId }, [{ $set: set }], {
 			upsert: true,
 			returnDocument: 'after',
-			projection: { _id: 0, status: 1, attemptCount: 1, completedAt: 1 },
+			projection: {
+				_id: 0,
+				status: 1,
+				attemptCount: 1,
+				completedAt: 1,
+				startedAt: 1,
+				solveAttemptCount: 1
+			},
 			session
 		});
 		if (!updated) throw new Error('Progress update returned no document');

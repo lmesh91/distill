@@ -11,6 +11,8 @@ export interface UserLevelProgress {
     currentError?: string;
     numberShownHints?: number;
     attemptCount: number;
+    /** checks up to and including the first accepted one; fixed once set (#118) */
+    solveAttemptCount?: number;
     lastAttemptedAt?: Date;
     startedAt?: Date;
     completedAt?: Date;
