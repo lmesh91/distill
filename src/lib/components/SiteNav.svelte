@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
-	import { SignOutButton, useClerkContext } from 'svelte-clerk';
+	import { UserButton, useClerkContext } from 'svelte-clerk';
 	import { accountLinks, primaryLinks, visibleLinks, type NavLink } from '$lib/navigation/links';
 	import logo from '$lib/assets/distill-logo.png';
 	import ThemeToggle from './ThemeToggle.svelte';
@@ -23,6 +23,8 @@
 		'/sign-in': resolve('/(auth)/sign-in/[...sign_in]', { sign_in: '' }),
 		'/sign-up': resolve('/(auth)/sign-up/[...sign_up]', { sign_up: '' })
 	} satisfies Record<NavLink['href'], string>;
+	// Clerk's account page (#28), a catch-all route like sign-in
+	const accountHref = resolve('/app/account/[...rest]', { rest: '' });
 </script>
 
 <header class="site-header">
@@ -47,8 +49,11 @@
 		<div class="account">
 			<ThemeToggle />
 			{#if signedIn}
-				<!-- ends the Clerk session, then returns to the signed-out home page -->
-				<SignOutButton redirectUrl="/" class="button small sign-out" />
+				<!-- Clerk's account menu: manage account opens the settings page (#28), and sign out
+				returns to the home page. it appears once Clerk loads, so its space is reserved -->
+				<span class="user-button">
+					<UserButton userProfileMode="navigation" userProfileUrl={accountHref} />
+				</span>
 			{:else}
 				{#each authLinks as link (link.href)}
 					<a
@@ -132,6 +137,14 @@
 		background: var(--color-highlight);
 		color: var(--color-on-highlight);
 		font-weight: var(--weight-bold);
+	}
+
+	.user-button {
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		min-width: 2rem;
+		min-height: 2rem;
 	}
 
 	/* on the sign-in and sign-up pages, their button gets the same marker as a current link */

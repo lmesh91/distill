@@ -11,7 +11,8 @@
 	let { children }: { children: Snippet } = $props();
 </script>
 
-<ClerkProvider appearance={clerkAppearance}>
+<!-- signing out from the account menu returns to the signed-out home page -->
+<ClerkProvider appearance={clerkAppearance} afterSignOutUrl="/">
 	<div class="app">
 		<SiteNav />
 		<div class="page">
