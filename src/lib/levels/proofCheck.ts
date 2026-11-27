@@ -1,4 +1,8 @@
 import type { LeanDiagnostic, VerificationResult } from '$lib/types/submission';
+import type { ScoreProgress } from './score.ts';
+
+/** what POST /api/submissions returns: Lean's verdict and the user's updated progress */
+export type SubmissionResponse = VerificationResult & { progress?: ScoreProgress };
 
 /**
  * the state of a "Check proof" request (#57). the server has no queue: when every Lean worker is
@@ -9,8 +13,8 @@ export type ProofCheckState =
 	| { kind: 'idle' }
 	| { kind: 'waiting'; since: number }
 	| { kind: 'running'; since: number }
-	| { kind: 'accepted'; result: VerificationResult }
-	| { kind: 'rejected'; result: VerificationResult }
+	| { kind: 'accepted'; result: SubmissionResponse }
+	| { kind: 'rejected'; result: SubmissionResponse }
 	| { kind: 'error'; message: string };
 
 export class ProofCheckError extends Error {
@@ -36,7 +40,7 @@ export async function submitProof(
 	source: string,
 	{ signal }: { signal?: AbortSignal } = {},
 	fetchImpl: typeof fetch = fetch
-): Promise<VerificationResult> {
+): Promise<SubmissionResponse> {
 	let response: Response;
 	try {
 		response = await fetchImpl('/api/submissions', {
@@ -50,7 +54,7 @@ export async function submitProof(
 		throw new ProofCheckError('Could not reach the server. Check your connection and try again.');
 	}
 
-	if (response.ok) return (await response.json()) as VerificationResult;
+	if (response.ok) return (await response.json()) as SubmissionResponse;
 
 	if (response.status === 503 && response.headers.has('retry-after')) {
 		const seconds = Number(response.headers.get('retry-after'));
