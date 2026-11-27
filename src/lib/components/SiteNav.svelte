@@ -25,7 +25,15 @@
 	} satisfies Record<NavLink['href'], string>;
 	// Clerk's account page (#28), a catch-all route like sign-in
 	const accountHref = resolve('/app/account/[...rest]', { rest: '' });
+	const profileHref = resolve('/app/profile');
 </script>
+
+{#snippet personIcon()}
+	<!-- a pixel person, sized like Clerk's own menu icons -->
+	<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+		<path d="M6 2h4v1H6zM5 3h6v4H5zM6 7h4v1H6zM4 9h8v1H4zM3 10h10v4H3z" />
+	</svg>
+{/snippet}
 
 <header class="site-header">
 	<nav class="site-nav" aria-label="Primary">
@@ -52,7 +60,14 @@
 				<!-- Clerk's account menu: manage account opens the settings page (#28), and sign out
 				returns to the home page. it appears once Clerk loads, so its space is reserved -->
 				<span class="user-button">
-					<UserButton userProfileMode="navigation" userProfileUrl={accountHref} />
+					<UserButton userProfileMode="navigation" userProfileUrl={accountHref}>
+						<!-- the profile (#31) comes first, then Clerk's own items -->
+						<UserButton.MenuItems>
+							<UserButton.Link label="Profile" href={profileHref} labelIcon={personIcon} />
+							<UserButton.Action label="manageAccount" />
+							<UserButton.Action label="signOut" />
+						</UserButton.MenuItems>
+					</UserButton>
 				</span>
 			{:else}
 				{#each authLinks as link (link.href)}
