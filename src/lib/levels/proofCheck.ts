@@ -181,7 +181,8 @@ export type ProofCheckTone = 'busy' | 'success' | 'error';
 export interface ProofCheckView {
 	tone: ProofCheckTone;
 	title: string;
-	detail: string;
+	/** a second line under the title; left out when the title says it all */
+	detail?: string;
 	/** seconds since this step started, while waiting or running */
 	elapsed?: number;
 }
@@ -214,7 +215,7 @@ export function describeProofCheck(state: ProofCheckState, now: number): ProofCh
 				elapsed: Math.max(0, Math.floor((now - state.since) / 1000))
 			};
 		case 'accepted':
-			return { tone: 'success', title: 'Proof accepted!', detail: 'Lean checked every step.' };
+			return { tone: 'success', title: 'Proof accepted!' };
 		case 'error':
 			return { tone: 'error', title: 'Couldn’t check your proof', detail: state.message };
 		case 'rejected': {
@@ -276,6 +277,7 @@ export function describeProofCheck(state: ProofCheckState, now: number): ProofCh
  */
 export function announceProofCheck(view: ProofCheckView | null): string {
 	if (!view) return '';
+	if (!view.detail) return view.title;
 	// a period after a bare title so screen readers pause before the detail
 	const pause = /[.!?…]$/.test(view.title) ? '' : '.';
 	return `${view.title}${pause} ${view.detail}`;

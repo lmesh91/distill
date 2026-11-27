@@ -296,10 +296,7 @@ test('screen readers hear the title and detail once per stage, including error i
 		announce({ kind: 'error', message: 'Sign in again to check your proof.' }, 0),
 		'Couldn’t check your proof. Sign in again to check your proof.'
 	);
-	assert.equal(
-		announce({ kind: 'accepted', result: accepted }, 0),
-		'Proof accepted! Lean checked every step.'
-	);
+	assert.equal(announce({ kind: 'accepted', result: accepted }, 0), 'Proof accepted!');
 	// the elapsed seconds tick on screen but don't change what gets announced
 	assert.equal(
 		announce({ kind: 'running', since: 0 }, 1000),

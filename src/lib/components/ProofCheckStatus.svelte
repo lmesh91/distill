@@ -57,7 +57,9 @@ stage is read once instead of every tick -->
 					<span class="elapsed" aria-hidden="true">{view.elapsed}s</span>
 				{/if}
 			</p>
-			<p class="detail">{view.detail}</p>
+			{#if view.detail}
+				<p class="detail">{view.detail}</p>
+			{/if}
 		</div>
 	{/if}
 </div>

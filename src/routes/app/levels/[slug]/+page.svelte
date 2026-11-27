@@ -4,6 +4,8 @@
 	import LeanEditor from '$lib/components/LeanEditor.svelte';
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
 	import LeanResults from '$lib/components/LeanResults.svelte';
+	import LevelComplete from '$lib/components/LevelComplete.svelte';
+	import { resolve } from '$app/paths';
 	import RichText from '$lib/components/RichText.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import ProofCheckStatus from '$lib/components/ProofCheckStatus.svelte';
@@ -25,11 +27,24 @@
 	let translatedLines = $state<LineTranslation[]>([]);
 	let translationError = $state(false);
 	let leanEditor = $state<LeanEditor>();
+	// the post-completion dialog, opened when a proof check is accepted
+	let showCompletion = $state(false);
+	// set once a check is accepted here, so the completed note shows without reloading the page
+	let solvedNow = $state(false);
+	const completed = $derived(data.completed || solvedNow);
 	let saveState = $state<SaveState>({ kind: 'idle' });
 	// true while SvelteKit loads another level and its saved code
 	const loadingLevel = $derived(navigating.to?.route.id === '/app/levels/[slug]');
 	let check = $state<ProofCheckState>({ kind: 'idle' });
-	const checker = createProofChecker({ onstate: (next) => (check = next) });
+	const checker = createProofChecker({
+		onstate: (next) => {
+			check = next;
+			if (next.kind === 'accepted') {
+				solvedNow = true;
+				showCompletion = true;
+			}
+		}
+	});
 	const checking = $derived(check.kind === 'waiting' || check.kind === 'running');
 	const canCheck = $derived(!loadingLevel && !checking && code.trim().length > 0);
 
@@ -62,7 +77,15 @@
 		checker.cancel();
 		translatedLines = [];
 		translationError = false;
+		showCompletion = false;
+		solvedNow = false;
 	});
+
+	// starts the level over from its starter code
+	function retry() {
+		code = data.level.starterCode;
+		leanEditor?.goTo(0, 0);
+	}
 
 	// one autosaver per level. Its save function is bound to this level's id, so when the user
 	// switches levels, the old autosaver flushes any waiting edit to the level it came from
@@ -152,6 +175,17 @@
 	{/snippet}
 
 	{#snippet brief()}
+		{#if completed}
+			<div class="completed" role="note">
+				<p><span aria-hidden="true">✓</span> You've completed this level.</p>
+				{#if data.nextLevelSlug}
+					<a href={resolve('/app/levels/[slug]', { slug: data.nextLevelSlug })}>
+						Next level <span aria-hidden="true">→</span>
+					</a>
+				{/if}
+			</div>
+		{/if}
+
 		<h2>Description</h2>
 		<div class="description"><RichText text={data.level.description} /></div>
 	{/snippet}
@@ -207,6 +241,13 @@
 	{/snippet}
 </LevelLayout>
 
+<LevelComplete
+	bind:open={showCompletion}
+	title={data.level.title}
+	nextLevelSlug={data.nextLevelSlug}
+	onretry={retry}
+/>
+
 <style>
 	.check-proof {
 		padding: 0.5rem 1rem;
@@ -238,6 +279,31 @@
 		margin: 1em 0;
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
+	}
+
+	.completed {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: var(--space-2) var(--space-4);
+		margin: 0 0 var(--space-4);
+		padding: var(--space-2) var(--space-3);
+		border: var(--border-width) solid var(--color-success);
+		border-radius: var(--radius);
+		background: var(--color-success-soft);
+		color: var(--color-text);
+		font-size: var(--text-sm);
+	}
+
+	.completed p {
+		margin: 0;
+		font-weight: var(--weight-bold);
+	}
+
+	.completed a {
+		color: inherit;
+		font-weight: var(--weight-bold);
 	}
 
 	.target-proof {

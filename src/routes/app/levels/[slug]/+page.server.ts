@@ -1,7 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { ObjectId } from 'mongodb';
 import { getLevels, getUserLevelProgresses } from '$lib/server/collections';
-import { getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
+import { getNextLevelSlug, getPublishedLevelBySlug, type LevelPageData } from '$lib/server/levels';
 import { getLevelProgress, type LevelProgressSnapshot } from '$lib/server/progress';
 import { getInitialCode } from '$lib/levels/initialCode';
 import { findLockedLines } from '$lib/levels/lockedLines';
@@ -32,6 +32,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		error(503, 'Could not load your progress');
 	}
 
+	// where "Next level" goes after completing this one. Not worth failing the page over
+	let nextLevelSlug: string | null = null;
+	try {
+		nextLevelSlug = await getNextLevelSlug(getLevels(), level);
+	} catch (err) {
+		console.error('Finding the next level failed:', err);
+	}
+
 	const initialCode = getInitialCode(level, progress);
 	return {
 		level,
@@ -40,6 +48,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		// when the code was last saved, for the save indicator
 		lastSavedAt: progress?.clientSavedAt?.getTime() ?? null,
 		// the server's clock, so autosave timestamps match it even if the device clock is off
-		serverNow: Date.now()
+		serverNow: Date.now(),
+		completed: progress?.status === 'completed',
+		nextLevelSlug
 	};
 };
