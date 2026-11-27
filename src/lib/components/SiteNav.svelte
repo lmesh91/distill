@@ -14,9 +14,11 @@
 	const signedIn = $derived(Boolean(clerk.auth.userId));
 	const links = $derived(visibleLinks(primaryLinks, signedIn));
 	const authLinks = $derived(visibleLinks(accountLinks, signedIn));
-	// the music only plays on game pages, so its controls only show there
-	const onGamePage = $derived(
-		page.url.pathname === '/app' || page.url.pathname.startsWith('/app/')
+	// the music plays on the home page and the game pages, so its controls only show there
+	const hasMusic = $derived(
+		page.url.pathname === '/' ||
+			page.url.pathname === '/app' ||
+			page.url.pathname.startsWith('/app/')
 	);
 
 	// the sign-in and sign-up pages are catch-all routes for Clerk's sub-steps, so resolve
@@ -50,7 +52,7 @@
 		</ul>
 
 		<div class="account">
-			{#if onGamePage}
+			{#if hasMusic}
 				<MusicControl />
 			{/if}
 			<ThemeToggle />

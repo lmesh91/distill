@@ -47,6 +47,9 @@ class FakeWindow extends EventTarget {
 	click() {
 		this.dispatchEvent(new Event('pointerdown'));
 	}
+	tap() {
+		this.dispatchEvent(new Event('touchend'));
+	}
 }
 
 // lets pending play() promises settle
@@ -99,6 +102,36 @@ test('opening a game page plays the looping track at the saved volume', async ()
 	assert.equal(state().playing, true);
 });
 
+test('each page plays its own track, and going back resumes the old one', async () => {
+	const { player, audios } = setup();
+	player.enter('calm');
+	await settle();
+	assert.equal(audios[0].src, backgroundMusic.calm);
+
+	player.enter('concentration');
+	await settle();
+	assert.equal(audios[0].paused, true, 'the home track stops when a game page opens');
+	assert.equal(audios[1].src, backgroundMusic.concentration);
+	assert.equal(audios[1].paused, false);
+
+	player.enter('calm');
+	await settle();
+	assert.equal(audios.length, 2, 'the home track resumes instead of a new one starting');
+	assert.equal(audios[0].paused, false);
+	assert.equal(audios[1].paused, true);
+});
+
+test('when the next page enters before the old one leaves, the new track keeps playing', async () => {
+	const { player, audios, state } = setup();
+	player.enter('calm');
+	await settle();
+	player.enter('concentration');
+	player.leave('calm');
+	await settle();
+	assert.equal(audios[1].paused, false);
+	assert.equal(state().playing, true);
+});
+
 test('a saved mute is respected: the music never starts', async () => {
 	const { player, audios, state } = setup({ saved: '{"muted":true,"volume":0.5}' });
 	player.enter();
@@ -125,6 +158,16 @@ test('when autoplay is blocked, the music starts on the first click or key press
 	gestures.click();
 	await settle();
 	assert.equal(audios[0].playCalls, calls);
+});
+
+test('on touch screens the music starts when the first tap lifts', async () => {
+	const { player, audios, gestures, state } = setup({ allow: false });
+	player.enter();
+	await settle();
+	audios[0].allow = true;
+	gestures.tap();
+	await settle();
+	assert.equal(state().playing, true);
 });
 
 test('muting pauses the music and is remembered; unmuting resumes it', async () => {

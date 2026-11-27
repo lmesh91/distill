@@ -1,5 +1,14 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
+	import { getMusicPlayer } from '$lib/audio/player';
+
+	// the home page plays the calm loop, quieter than the game's music (#175)
+	onMount(() => {
+		const music = getMusicPlayer();
+		music.enter('calm');
+		return () => music.leave('calm');
+	});
 
 	// A short proof using only tactics Distill supports, with the English a learner would see.
 	const leanExample = [

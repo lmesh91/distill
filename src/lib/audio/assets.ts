@@ -16,7 +16,9 @@ export type SoundEffect = keyof typeof soundEffects;
 
 export const backgroundMusic = {
 	/** 8-bit loop for while the user works on a level */
-	concentration: '/audio/music/concentration-loop.mp3'
+	concentration: '/audio/music/concentration-loop.mp3',
+	/** slower, softer loop for the home page */
+	calm: '/audio/music/calm-loop.mp3'
 } as const;
 
 export type MusicTrack = keyof typeof backgroundMusic;

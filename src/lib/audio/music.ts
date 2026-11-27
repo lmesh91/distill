@@ -60,28 +60,31 @@ export interface MusicPlayerOptions {
 	createAudio: (src: string) => MusicAudio;
 	storage?: MusicStorage;
 	gestures?: GestureTarget;
-	track?: MusicTrack;
 }
 
-// the events browsers count as a user activation that allows audio to start
-const gestureEvents = ['pointerdown', 'keydown'] as const;
+// the events browsers count as a user activation that allows audio to start. touch only
+// activates the page when the finger lifts, so pointerdown alone misses the first tap on phones
+const gestureEvents = ['pointerdown', 'pointerup', 'touchend', 'keydown'] as const;
 
 /**
- * background music for the game (#175). it plays while a game page is open (`enter`/`leave`),
- * follows the user's mute and volume, and remembers both between visits
+ * background music (#175). a page picks its track with `enter` and stops it with `leave`: the
+ * calm loop on the home page, the concentration loop in the game. the music follows the user's
+ * mute and volume and remembers both between visits
  *
  * browsers block audio until the user interacts with the page, so if `play()` is refused the
  * player waits for the first click or key press and tries again
  */
 export class MusicPlayer {
 	#options: MusicPlayerOptions;
-	#audio: MusicAudio | null = null;
+	/** one element per track, so going back to a page resumes its track where it left off */
+	#audios = new Map<MusicTrack, MusicAudio>();
+	#track: MusicTrack = 'concentration';
 	#settings: MusicSettings;
 	#active = false;
 	#playing = false;
 	#waiting = false;
-	/** a play() call is in flight, so don't start another */
-	#starting = false;
+	/** the element whose play() call is in flight, so it isn't started twice */
+	#starting: MusicAudio | null = null;
 	#listeners = new Set<(state: MusicState) => void>();
 
 	constructor(options: MusicPlayerOptions) {
@@ -106,14 +109,24 @@ export class MusicPlayer {
 		return () => this.#listeners.delete(listener);
 	}
 
-	/** a game page opened: start the music unless the user muted it */
-	enter() {
+	/** a page with music opened: play its track unless the user muted the music */
+	enter(track: MusicTrack = 'concentration') {
+		if (track !== this.#track) {
+			// the old track keeps its place in case the user comes back
+			this.#audios.get(this.#track)?.pause();
+			this.#playing = false;
+			this.#track = track;
+		}
 		this.#active = true;
 		this.#sync();
 	}
 
-	/** the user left the game pages: stop the music but keep its place */
-	leave() {
+	/**
+	 * a page with music closed. when moving between pages the next page can enter before the old
+	 * one leaves, so leaving a track that is no longer playing does nothing
+	 */
+	leave(track: MusicTrack = 'concentration') {
+		if (track !== this.#track) return;
 		this.#active = false;
 		this.#sync();
 	}
@@ -150,9 +163,9 @@ export class MusicPlayer {
 		if (this.#shouldPlay) {
 			const audio = this.#ensureAudio();
 			audio.volume = this.#settings.volume;
-			if (audio.paused && !this.#starting) this.#tryPlay(audio);
+			if (audio.paused && this.#starting !== audio) this.#tryPlay(audio);
 		} else {
-			this.#audio?.pause();
+			this.#audios.get(this.#track)?.pause();
 			this.#playing = false;
 			this.#stopWaiting();
 		}
@@ -160,23 +173,23 @@ export class MusicPlayer {
 	}
 
 	#ensureAudio(): MusicAudio {
-		if (!this.#audio) {
+		let audio = this.#audios.get(this.#track);
+		if (!audio) {
 			// created on first use so pages where the music stays off never download it
-			this.#audio = this.#options.createAudio(
-				backgroundMusic[this.#options.track ?? 'concentration']
-			);
-			this.#audio.loop = true;
+			audio = this.#options.createAudio(backgroundMusic[this.#track]);
+			audio.loop = true;
+			this.#audios.set(this.#track, audio);
 		}
-		return this.#audio;
+		return audio;
 	}
 
 	#tryPlay(audio: MusicAudio) {
-		this.#starting = true;
+		this.#starting = audio;
 		audio.play().then(
 			() => {
-				this.#starting = false;
-				// the user may have muted or left while play() was pending
-				if (!this.#shouldPlay) {
+				if (this.#starting === audio) this.#starting = null;
+				// the user may have muted, left, or switched tracks while play() was pending
+				if (!this.#shouldPlay || this.#audios.get(this.#track) !== audio) {
 					audio.pause();
 					return;
 				}
@@ -185,7 +198,9 @@ export class MusicPlayer {
 				this.#emit();
 			},
 			() => {
-				this.#starting = false;
+				if (this.#starting === audio) this.#starting = null;
+				// a track switched away from while starting doesn't need another try
+				if (this.#audios.get(this.#track) !== audio) return;
 				// refused, almost always the autoplay policy: try again on the next interaction
 				this.#playing = false;
 				this.#waitForGesture();
