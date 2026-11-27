@@ -35,6 +35,16 @@ and redistribution inside the app.
   style fit focused proof-writing.
 - **Changes:** none.
 
+| File                  | Original file | Creator          | Source                      | License       |
+| --------------------- | ------------- | ---------------- | --------------------------- | ------------- |
+| `music/calm-loop.mp3` | (none)        | the Distill team | `scripts/make-calm-loop.py` | Distill's own |
+
+- **What it is:** a slow, soft 8-bit loop for the home page, so it isn't silent but stays calmer
+  than the game's music (#175). It's synthesized from code, with no samples or outside audio, so
+  Distill owns it outright.
+- **How to rebuild it:** `python3 scripts/make-calm-loop.py` from the repo root (needs numpy,
+  scipy and ffmpeg). The script always produces the same file.
+
 ## Checking a new sound's license
 
 1. Use the license on the creator's own page, not a re-upload's description.
