@@ -144,3 +144,18 @@
 	clip-path: inset(50%);
 	white-space: nowrap;
 }
+
+/* ---- Clerk (#192): colors come from src/lib/styles/clerk.ts ----
+ * the black brand logos in Clerk's social buttons would disappear on a dark card, so they're
+ * inverted in dark mode like in Clerk's own dark theme. the two blocks must stay identical */
+:root[data-theme='dark']
+	:is(.cl-providerIcon__github, .cl-providerIcon__apple, .cl-providerIcon__x) {
+	filter: invert(1);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root:not([data-theme='light'])
+		:is(.cl-providerIcon__github, .cl-providerIcon__apple, .cl-providerIcon__x) {
+		filter: invert(1);
+	}
+}

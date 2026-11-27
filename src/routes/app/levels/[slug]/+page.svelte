@@ -1,10 +1,13 @@
 <script lang="ts">
-	import { onMount, untrack } from 'svelte';
+	import { onDestroy, onMount, untrack } from 'svelte';
 	import { navigating } from '$app/state';
 	import LeanEditor from '$lib/components/LeanEditor.svelte';
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
 	import LeanResults from '$lib/components/LeanResults.svelte';
+	import RichText from '$lib/components/RichText.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
+	import ProofCheckStatus from '$lib/components/ProofCheckStatus.svelte';
+	import { createProofChecker, type ProofCheckState } from '$lib/levels/proofCheck';
 	import type { Diagnostic, LineTranslation } from '$lib/lean/client';
 	import {
 		createAutosaver,
@@ -25,6 +28,17 @@
 	let saveState = $state<SaveState>({ kind: 'idle' });
 	// true while SvelteKit loads another level and its saved code
 	const loadingLevel = $derived(navigating.to?.route.id === '/app/levels/[slug]');
+	let check = $state<ProofCheckState>({ kind: 'idle' });
+	const checker = createProofChecker({ onstate: (next) => (check = next) });
+	const checking = $derived(check.kind === 'waiting' || check.kind === 'running');
+	const canCheck = $derived(!loadingLevel && !checking && code.trim().length > 0);
+
+	function checkProof() {
+		if (!canCheck || checker.checking) return;
+		void checker.check(data.level.slug, code);
+	}
+
+	onDestroy(() => checker.cancel());
 
 	// the code the autosaver last saw, so loading a level's code isn't saved back as an edit
 	let lastSeenCode = untrack(() => data.initialCode);
@@ -45,6 +59,7 @@
 		saveState = loadedSaveState(data.lastSavedAt);
 		status = 'Connecting…';
 		diagnostics = [];
+		checker.cancel();
 		translatedLines = [];
 		translationError = false;
 	});
@@ -101,6 +116,8 @@
 		untrack(() => {
 			if (current === lastSeenCode) return;
 			lastSeenCode = current;
+			// A verdict applies only to the submitted text, including while waiting for Lean.
+			checker.cancel();
 			autosaver?.schedule(current);
 		});
 	});
@@ -115,6 +132,7 @@
 		<code>sorry</code> placeholders with your own proof steps. Lean checks your code as you type; use
 		the Lean output to work through errors and unfinished goals.
 	</p>
+	<p>When you’re ready, select Check proof to verify that your proof solves the level’s goal.</p>
 {/snippet}
 
 <LevelLayout title={data.level.title} help={proofHelp}>
@@ -127,15 +145,15 @@
 	{#snippet goal()}
 		{#if data.level.type === 'guided' && data.level.targetProof}
 			<p>Write Lean whose translation matches this proof:</p>
-			<blockquote class="target-proof">{data.level.targetProof}</blockquote>
+			<blockquote class="target-proof"><RichText text={data.level.targetProof} /></blockquote>
 		{:else}
-			<p class="statement">{data.level.statement}</p>
+			<div class="statement"><RichText text={data.level.statement} /></div>
 		{/if}
 	{/snippet}
 
 	{#snippet brief()}
 		<h2>Description</h2>
-		<p class="description">{data.level.description}</p>
+		<div class="description"><RichText text={data.level.description} /></div>
 	{/snippet}
 
 	{#snippet editor()}
@@ -158,6 +176,13 @@
 		{/key}
 	{/snippet}
 
+	{#snippet actions()}
+		<button class="check-proof" type="button" disabled={!canCheck} onclick={checkProof}>
+			Check proof
+		</button>
+		<ProofCheckStatus {check} />
+	{/snippet}
+
 	{#snippet output()}
 		<LeanResults
 			{status}
@@ -173,11 +198,9 @@
 		<ol class="translation">
 			{#each translatedLines as { line, english }, index (index)}
 				<li>
-					<span class="line-number">{line + 1}</span
-					>{#each english as part, partIndex (partIndex)}{#if part.kind === 'code'}<code
-								>{part.text}</code
-							>{:else if part.kind === 'math'}<span class="math">${part.text}$</span
-							>{:else}{part.text}{/if}{/each}
+					<span class="line-number">{line + 1}</span><span class="english"
+						><RichText parts={english} /></span
+					>
 				</li>
 			{/each}
 		</ol>
@@ -185,8 +208,34 @@
 </LevelLayout>
 
 <style>
+	.check-proof {
+		padding: 0.5rem 1rem;
+		border: 2px solid var(--color-border, #1b1b1f);
+		border-radius: var(--radius, 6px);
+		background: var(--color-brand, #1a6db8);
+		color: #fff;
+		font: inherit;
+		font-weight: var(--weight-bold, 650);
+		cursor: pointer;
+	}
+
+	.check-proof:not(:disabled):hover {
+		filter: brightness(0.9);
+	}
+
+	.check-proof:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	.check-proof:focus-visible {
+		outline: 2px solid var(--color-brand, #1a6db8);
+		outline-offset: 2px;
+	}
+
 	.statement,
 	.description {
+		margin: 1em 0;
 		white-space: pre-wrap;
 		overflow-wrap: anywhere;
 	}
@@ -217,5 +266,10 @@
 		font-family: var(--font-body);
 		font-variant-numeric: tabular-nums;
 		text-align: right;
+	}
+
+	.english {
+		min-width: 0;
+		overflow-wrap: anywhere;
 	}
 </style>

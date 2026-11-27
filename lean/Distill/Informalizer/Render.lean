@@ -187,11 +187,58 @@ def renderUntranslated (ir : ProofIR) (nodes : Array Nat) : Text :=
   if sources.isEmpty then "A step that Distill cannot describe yet."
   else "Apply " ++ Text.joinAnd sources ++ "."
 
+/-- Proof terms remain code until term translation supplies their mathematical reasoning. -/
+private def reasonText (r : Reason) : RenderM (Option Text) := do
+  match r with
+  | .term proof => return some (← exprCode proof.expr)
+  | .lemma decl _ =>
+    if decl == ``Distill.Set.ext then return some "set extensionality"
+    return some (.code decl.toString)
+  | .definition decl => return some ("the definition of " ++ Text.code decl.toString)
+  | _ => return none
+
+private def stepText (ir : ProofIR) (s : ProofStep) : RenderM Text := do
+  let prose (c : Claim) := (·.text) <$> Render.prose c.prop.expr
+  let reasons ← s.reasons.toList.filterMapM reasonText
+  let because := if reasons.isEmpty then Text.empty else " by " ++ Text.joinAnd reasons
+  match s.kind with
+  | .fix objects =>
+    let clauses ← objects.toList.filterMapM fun o => groupClause { objects := #[o] }
+    return (joinClauses clauses).capitalize ++ "."
+  | .assume facts .forImplication =>
+    let clauses ← facts.toList.mapM fun c => return "that " ++ (← prose c)
+    return "Suppose " ++ Text.joinAnd clauses ++ "."
+  | .derive facts =>
+    let clauses ← facts.toList.mapM fun c => return "that " ++ (← prose c)
+    return "We have " ++ Text.joinAnd clauses ++ because ++ "."
+  | .claim fact _ => return "We claim that " ++ (← prose fact) ++ "."
+  | .conclude goal => return "Thus " ++ (← prose goal) ++ because ++ "."
+  | .suffices goal =>
+    let lead := if reasons.isEmpty then Text.empty else "By " ++ Text.joinAnd reasons ++ ", "
+    return (lead ++ "it suffices to show that " ++ (← prose goal) ++ ".").capitalize
+  | .untranslated n => return renderUntranslated ir #[n]
+  | _ => return renderUntranslated ir s.origin.nodes
+
 def renderStep (ir : ProofIR) (s : ProofStep) : MetaM RenderedStep := do
-  let text ← match s.kind with
-    | .untranslated n => pure (renderUntranslated ir #[n])
-    | _ => pure (renderUntranslated ir s.origin.nodes)
+  let text ← (stepText ir s).run {} |>.run' {}
   return { step := s.id, nodes := s.origin.nodes, text }
+
+/-- Nested claim proofs keep their own steps and source locations. -/
+private partial def renderBlock (ir : ProofIR) (b : Block) (quoted := false) :
+    MetaM (Array RenderedStep) := do
+  let mut out := #[]
+  for s in b.steps do
+    let rendered ← if quoted then
+      pure { step := s.id, nodes := s.origin.nodes, text := renderUntranslated ir s.origin.nodes }
+      else renderStep ir s
+    out := out.push rendered
+    match s.kind with
+    | .claim _ proof => out := out ++ (← renderBlock ir proof quoted)
+    | .split _ branches =>
+      for branch in branches do
+        out := out ++ (← renderBlock ir branch.body quoted)
+    | _ => pure ()
+  return out
 
 /-- `ir` as the Lean it is, for a proof whose presentation `d` does not verify: the statement of
 the declaration as Lean code, and each step as its source. Nothing here was translated, so
@@ -203,8 +250,7 @@ def renderQuoted (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
     | none => pure none
   return {
     statement?
-    steps := d.proof.steps.map fun s =>
-      { step := s.id, nodes := s.origin.nodes, text := renderUntranslated ir s.origin.nodes } }
+    steps := ← renderBlock ir d.proof (quoted := true) }
 
 /-- The English of `d`, the presentation of `ir`, when only its statement verifies: the
 statement in English, and the steps as their source. Runs inside `ir.withContext`. -/
@@ -219,6 +265,6 @@ def render (ir : ProofIR) (d : PresentedDecl) : MetaM Rendered := do
   let statement? ← ir.withGoalContext ir.rootGoal do
     if ir.isDeclBody && (← isProp d.conclusion.prop.expr) then some <$> renderStatement d
     else pure none
-  return { statement?, steps := ← d.proof.steps.mapM (renderStep ir) }
+  return { statement?, steps := ← renderBlock ir d.proof }
 
 end Distill.Informalizer
