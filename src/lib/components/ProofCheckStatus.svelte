@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
+	import { playSound } from '$lib/audio/player';
 	import {
 		announceProofCheck,
 		describeProofCheck,
@@ -20,6 +22,16 @@
 
 	const view = $derived(describeProofCheck(check, Math.max(now, Date.now())));
 	const announcement = $derived(announceProofCheck(view));
+
+	// interface sounds (#21): success or error once when a verdict arrives, not on every update
+	let lastKind = untrack(() => check.kind);
+	$effect(() => {
+		const kind = check.kind;
+		if (kind === lastKind) return;
+		lastKind = kind;
+		if (kind === 'accepted') playSound('success');
+		else if (kind === 'rejected' || kind === 'error') playSound('error');
+	});
 </script>
 
 <!-- the live region stays mounted while idle, since screen readers can miss a message in a region

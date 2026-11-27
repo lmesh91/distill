@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import { navigating } from '$app/state';
+	import { playSound } from '$lib/audio/player';
 	import LeanEditor from '$lib/components/LeanEditor.svelte';
 	import LevelLayout from '$lib/components/LevelLayout.svelte';
 	import LeanResults from '$lib/components/LeanResults.svelte';
@@ -35,6 +36,7 @@
 
 	function checkProof() {
 		if (!canCheck || checker.checking) return;
+		playSound('click');
 		void checker.check(data.level.slug, code);
 	}
 
