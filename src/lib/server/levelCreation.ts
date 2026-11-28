@@ -18,6 +18,8 @@ export async function createLevel(
 ): Promise<CreateLevelResult> {
 	let parentId: ObjectId | undefined;
 	if (input.parentId) {
+		// parseLevelForm already checks this, but other callers (#42) might not
+		if (!ObjectId.isValid(input.parentId)) return { ok: false, reason: 'parent_missing' };
 		parentId = new ObjectId(input.parentId);
 		const parent = await levels.findOne({ _id: parentId }, { projection: { _id: 1 } });
 		if (!parent) return { ok: false, reason: 'parent_missing' };

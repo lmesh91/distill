@@ -72,3 +72,12 @@ test('a taken slug is reported instead of throwing', async () => {
 	const other = fakeLevels({ insertError: new Error('network') });
 	await assert.rejects(createLevel(other.levels as never, input), /network/);
 });
+
+test('a malformed parent id is reported as missing instead of throwing', async () => {
+	const { levels, inserted } = fakeLevels();
+	assert.deepEqual(await createLevel(levels as never, { ...input, parentId: 'not-an-id' }), {
+		ok: false,
+		reason: 'parent_missing'
+	});
+	assert.equal(inserted.length, 0);
+});
